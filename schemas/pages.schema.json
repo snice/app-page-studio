@@ -1,0 +1,200 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Pages Configuration",
+  "description": "App页面配置，用于AI工具识别和还原页面开发",
+  "type": "object",
+  "properties": {
+    "projectName": {
+      "type": "string",
+      "description": "项目名称"
+    },
+    "targetPlatform": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["flutter", "react-native", "swiftui", "jetpack-compose"]
+      },
+      "description": "目标开发平台"
+    },
+    "designSystem": {
+      "type": "object",
+      "description": "设计系统配置",
+      "properties": {
+        "colors": {
+          "type": "object",
+          "description": "颜色系统",
+          "additionalProperties": { "type": "string" }
+        },
+        "typography": {
+          "type": "object",
+          "description": "字体系统"
+        },
+        "spacing": {
+          "type": "object",
+          "description": "间距系统"
+        }
+      }
+    },
+    "pages": {
+      "type": "array",
+      "description": "页面列表",
+      "items": {
+        "$ref": "#/definitions/page"
+      }
+    },
+    "sharedComponents": {
+      "type": "array",
+      "description": "共享组件列表",
+      "items": {
+        "$ref": "#/definitions/component"
+      }
+    }
+  },
+  "required": ["projectName", "pages"],
+  "definitions": {
+    "page": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "页面唯一标识"
+        },
+        "name": {
+          "type": "string",
+          "description": "页面名称"
+        },
+        "description": {
+          "type": "string",
+          "description": "页面功能描述"
+        },
+        "route": {
+          "type": "string",
+          "description": "App中的路由路径"
+        },
+        "appSourcePath": {
+          "type": "string",
+          "description": "对应的App源代码路径（如 lib/pages/home_page.dart）"
+        },
+        "states": {
+          "type": "array",
+          "description": "页面的多种状态",
+          "items": {
+            "$ref": "#/definitions/pageState"
+          }
+        },
+        "interactions": {
+          "type": "array",
+          "description": "UI交互行为列表",
+          "items": {
+            "$ref": "#/definitions/interaction"
+          }
+        },
+        "dataBinding": {
+          "type": "object",
+          "description": "数据绑定说明",
+          "properties": {
+            "apiEndpoints": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "stateManagement": {
+              "type": "string",
+              "description": "状态管理方式"
+            }
+          }
+        },
+        "layoutNotes": {
+          "type": "string",
+          "description": "布局实现注意事项"
+        }
+      },
+      "required": ["id", "name", "states"]
+    },
+    "pageState": {
+      "type": "object",
+      "properties": {
+        "stateId": {
+          "type": "string",
+          "description": "状态标识"
+        },
+        "stateName": {
+          "type": "string",
+          "description": "状态名称（如：加载中、空数据、正常、错误）"
+        },
+        "htmlPath": {
+          "type": "string",
+          "description": "对应的HTML文件路径"
+        },
+        "description": {
+          "type": "string",
+          "description": "状态描述"
+        },
+        "triggers": {
+          "type": "array",
+          "description": "触发此状态的条件",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["stateId", "stateName", "htmlPath"]
+    },
+    "interaction": {
+      "type": "object",
+      "properties": {
+        "elementSelector": {
+          "type": "string",
+          "description": "触发元素的CSS选择器或描述"
+        },
+        "eventType": {
+          "type": "string",
+          "enum": ["tap", "long-press", "swipe", "scroll", "input", "focus", "blur"],
+          "description": "交互事件类型"
+        },
+        "action": {
+          "type": "string",
+          "description": "交互动作描述"
+        },
+        "targetState": {
+          "type": "string",
+          "description": "交互后跳转的状态或页面"
+        },
+        "animation": {
+          "type": "string",
+          "description": "动画效果描述"
+        }
+      },
+      "required": ["elementSelector", "eventType", "action"]
+    },
+    "component": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "htmlPath": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "props": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "usedInPages": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

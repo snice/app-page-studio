@@ -1,0 +1,293 @@
+{
+  "projectName": "My App",
+  "targetPlatform": [
+    "flutter"
+  ],
+  "designSystem": {
+    "colors": {
+      "primary": "#667eea",
+      "primaryDark": "#764ba2",
+      "background": "#f5f5f5",
+      "surface": "#ffffff",
+      "textPrimary": "#333333",
+      "textSecondary": "#999999",
+      "border": "#e0e0e0",
+      "success": "#22c55e",
+      "warning": "#f59e0b",
+      "error": "#ef4444"
+    },
+    "typography": {
+      "h1": {
+        "size": "28px",
+        "weight": "700"
+      },
+      "h2": {
+        "size": "24px",
+        "weight": "600"
+      },
+      "h3": {
+        "size": "18px",
+        "weight": "600"
+      },
+      "body": {
+        "size": "15px",
+        "weight": "400"
+      },
+      "caption": {
+        "size": "12px",
+        "weight": "400"
+      }
+    },
+    "spacing": {
+      "xs": "4px",
+      "sm": "8px",
+      "md": "16px",
+      "lg": "24px",
+      "xl": "32px"
+    },
+    "borderRadius": {
+      "sm": "4px",
+      "md": "12px",
+      "lg": "16px",
+      "xl": "24px",
+      "full": "9999px"
+    }
+  },
+  "sharedComponents": [],
+  "htmlFiles": [
+    {
+      "path": "lanhu_03shenfenzhengweipaizhao/index.html",
+      "name": "index.html",
+      "stateName": "默认",
+      "description": "默认页",
+      "groupId": "group_1767675377003",
+      "interactions": [
+        {
+          "selector": ".section_4.flex-col",
+          "eventType": "tap",
+          "action": "跳转到kyc/ps，拍摄正面id-card"
+        },
+        {
+          "selector": ".section_5.flex-col",
+          "eventType": "tap",
+          "action": "跳转到kyc/ps，拍摄背面id-card"
+        },
+        {
+          "selector": ".section_6.flex-col",
+          "eventType": "tap",
+          "action": "跳转到kyc/zp"
+        }
+      ]
+    },
+    {
+      "path": "lanhu_03shenfenzhengyipaizhao/index.html",
+      "name": "index.html",
+      "stateName": "拍摄结果",
+      "description": "1、拍摄图片结果回填\n2、自动识别身份信息\n3、个人信息表单",
+      "groupId": "group_1767675377003",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_guanyuwomen/index.html",
+      "name": "index.html",
+      "stateName": "默认",
+      "description": "",
+      "groupId": "group_1767676746638",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_renlianrenzheng/index.html",
+      "name": "index.html",
+      "stateName": "默认",
+      "description": "",
+      "groupId": "group_1767677216585",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_renlianrenzhengshibai/index.html",
+      "name": "index.html",
+      "stateName": "自拍失败",
+      "description": "",
+      "groupId": "group_1767677216585",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_shenfenzhengchushengriqidanchuang/index.html",
+      "name": "index.html",
+      "stateName": "生日选择弹框",
+      "description": "个人信息表单-生日选择弹框",
+      "groupId": "group_1767675377003",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_shenfenzhengfanmianpaizhaodanchuang/index.html",
+      "name": "index.html",
+      "stateName": "反面拍摄提示",
+      "description": "【跳转到kyc/ps，拍摄反面id-card】 跳转之前，通过bottom sheet提现，确认后跳转",
+      "groupId": "group_1767675377003",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_shenfenzhengpaizhaofanmian/index.html",
+      "name": "index.html",
+      "stateName": "身份证背面",
+      "description": "",
+      "groupId": "group_1767677145594",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_shenfenzhengpaizhaozhengmian/index.html",
+      "name": "index.html",
+      "stateName": "身份证正面",
+      "description": "",
+      "groupId": "group_1767677145594",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_shenfenzhengpaizhaozhengmianwancheng/index.html",
+      "name": "index.html",
+      "stateName": "拍摄完成",
+      "description": "",
+      "groupId": "group_1767677145594",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_shenfenzhengzhengmianpaizhaodanchuang/index.html",
+      "name": "index.html",
+      "stateName": "正面拍摄提示",
+      "description": "【跳转到kyc/ps，拍摄正面id-card】 跳转之前，通过bottom sheet提现，确认后跳转",
+      "groupId": "group_1767675377003",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_shezhi/index.html",
+      "name": "index.html",
+      "stateName": "默认",
+      "description": "",
+      "groupId": "group_1767676642558",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_shezhituichudengludanchuang/index.html",
+      "name": "index.html",
+      "stateName": "",
+      "description": "",
+      "groupId": "group_1767676642558",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_shezhizhuxiaozhanghaodanchuang/index.html",
+      "name": "index.html",
+      "stateName": "",
+      "description": "",
+      "groupId": "group_1767676642558",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_wodejiekuan/index.html",
+      "name": "index.html",
+      "stateName": "默认",
+      "description": "有贷款数据，显示列表",
+      "groupId": "group_1767676371216",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_wodejiekuankongzhuangtai/index.html",
+      "name": "index.html",
+      "stateName": "空状态",
+      "description": "没有贷款数据显示",
+      "groupId": "group_1767676371216",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_wodeziliao/index.html",
+      "name": "index.html",
+      "stateName": "",
+      "description": "",
+      "groupId": "group_1767676808680",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_yijianfankui/index.html",
+      "name": "index.html",
+      "stateName": "",
+      "description": "",
+      "groupId": "group_1767676928255",
+      "interactions": []
+    },
+    {
+      "path": "lanhu_zipaidanchuang/index.html",
+      "name": "index.html",
+      "stateName": "自拍弹框提现",
+      "description": "【跳转到kyc/zp】之前使用bottom sheet弹框提现，点击确认跳转",
+      "groupId": "group_1767675377003",
+      "interactions": []
+    }
+  ],
+  "pageGroups": [
+    {
+      "id": "group_1767675377003",
+      "name": "kyc提交",
+      "description": "kyc提交",
+      "route": "kyc/submit",
+      "appSourcePath": "app/kyc/submit.tsx",
+      "color": "#6366f1"
+    },
+    {
+      "id": "group_1767676371216",
+      "name": "我的贷款",
+      "description": "我的贷款",
+      "route": "user/my-loan",
+      "appSourcePath": "app/user/my-loan.tsx",
+      "color": "#8b5cf6"
+    },
+    {
+      "id": "group_1767676642558",
+      "name": "设置",
+      "description": "app设置",
+      "route": "/user/settings",
+      "appSourcePath": "app/user/settings.tsx",
+      "color": "#6366f1"
+    },
+    {
+      "id": "group_1767676746638",
+      "name": "关于",
+      "description": "关于",
+      "route": "/user/about",
+      "appSourcePath": "app/user/about.tsx",
+      "color": "#ec4899"
+    },
+    {
+      "id": "group_1767676808680",
+      "name": "我的信息",
+      "description": "我的信息",
+      "route": "/user/my-info",
+      "appSourcePath": "app/user/my-info.tsx",
+      "color": "#6366f1"
+    },
+    {
+      "id": "group_1767676928255",
+      "name": "意见反馈",
+      "description": "意见反馈",
+      "route": "/user/feedback",
+      "appSourcePath": "app/user/feedback.tsx",
+      "color": "#22c55e"
+    },
+    {
+      "id": "group_1767677145594",
+      "name": "拍摄",
+      "description": "拍摄证件照",
+      "route": "/kyc/ps",
+      "appSourcePath": "app/kyc/ps.tsx",
+      "color": "#3b82f6"
+    },
+    {
+      "id": "group_1767677216585",
+      "name": "自拍",
+      "description": "自拍",
+      "route": "kyc/zp",
+      "appSourcePath": "app/kyc/zp.tsx",
+      "color": "#6366f1"
+    }
+  ]
+}

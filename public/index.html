@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App Page Studio</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --bg: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-tertiary: #334155;
+      --text: #f8fafc;
+      --text-secondary: #94a3b8;
+      --border: #475569;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --error: #ef4444;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 320px 1fr 380px;
+      grid-template-rows: 56px 1fr;
+      height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      grid-column: 1 / -1;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 16px;
+    }
+    .logo {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .path-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--bg);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .path-display:hover { background: var(--bg-tertiary); }
+    .path-label { color: var(--text-secondary); }
+    .path-value { color: var(--text); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .header-actions { margin-left: auto; display: flex; gap: 10px; }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary { background: var(--bg-tertiary); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--border); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-icon { padding: 6px 8px; }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sidebar-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    /* HTML文件列表 - 分组样式 */
+    .file-group {
+      margin-bottom: 12px;
+      background: var(--bg);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .file-group-header {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      cursor: pointer;
+      gap: 8px;
+      border-left: 3px solid var(--primary);
+    }
+    .file-group-header:hover { background: var(--bg-tertiary); }
+    .group-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    .group-name {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .group-count {
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .group-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .file-group-header:hover .group-actions { opacity: 1; }
+    .group-files {
+      border-top: 1px solid var(--border);
+    }
+
+    /* 单个文件项 */
+    .file-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      cursor: pointer;
+      gap: 10px;
+      transition: all 0.2s;
+      border-left: 3px solid transparent;
+    }
+    .file-item:hover { background: var(--bg-tertiary); }
+    .file-item.active { background: var(--primary); border-left-color: white; }
+    .file-item.selected { border-left-color: var(--warning); background: rgba(245, 158, 11, 0.1); }
+    .file-icon { font-size: 16px; }
+    .file-info { flex: 1; min-width: 0; }
+    .file-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-path { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-item.active .file-path { color: rgba(255,255,255,0.7); }
+    .file-state-tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+    }
+    .file-item.active .file-state-tag { background: rgba(255,255,255,0.2); color: white; }
+
+    /* 未分组文件 */
+    .ungrouped-section {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border);
+    }
+    .ungrouped-title {
+      font-size: 11px;
+      color: var(--text-secondary);
+      padding: 4px 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Preview */
+    .preview-container {
+      display: flex;
+      flex-direction: column;
+      background: #000;
+      position: relative;
+    }
+    .preview-toolbar {
+      background: var(--bg-secondary);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .device-selector { display: flex; gap: 6px; }
+    .device-btn {
+      padding: 5px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-secondary);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .device-btn.active { border-color: var(--primary); color: var(--primary); }
+    .preview-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .picker-btn {
+      padding: 6px 12px;
+      background: var(--warning);
+      color: #000;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .picker-btn.active { background: var(--error); color: white; }
+    .preview-info { font-size: 11px; color: var(--text-secondary); }
+
+    .preview-frame-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: auto;
+    }
+    .phone-frame {
+      background: #1a1a1a;
+      border-radius: 40px;
+      padding: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .phone-screen {
+      width: 375px;
+      height: 812px;
+      border-radius: 30px;
+      overflow: hidden;
+      background: white;
+      position: relative;
+    }
+    .phone-screen iframe { width: 100%; height: 100%; border: none; }
+    .empty-preview {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+    .empty-preview-icon { font-size: 48px; margin-bottom: 16px; }
+
+    /* Element picker overlay */
+    .picker-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .picker-overlay.active { pointer-events: auto; cursor: crosshair; }
+    .element-highlight {
+      position: absolute;
+      border: 2px solid var(--primary);
+      background: rgba(99, 102, 241, 0.1);
+      pointer-events: none;
+      transition: all 0.1s;
+    }
+    .element-tooltip {
+      position: absolute;
+      background: var(--bg-secondary);
+      color: var(--text);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      white-space: nowrap;
+      z-index: 101;
+    }
+
+    /* Panel */
+    .panel {
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .panel-tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .panel-tab:hover { color: var(--text); }
+    .panel-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+    .panel-section {
+      margin-bottom: 20px;
+    }
+    .panel-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    /* Form */
+    .form-group { margin-bottom: 14px; }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+    .form-input, .form-textarea, .form-select {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+    }
+    .form-input:focus, .form-textarea:focus, .form-select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .form-textarea { resize: vertical; min-height: 60px; }
+
+    /* Interactions list */
+    .interaction-item {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .interaction-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .interaction-selector {
+      font-size: 12px;
+      font-family: monospace;
+      color: var(--primary);
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .interaction-type {
+      font-size: 10px;
+      padding: 2px 8px;
+      background: var(--warning);
+      color: #000;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .delete-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 4px;
+    }
+    .delete-btn:hover { color: var(--error); }
+
+    /* Colors */
+    .color-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .color-chip {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      position: relative;
+    }
+    .color-chip:hover::after {
+      content: attr(data-color);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      white-space: nowrap;
+      margin-bottom: 4px;
+    }
+
+    /* Tags */
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag {
+      padding: 4px 10px;
+      background: var(--bg);
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .tag.active { background: var(--primary); }
+    .tag.clickable:hover { background: var(--bg-tertiary); }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal.wide { max-width: 800px; }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-title { font-size: 15px; font-weight: 600; }
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 24px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* File browser */
+    .browser-path {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      background: var(--bg);
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+    .browser-path-input {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 13px;
+      font-family: monospace;
+    }
+    .browser-path-input:focus { outline: none; }
+    .browser-list {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .browser-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      gap: 10px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+    }
+    .browser-item:last-child { border-bottom: none; }
+    .browser-item:hover { background: var(--bg-tertiary); }
+    .browser-item.selected { background: var(--primary); }
+    .browser-icon { font-size: 18px; }
+    .browser-name { font-size: 13px; }
+
+    /* Group creation */
+    .color-picker-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .color-option {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .color-option:hover { transform: scale(1.1); }
+    .color-option.selected { border-color: white; }
+
+    /* Prompt preview */
+    .prompt-preview {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--success);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 1001;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    /* Selection mode */
+    .selection-toolbar {
+      background: var(--warning);
+      color: #000;
+      padding: 8px 16px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .selection-toolbar.active { display: flex; }
+    .selection-count { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">📱 App Page Studio</div>
+
+      <div class="path-display" onclick="showPathBrowser('project')">
+        <span class="path-label">项目:</span>
+        <span class="path-value" id="projectPathDisplay">未设置</span>
+      </div>
+
+      <div class="path-display" onclick="showPathBrowser('html')">
+        <span class="path-label">HTML:</span>
+        <span class="path-value" id="htmlPathDisplay">./html</span>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn btn-secondary" onclick="scanHtmlFiles()">🔄 刷新</button>
+        <button class="btn btn-secondary" onclick="saveConfig()">💾 保存</button>
+        <button class="btn btn-primary" onclick="showPromptModal()">✨ 生成提示词</button>
+      </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">HTML文件</span>
+        <button class="btn btn-sm btn-secondary" onclick="createGroup()">+ 新建分组</button>
+      </div>
+
+      <!-- Selection toolbar -->
+      <div class="selection-toolbar" id="selectionToolbar">
+        <span>已选择 <span class="selection-count" id="selectionCount">0</span> 个文件</span>
+        <button class="btn btn-sm" style="background:#000;color:#fff" onclick="groupSelected()">创建分组</button>
+        <button class="btn btn-sm" onclick="cancelSelection()">取消</button>
+      </div>
+
+      <div class="sidebar-content" id="fileList">
+        <!-- 动态生成 -->
+      </div>
+    </aside>
+
+    <!-- Preview -->
+    <main class="preview-container">
+      <div class="preview-toolbar">
+        <div class="device-selector">
+          <button class="device-btn active" data-width="375" data-height="812">iPhone 14</button>
+          <button class="device-btn" data-width="390" data-height="844">iPhone 14 Pro</button>
+          <button class="device-btn" data-width="360" data-height="780">Android</button>
+        </div>
+        <div class="preview-actions">
+          <button class="picker-btn" id="pickerBtn" onclick="togglePicker()">
+            🎯 选择元素
+          </button>
+          <span class="preview-info" id="previewInfo">未选择文件</span>
+        </div>
+      </div>
+      <div class="preview-frame-wrapper">
+        <div class="phone-frame">
+          <div class="phone-screen" id="phoneScreen">
+            <div class="empty-preview">
+              <div class="empty-preview-icon">📄</div>
+              <p>选择HTML文件预览</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Panel -->
+    <aside class="panel">
+      <div class="panel-tabs">
+        <div class="panel-tab active" data-panel="file">文件配置</div>
+        <div class="panel-tab" data-panel="analysis">智能分析</div>
+      </div>
+
+      <!-- 文件配置面板 -->
+      <div class="panel-content" id="filePanel">
+        <div class="panel-section">
+          <div class="panel-section-title">基本信息</div>
+          <div class="form-group">
+            <label class="form-label">状态名称</label>
+            <input type="text" class="form-input" id="fileStateName" placeholder="如：默认状态、加载中、空数据">
+          </div>
+          <div class="form-group">
+            <label class="form-label">状态描述</label>
+            <textarea class="form-textarea" id="fileDescription" placeholder="描述此状态的显示场景"></textarea>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <div class="panel-section-title">所属分组</div>
+          <select class="form-select" id="fileGroup">
+            <option value="">未分组</option>
+          </select>
+        </div>
+
+        <div class="panel-section">
+          <div class="panel-section-title">交互行为</div>
+          <div id="interactionList"></div>
+          <button class="btn btn-secondary btn-sm" style="width:100%" onclick="addInteraction()">+ 添加交互</button>
+        </div>
+      </div>
+
+      <!-- 分析面板 -->
+      <div class="panel-content" id="analysisPanel" style="display:none;">
+        <div class="panel-section">
+          <div class="panel-section-title">页面结构</div>
+          <div class="tag-list" id="structureTags"></div>
+        </div>
+
+        <div class="panel-section">
+          <div class="panel-section-title">提取的颜色</div>
+          <div class="color-grid" id="colorGrid"></div>
+        </div>
+
+        <div class="panel-section">
+          <div class="panel-section-title">可交互元素</div>
+          <div id="interactiveElements"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 路径选择器弹窗 -->
+  <div class="modal-overlay" id="pathModal">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title" id="pathModalTitle">选择路径</span>
+        <button class="modal-close" onclick="closePathModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="browser-path">
+          <span>📁</span>
+          <input type="text" class="browser-path-input" id="browserPathInput" onkeypress="if(event.key==='Enter')browsePath(this.value)">
+          <button class="btn btn-sm btn-secondary" onclick="browsePath(document.getElementById('browserPathInput').value)">前往</button>
+        </div>
+        <div class="browser-list" id="browserList"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closePathModal()">取消</button>
+        <button class="btn btn-primary" onclick="confirmPath()">确认选择</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 创建分组弹窗 -->
+  <div class="modal-overlay" id="groupModal">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">创建页面分组</span>
+        <button class="modal-close" onclick="closeGroupModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">分组名称</label>
+          <input type="text" class="form-input" id="groupName" placeholder="如：首页、登录页">
+        </div>
+        <div class="form-group">
+          <label class="form-label">页面描述</label>
+          <textarea class="form-textarea" id="groupDescription" placeholder="描述此页面的功能"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">App路由</label>
+          <input type="text" class="form-input" id="groupRoute" placeholder="如：/home">
+        </div>
+        <div class="form-group">
+          <label class="form-label">源码路径</label>
+          <input type="text" class="form-input" id="groupSourcePath" placeholder="如：lib/pages/home_page.dart">
+        </div>
+        <div class="form-group">
+          <label class="form-label">标记颜色</label>
+          <div class="color-picker-row" id="groupColorPicker"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeGroupModal()">取消</button>
+        <button class="btn btn-primary" onclick="confirmGroup()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提示词弹窗 -->
+  <div class="modal-overlay" id="promptModal">
+    <div class="modal wide">
+      <div class="modal-header">
+        <span class="modal-title">生成AI提示词</span>
+        <button class="modal-close" onclick="closePromptModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">目标平台</label>
+          <select class="form-select" id="targetPlatform">
+            <option value="flutter">Flutter (Dart)</option>
+            <option value="react-native">React Native (TypeScript)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="includeDesignSystem" style="width:16px;height:16px;">
+            包含设计系统（颜色、字体、间距定义）
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">图片资源目录</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" class="form-input" id="assetsDir" value="assets/images" style="flex:1;">
+            <button class="btn btn-secondary" onclick="extractAndCopyImages()">📦 提取图片</button>
+          </div>
+          <div id="imageStatus" style="font-size:12px;color:var(--text-secondary);margin-top:6px;"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">生成的提示词</label>
+          <pre class="prompt-preview" id="promptPreview">点击"生成"按钮生成提示词</pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="generatePrompt()">🔄 生成</button>
+        <button class="btn btn-primary" onclick="copyPrompt()">📋 复制</button>
+        <button class="btn btn-primary" onclick="downloadPrompt()">💾 下载</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast">操作成功</div>
+
+  <script>
+    // ==================== 状态管理 ====================
+    let config = { projectPath: '', htmlPath: '' };
+    let pagesConfig = { projectName: '', pageGroups: [], htmlFiles: [] };
+    let htmlFiles = [];
+    let currentFile = null;
+    let selectedFiles = new Set();
+    let isPickerActive = false;
+    let pathBrowseType = null;
+    let currentBrowsePath = '';
+    let editingGroupId = null;
+
+    const groupColors = [
+      '#6366f1', '#8b5cf6', '#ec4899', '#ef4444',
+      '#f59e0b', '#22c55e', '#14b8a6', '#3b82f6'
+    ];
+
+    // ==================== 初始化 ====================
+    async function init() {
+      await loadConfig();
+      await loadPages();
+      await scanHtmlFiles();
+      initWebSocket();
+      initEventListeners();
+      console.log('初始化完成, pagesConfig:', pagesConfig);
+    }
+
+    async function loadConfig() {
+      const res = await fetch('/api/config');
+      config = await res.json();
+      updatePathDisplays();
+    }
+
+    async function loadPages() {
+      const res = await fetch('/api/pages');
+      const data = await res.json();
+      // 确保保留所有字段
+      pagesConfig = {
+        projectName: data.projectName || 'My App',
+        targetPlatform: data.targetPlatform || ['flutter'],
+        designSystem: data.designSystem || {},
+        sharedComponents: data.sharedComponents || [],
+        htmlFiles: data.htmlFiles || [],
+        pageGroups: data.pageGroups || []
+      };
+      console.log('loadPages 完成, pageGroups:', pagesConfig.pageGroups);
+    }
+
+    async function saveConfig() {
+      await fetch('/api/pages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pagesConfig)
+      });
+      showToast('配置已保存');
+    }
+
+    function updatePathDisplays() {
+      document.getElementById('projectPathDisplay').textContent =
+        config.projectPath ? config.projectPath.split('/').pop() || config.projectPath : '未设置';
+      document.getElementById('htmlPathDisplay').textContent =
+        config.htmlPath ? config.htmlPath.split('/').pop() || config.htmlPath : './html';
+    }
+
+    // ==================== HTML文件管理 ====================
+    async function scanHtmlFiles() {
+      const res = await fetch('/api/scan-html');
+      const data = await res.json();
+      htmlFiles = data.files;
+
+      // 同步到pagesConfig
+      syncFilesToConfig();
+      renderFileList();
+    }
+
+    function syncFilesToConfig() {
+      // 保留已有的 htmlFiles 配置（包括 groupId 等）
+      const existingFilesMap = new Map(
+        (pagesConfig.htmlFiles || []).map(f => [f.path, f])
+      );
+
+      // 基于扫描到的文件列表更新，但保留已有配置
+      const updatedFiles = [];
+      for (const file of htmlFiles) {
+        const existing = existingFilesMap.get(file.path);
+        if (existing) {
+          // 保留已有配置（包括 groupId、stateName、description、interactions）
+          updatedFiles.push(existing);
+        } else {
+          // 只为新文件创建默认配置
+          updatedFiles.push({
+            path: file.path,
+            name: file.name,
+            stateName: '',
+            description: '',
+            groupId: null,
+            interactions: []
+          });
+        }
+      }
+
+      // 只更新 htmlFiles，保留其他配置（pageGroups 等）
+      pagesConfig.htmlFiles = updatedFiles;
+
+      console.log('syncFilesToConfig 完成, htmlFiles:', pagesConfig.htmlFiles.length, 'pageGroups:', pagesConfig.pageGroups?.length);
+    }
+
+    function renderFileList() {
+      const container = document.getElementById('fileList');
+      const groups = pagesConfig.pageGroups || [];
+      const files = pagesConfig.htmlFiles || [];
+
+      let html = '';
+
+      // 渲染分组
+      for (const group of groups) {
+        const groupFiles = files.filter(f => f.groupId === group.id);
+        html += `
+          <div class="file-group" data-group-id="${group.id}">
+            <div class="file-group-header" style="border-left-color: ${group.color || '#6366f1'}">
+              <div class="group-color" style="background: ${group.color || '#6366f1'}"></div>
+              <span class="group-name">${group.name}</span>
+              <span class="group-count">${groupFiles.length}</span>
+              <div class="group-actions">
+                <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); editGroup('${group.id}')">✏️</button>
+                <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); deleteGroup('${group.id}')">🗑️</button>
+              </div>
+            </div>
+            <div class="group-files">
+              ${groupFiles.map(f => renderFileItem(f, group.color)).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      // 渲染未分组文件
+      const ungroupedFiles = files.filter(f => !f.groupId);
+      if (ungroupedFiles.length > 0) {
+        html += `
+          <div class="ungrouped-section">
+            <div class="ungrouped-title">未分组</div>
+            ${ungroupedFiles.map(f => renderFileItem(f)).join('')}
+          </div>
+        `;
+      }
+
+      if (files.length === 0) {
+        html = `
+          <div class="empty-preview" style="padding: 40px 20px;">
+            <div class="empty-preview-icon">📂</div>
+            <p>暂无HTML文件</p>
+            <p style="font-size: 12px; margin-top: 8px; color: var(--text-secondary);">请设置HTML路径</p>
+          </div>
+        `;
+      }
+
+      container.innerHTML = html;
+      updateGroupSelect();
+    }
+
+    function renderFileItem(file, groupColor) {
+      const isActive = currentFile && currentFile.path === file.path;
+      const isSelected = selectedFiles.has(file.path);
+
+      return `
+        <div class="file-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}"
+             data-path="${file.path}"
+             onclick="selectFile('${file.path}')"
+             ${groupColor ? `style="border-left-color: ${isActive ? 'white' : groupColor}"` : ''}>
+          <span class="file-icon">📄</span>
+          <div class="file-info">
+            <div class="file-name">${file.stateName || file.name}</div>
+            <div class="file-path">${file.path}</div>
+          </div>
+          ${file.stateName ? `<span class="file-state-tag">${file.stateName}</span>` : ''}
+        </div>
+      `;
+    }
+
+    function selectFile(path, multiSelect = false) {
+      if (multiSelect || event?.shiftKey || event?.metaKey) {
+        if (selectedFiles.has(path)) {
+          selectedFiles.delete(path);
+        } else {
+          selectedFiles.add(path);
+        }
+        updateSelectionToolbar();
+        renderFileList();
+        return;
+      }
+
+      selectedFiles.clear();
+      updateSelectionToolbar();
+
+      const file = pagesConfig.htmlFiles.find(f => f.path === path);
+      if (file) {
+        currentFile = file;
+        previewHtml(path);
+        loadFileToPanel();
+        renderFileList();
+      }
+    }
+
+    function updateSelectionToolbar() {
+      const toolbar = document.getElementById('selectionToolbar');
+      const count = document.getElementById('selectionCount');
+      count.textContent = selectedFiles.size;
+      toolbar.classList.toggle('active', selectedFiles.size > 0);
+    }
+
+    function cancelSelection() {
+      selectedFiles.clear();
+      updateSelectionToolbar();
+      renderFileList();
+    }
+
+    // ==================== 预览 ====================
+    function previewHtml(path) {
+      const screen = document.getElementById('phoneScreen');
+      screen.innerHTML = `<iframe id="previewFrame" src="/html/${path}"></iframe>`;
+      document.getElementById('previewInfo').textContent = path;
+
+      // 设置元素选择器
+      setTimeout(() => {
+        const iframe = document.getElementById('previewFrame');
+        if (iframe && iframe.contentWindow) {
+          setupElementPicker(iframe);
+        }
+      }, 500);
+
+      analyzeHtml(path);
+    }
+
+    async function analyzeHtml(path) {
+      try {
+        const res = await fetch(`/api/analyze-html?path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+        renderAnalysis(data);
+      } catch (e) {
+        console.error('分析失败', e);
+      }
+    }
+
+    function renderAnalysis(data) {
+      // 结构标签
+      const structureTags = document.getElementById('structureTags');
+      const structures = [];
+      if (data.structure.hasHeader) structures.push('Header');
+      if (data.structure.hasFooter) structures.push('Footer/TabBar');
+      if (data.structure.hasList) structures.push('列表');
+      if (data.structure.hasForm) structures.push('表单');
+      if (data.structure.hasModal) structures.push('弹窗');
+      if (data.structure.hasCard) structures.push('卡片');
+      structureTags.innerHTML = structures.map(s => `<span class="tag active">${s}</span>`).join('') || '<span class="tag">无特殊结构</span>';
+
+      // 颜色
+      const colorGrid = document.getElementById('colorGrid');
+      colorGrid.innerHTML = data.colors.slice(0, 16).map(c =>
+        `<div class="color-chip" style="background:${c}" data-color="${c}" onclick="copyToClipboard('${c}')"></div>`
+      ).join('') || '<span style="color:var(--text-secondary);font-size:12px;">未提取到颜色</span>';
+
+      // 可交互元素
+      const interactiveElements = document.getElementById('interactiveElements');
+      interactiveElements.innerHTML = data.interactiveElements.slice(0, 10).map(el => `
+        <div class="tag clickable" style="margin-bottom:4px; display:block;" onclick="addInteractionFromElement('${el.selector}', '${el.type}')">
+          <strong>${el.type}</strong>: ${el.text || el.selector}
+        </div>
+      `).join('') || '<span style="color:var(--text-secondary);font-size:12px;">未发现可交互元素</span>';
+    }
+
+    // ==================== 元素选择器 ====================
+    function togglePicker() {
+      isPickerActive = !isPickerActive;
+      const btn = document.getElementById('pickerBtn');
+      btn.classList.toggle('active', isPickerActive);
+      btn.textContent = isPickerActive ? '🎯 点击选择' : '🎯 选择元素';
+
+      const iframe = document.getElementById('previewFrame');
+      if (iframe && iframe.contentWindow) {
+        if (isPickerActive) {
+          enablePicker(iframe);
+        } else {
+          disablePicker(iframe);
+        }
+      }
+    }
+
+    function setupElementPicker(iframe) {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+
+      // 注入样式
+      const style = doc.createElement('style');
+      style.id = 'picker-style';
+      style.textContent = `
+        .picker-hover { outline: 2px solid #6366f1 !important; outline-offset: 2px; cursor: crosshair !important; }
+        .picker-selected { outline: 2px solid #22c55e !important; outline-offset: 2px; }
+      `;
+      doc.head.appendChild(style);
+    }
+
+    function enablePicker(iframe) {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+
+      doc.body.style.cursor = 'crosshair';
+
+      doc.addEventListener('mouseover', pickerMouseOver);
+      doc.addEventListener('mouseout', pickerMouseOut);
+      doc.addEventListener('click', pickerClick);
+    }
+
+    function disablePicker(iframe) {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+
+      doc.body.style.cursor = '';
+      doc.querySelectorAll('.picker-hover').forEach(el => el.classList.remove('picker-hover'));
+
+      doc.removeEventListener('mouseover', pickerMouseOver);
+      doc.removeEventListener('mouseout', pickerMouseOut);
+      doc.removeEventListener('click', pickerClick);
+    }
+
+    function pickerMouseOver(e) {
+      e.target.classList.add('picker-hover');
+    }
+
+    function pickerMouseOut(e) {
+      e.target.classList.remove('picker-hover');
+    }
+
+    function pickerClick(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const el = e.target;
+      const selector = generateSelectorFromElement(el);
+
+      // 添加交互
+      addInteractionFromElement(selector, guessElementType(el));
+
+      // 关闭选择器
+      togglePicker();
+    }
+
+    function generateSelectorFromElement(el) {
+      if (el.id) return `#${el.id}`;
+      if (el.className) {
+        const classes = el.className.split(' ').filter(Boolean).slice(0, 2);
+        if (classes.length) return `.${classes.join('.')}`;
+      }
+      return el.tagName.toLowerCase();
+    }
+
+    function guessElementType(el) {
+      const tag = el.tagName.toLowerCase();
+      const cls = (el.className || '').toLowerCase();
+
+      if (tag === 'button' || cls.includes('btn')) return 'tap';
+      if (tag === 'a' || cls.includes('link')) return 'tap';
+      if (tag === 'input' || tag === 'textarea') return 'input';
+      if (cls.includes('tab')) return 'tap';
+      return 'tap';
+    }
+
+    // ==================== 文件配置面板 ====================
+    function loadFileToPanel() {
+      if (!currentFile) return;
+
+      document.getElementById('fileStateName').value = currentFile.stateName || '';
+      document.getElementById('fileDescription').value = currentFile.description || '';
+      document.getElementById('fileGroup').value = currentFile.groupId || '';
+
+      renderInteractionList();
+    }
+
+    function updateCurrentFile() {
+      if (!currentFile) return;
+
+      currentFile.stateName = document.getElementById('fileStateName').value;
+      currentFile.description = document.getElementById('fileDescription').value;
+      currentFile.groupId = document.getElementById('fileGroup').value || null;
+
+      renderFileList();
+    }
+
+    function renderInteractionList() {
+      const container = document.getElementById('interactionList');
+      if (!currentFile || !currentFile.interactions) {
+        container.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;text-align:center;padding:20px;">暂无交互配置</div>';
+        return;
+      }
+
+      container.innerHTML = currentFile.interactions.map((item, i) => `
+        <div class="interaction-item">
+          <div class="interaction-header">
+            <span class="interaction-selector">${item.selector}</span>
+            <span class="interaction-type">${item.eventType}</span>
+            <button class="delete-btn" onclick="removeInteraction(${i})">✕</button>
+          </div>
+          <input class="form-input" value="${item.action}" placeholder="动作描述"
+                 onchange="updateInteraction(${i}, 'action', this.value)" style="margin-top:6px;">
+        </div>
+      `).join('');
+    }
+
+    function addInteraction() {
+      if (!currentFile) {
+        showToast('请先选择文件');
+        return;
+      }
+
+      if (!currentFile.interactions) currentFile.interactions = [];
+      currentFile.interactions.push({
+        selector: '',
+        eventType: 'tap',
+        action: ''
+      });
+
+      renderInteractionList();
+    }
+
+    function addInteractionFromElement(selector, eventType) {
+      if (!currentFile) {
+        showToast('请先选择文件');
+        return;
+      }
+
+      if (!currentFile.interactions) currentFile.interactions = [];
+      currentFile.interactions.push({
+        selector: selector,
+        eventType: eventType || 'tap',
+        action: ''
+      });
+
+      renderInteractionList();
+      showToast(`已添加: ${selector}`);
+    }
+
+    function updateInteraction(index, field, value) {
+      if (!currentFile || !currentFile.interactions) return;
+      currentFile.interactions[index][field] = value;
+    }
+
+    function removeInteraction(index) {
+      if (!currentFile || !currentFile.interactions) return;
+      currentFile.interactions.splice(index, 1);
+      renderInteractionList();
+    }
+
+    // ==================== 分组管理 ====================
+    function updateGroupSelect() {
+      const select = document.getElementById('fileGroup');
+      const groups = pagesConfig.pageGroups || [];
+
+      select.innerHTML = '<option value="">未分组</option>' +
+        groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+
+      if (currentFile) {
+        select.value = currentFile.groupId || '';
+      }
+    }
+
+    function createGroup() {
+      editingGroupId = null;
+      document.getElementById('groupName').value = '';
+      document.getElementById('groupDescription').value = '';
+      document.getElementById('groupRoute').value = '';
+      document.getElementById('groupSourcePath').value = '';
+
+      // 颜色选择器
+      const picker = document.getElementById('groupColorPicker');
+      picker.innerHTML = groupColors.map((c, i) =>
+        `<div class="color-option ${i === 0 ? 'selected' : ''}" style="background:${c}" data-color="${c}" onclick="selectGroupColor(this)"></div>`
+      ).join('');
+
+      document.getElementById('groupModal').classList.add('active');
+    }
+
+    function groupSelected() {
+      if (selectedFiles.size === 0) return;
+      createGroup();
+    }
+
+    function selectGroupColor(el) {
+      document.querySelectorAll('#groupColorPicker .color-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+    }
+
+    function confirmGroup() {
+      const name = document.getElementById('groupName').value.trim();
+      if (!name) {
+        showToast('请输入分组名称');
+        return;
+      }
+
+      const selectedColor = document.querySelector('#groupColorPicker .color-option.selected');
+      const color = selectedColor ? selectedColor.dataset.color : groupColors[0];
+
+      if (!pagesConfig.pageGroups) pagesConfig.pageGroups = [];
+
+      if (editingGroupId) {
+        // 编辑现有分组
+        const group = pagesConfig.pageGroups.find(g => g.id === editingGroupId);
+        if (group) {
+          group.name = name;
+          group.description = document.getElementById('groupDescription').value;
+          group.route = document.getElementById('groupRoute').value;
+          group.appSourcePath = document.getElementById('groupSourcePath').value;
+          group.color = color;
+        }
+      } else {
+        // 创建新分组
+        const groupId = 'group_' + Date.now();
+        pagesConfig.pageGroups.push({
+          id: groupId,
+          name: name,
+          description: document.getElementById('groupDescription').value,
+          route: document.getElementById('groupRoute').value,
+          appSourcePath: document.getElementById('groupSourcePath').value,
+          color: color
+        });
+
+        // 将选中的文件添加到分组
+        if (selectedFiles.size > 0) {
+          for (const path of selectedFiles) {
+            const file = pagesConfig.htmlFiles.find(f => f.path === path);
+            if (file) file.groupId = groupId;
+          }
+          selectedFiles.clear();
+          updateSelectionToolbar();
+        }
+      }
+
+      closeGroupModal();
+      renderFileList();
+      showToast(editingGroupId ? '分组已更新' : '分组创建成功');
+    }
+
+    function editGroup(groupId) {
+      const group = pagesConfig.pageGroups.find(g => g.id === groupId);
+      if (!group) return;
+
+      editingGroupId = groupId;
+      document.getElementById('groupName').value = group.name;
+      document.getElementById('groupDescription').value = group.description || '';
+      document.getElementById('groupRoute').value = group.route || '';
+      document.getElementById('groupSourcePath').value = group.appSourcePath || '';
+
+      // 颜色选择器
+      const picker = document.getElementById('groupColorPicker');
+      picker.innerHTML = groupColors.map(c =>
+        `<div class="color-option ${c === group.color ? 'selected' : ''}" style="background:${c}" data-color="${c}" onclick="selectGroupColor(this)"></div>`
+      ).join('');
+
+      document.getElementById('groupModal').classList.add('active');
+    }
+
+    function deleteGroup(groupId) {
+      if (!confirm('确定删除此分组？文件将变为未分组状态。')) return;
+
+      pagesConfig.pageGroups = pagesConfig.pageGroups.filter(g => g.id !== groupId);
+
+      // 移除文件的分组关联
+      for (const file of pagesConfig.htmlFiles) {
+        if (file.groupId === groupId) file.groupId = null;
+      }
+
+      renderFileList();
+      showToast('分组已删除');
+    }
+
+    function closeGroupModal() {
+      document.getElementById('groupModal').classList.remove('active');
+      editingGroupId = null;
+    }
+
+    // ==================== 路径浏览器 ====================
+    function showPathBrowser(type) {
+      pathBrowseType = type;
+      document.getElementById('pathModalTitle').textContent =
+        type === 'project' ? '选择项目路径' : '选择HTML路径';
+
+      currentBrowsePath = type === 'project' ? (config.projectPath || '') : (config.htmlPath || '');
+      if (!currentBrowsePath) currentBrowsePath = '/';
+
+      browsePath(currentBrowsePath || '/');
+      document.getElementById('pathModal').classList.add('active');
+    }
+
+    async function browsePath(dirPath) {
+      currentBrowsePath = dirPath;
+      document.getElementById('browserPathInput').value = dirPath;
+
+      try {
+        const res = await fetch(`/api/browse?path=${encodeURIComponent(dirPath)}`);
+        const data = await res.json();
+
+        const list = document.getElementById('browserList');
+
+        let html = '';
+        if (data.parent && data.parent !== dirPath) {
+          html += `
+            <div class="browser-item" onclick="browsePath('${data.parent}')">
+              <span class="browser-icon">📁</span>
+              <span class="browser-name">..</span>
+            </div>
+          `;
+        }
+
+        html += data.items.filter(i => i.isDirectory).map(item => `
+          <div class="browser-item" onclick="browsePath('${item.path}')">
+            <span class="browser-icon">📁</span>
+            <span class="browser-name">${item.name}</span>
+          </div>
+        `).join('');
+
+        list.innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--text-secondary)">空目录</div>';
+      } catch (e) {
+        console.error('浏览失败', e);
+      }
+    }
+
+    async function confirmPath() {
+      if (!currentBrowsePath) return;
+
+      if (pathBrowseType === 'project') {
+        config.projectPath = currentBrowsePath;
+      } else {
+        config.htmlPath = currentBrowsePath;
+      }
+
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+
+      updatePathDisplays();
+      closePathModal();
+
+      if (pathBrowseType === 'html') {
+        await scanHtmlFiles();
+      }
+
+      showToast('路径已更新');
+    }
+
+    function closePathModal() {
+      document.getElementById('pathModal').classList.remove('active');
+    }
+
+    // ==================== 提示词生成 ====================
+    function showPromptModal() {
+      document.getElementById('promptModal').classList.add('active');
+      document.getElementById('imageStatus').textContent = '';
+      generatePrompt();
+    }
+
+    function closePromptModal() {
+      document.getElementById('promptModal').classList.remove('active');
+    }
+
+    async function generatePrompt() {
+      const platform = document.getElementById('targetPlatform').value;
+      const includeDesignSystem = document.getElementById('includeDesignSystem').checked;
+
+      try {
+        const res = await fetch('/api/generate-prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pages: pagesConfig,
+            targetPlatform: platform,
+            includeDesignSystem: includeDesignSystem
+          })
+        });
+        const data = await res.json();
+        document.getElementById('promptPreview').textContent = data.prompt;
+      } catch (e) {
+        showToast('生成失败');
+      }
+    }
+
+    // 提取并复制图片到项目assets目录
+    async function extractAndCopyImages() {
+      if (!config.projectPath) {
+        showToast('请先设置项目路径');
+        return;
+      }
+
+      const statusEl = document.getElementById('imageStatus');
+      statusEl.textContent = '正在提取图片...';
+
+      const allImages = [];
+
+      // 从所有HTML文件提取图片
+      for (const file of pagesConfig.htmlFiles || []) {
+        try {
+          const res = await fetch(`/api/extract-images?path=${encodeURIComponent(file.path)}`);
+          const data = await res.json();
+          allImages.push(...data.images);
+        } catch (e) {
+          console.error('提取失败:', file.path, e);
+        }
+      }
+
+      // 去重
+      const uniqueImages = [...new Map(allImages.map(i => [i.src, i])).values()];
+
+      if (uniqueImages.length === 0) {
+        statusEl.textContent = '未发现需要提取的图片';
+        return;
+      }
+
+      statusEl.textContent = `发现 ${uniqueImages.length} 张图片，正在复制...`;
+
+      // 复制到项目目录
+      const targetDir = document.getElementById('assetsDir').value || 'assets/images';
+      try {
+        const res = await fetch('/api/copy-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ images: uniqueImages, targetDir })
+        });
+        const data = await res.json();
+
+        if (data.copied.length > 0) {
+          statusEl.innerHTML = `<span style="color:var(--success)">✓ 已复制 ${data.copied.length} 张图片到 ${data.assetsDir}</span>`;
+          if (data.failed.length > 0) {
+            statusEl.innerHTML += `<br><span style="color:var(--warning)">⚠ ${data.failed.length} 张失败</span>`;
+          }
+        } else {
+          statusEl.innerHTML = `<span style="color:var(--warning)">⚠ 复制失败，请检查文件路径</span>`;
+        }
+      } catch (e) {
+        statusEl.innerHTML = `<span style="color:var(--error)">✕ 复制失败: ${e.message}</span>`;
+      }
+    }
+
+    function copyPrompt() {
+      const text = document.getElementById('promptPreview').textContent;
+      navigator.clipboard.writeText(text);
+      showToast('已复制到剪贴板');
+    }
+
+    function downloadPrompt() {
+      const text = document.getElementById('promptPreview').textContent;
+      const blob = new Blob([text], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pages-prompt.md';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ==================== 工具函数 ====================
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text);
+      showToast('已复制: ' + text);
+    }
+
+    // ==================== WebSocket ====================
+    function initWebSocket() {
+      const ws = new WebSocket(`ws://${location.host}`);
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'reload') {
+          scanHtmlFiles();
+          if (currentFile) {
+            previewHtml(currentFile.path);
+          }
+        }
+      };
+      ws.onclose = () => setTimeout(initWebSocket, 3000);
+    }
+
+    // ==================== 事件监听 ====================
+    function initEventListeners() {
+      // Panel切换
+      document.querySelectorAll('.panel-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+
+          const panel = tab.dataset.panel;
+          document.getElementById('filePanel').style.display = panel === 'file' ? 'block' : 'none';
+          document.getElementById('analysisPanel').style.display = panel === 'analysis' ? 'block' : 'none';
+        });
+      });
+
+      // 设备切换
+      document.querySelectorAll('.device-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.device-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          const screen = document.querySelector('.phone-screen');
+          screen.style.width = btn.dataset.width + 'px';
+          screen.style.height = btn.dataset.height + 'px';
+        });
+      });
+
+      // 表单自动更新
+      ['fileStateName', 'fileDescription', 'fileGroup'].forEach(id => {
+        document.getElementById(id).addEventListener('change', updateCurrentFile);
+      });
+    }
+
+    // 启动
+    init();
+  </script>
+</body>
+</html>
