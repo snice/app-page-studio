@@ -10,8 +10,8 @@ const PORT = 3000;
 
 // 配置存储
 let config = {
-  projectPath: '',
-  htmlPath: '',
+  currentProject: '',  // 当前项目路径
+  projects: []         // 项目列表 [{path, name, lastOpened}]
 };
 
 const configPath = path.join(__dirname, '.studio-config.json');
@@ -19,7 +19,14 @@ const configPath = path.join(__dirname, '.studio-config.json');
 // 加载配置
 function loadConfig() {
   if (fs.existsSync(configPath)) {
-    config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const saved = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    // 兼容旧配置
+    if (saved.projectPath && !saved.currentProject) {
+      config.currentProject = saved.projectPath;
+      config.projects = [{ path: saved.projectPath, name: path.basename(saved.projectPath), lastOpened: Date.now() }];
+    } else {
+      config = { ...config, ...saved };
+    }
   }
 }
 
@@ -30,13 +37,24 @@ function saveConfig() {
 
 loadConfig();
 
+// 获取 HTML 目录路径（项目目录/html > 工具目录/html）
+function getHtmlDir() {
+  if (config.currentProject) {
+    const projectHtmlDir = path.join(config.currentProject, 'html');
+    if (fs.existsSync(projectHtmlDir)) {
+      return projectHtmlDir;
+    }
+  }
+  return path.join(__dirname, 'html');
+}
+
 // 中间件
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // 动态HTML静态服务
 app.use('/html', (req, res, next) => {
-  const htmlDir = config.htmlPath || path.join(__dirname, 'html');
+  const htmlDir = getHtmlDir();
   express.static(htmlDir)(req, res, next);
 });
 
@@ -45,17 +63,63 @@ app.get('/api/config', (req, res) => {
   res.json(config);
 });
 
-app.post('/api/config', (req, res) => {
-  const { projectPath, htmlPath } = req.body;
+// 切换项目
+app.post('/api/switch-project', (req, res) => {
+  const { projectPath } = req.body;
 
-  if (projectPath !== undefined) {
-    config.projectPath = projectPath;
+  if (!projectPath || !fs.existsSync(projectPath)) {
+    res.status(400).json({ error: '项目路径无效' });
+    return;
   }
-  if (htmlPath !== undefined) {
-    config.htmlPath = htmlPath;
+
+  config.currentProject = projectPath;
+
+  // 更新项目列表
+  const existingIndex = config.projects.findIndex(p => p.path === projectPath);
+  if (existingIndex >= 0) {
+    config.projects[existingIndex].lastOpened = Date.now();
+  } else {
+    config.projects.push({
+      path: projectPath,
+      name: path.basename(projectPath),
+      lastOpened: Date.now()
+    });
+  }
+
+  // 按最近打开时间排序
+  config.projects.sort((a, b) => b.lastOpened - a.lastOpened);
+
+  saveConfig();
+  setupWatcher();
+
+  res.json({ success: true, config });
+});
+
+// 删除项目（从列表中移除）
+app.post('/api/remove-project', (req, res) => {
+  const { projectPath } = req.body;
+
+  config.projects = config.projects.filter(p => p.path !== projectPath);
+
+  // 如果删除的是当前项目，切换到第一个项目或清空
+  if (config.currentProject === projectPath) {
+    config.currentProject = config.projects[0]?.path || '';
   }
 
   saveConfig();
+  res.json({ success: true, config });
+});
+
+// 重命名项目
+app.post('/api/rename-project', (req, res) => {
+  const { projectPath, newName } = req.body;
+
+  const project = config.projects.find(p => p.path === projectPath);
+  if (project) {
+    project.name = newName;
+    saveConfig();
+  }
+
   res.json({ success: true, config });
 });
 
@@ -109,13 +173,32 @@ app.get('/api/browse', (req, res) => {
   }
 });
 
-// pages.json 始终存储在工具目录下
-const pagesJsonPath = path.join(__dirname, 'pages.json');
+// 获取 pages.json 路径（优先项目目录，否则工具目录）
+function getPagesJsonPath() {
+  if (config.currentProject) {
+    const projectPagesPath = path.join(config.currentProject, 'pages.json');
+    if (fs.existsSync(projectPagesPath)) {
+      return projectPagesPath;
+    }
+  }
+  return path.join(__dirname, 'pages.json');
+}
+
+// 获取 pages.json 保存路径（优先项目目录）
+function getPagesJsonSavePath() {
+  if (config.currentProject) {
+    return path.join(config.currentProject, 'pages.json');
+  }
+  return path.join(__dirname, 'pages.json');
+}
 
 // 获取pages.json
 app.get('/api/pages', (req, res) => {
-  if (fs.existsSync(pagesJsonPath)) {
-    const pages = JSON.parse(fs.readFileSync(pagesJsonPath, 'utf-8'));
+  const pagesPath = getPagesJsonPath();
+  console.log('读取 pages.json 路径:', pagesPath);
+
+  if (fs.existsSync(pagesPath)) {
+    const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
     res.json(pages);
   } else {
     res.json({
@@ -130,13 +213,16 @@ app.get('/api/pages', (req, res) => {
 
 // 保存pages.json
 app.post('/api/pages', (req, res) => {
-  fs.writeFileSync(pagesJsonPath, JSON.stringify(req.body, null, 2), 'utf-8');
+  const pagesPath = getPagesJsonSavePath();
+  console.log('保存 pages.json 路径:', pagesPath);
+  fs.writeFileSync(pagesPath, JSON.stringify(req.body, null, 2), 'utf-8');
   res.json({ success: true });
 });
 
 // 扫描HTML文件
 app.get('/api/scan-html', (req, res) => {
-  const htmlDir = config.htmlPath || path.join(__dirname, 'html');
+  const htmlDir = getHtmlDir();
+  console.log('扫描 HTML 目录:', htmlDir);
 
   if (!fs.existsSync(htmlDir)) {
     res.json({ files: [], htmlPath: htmlDir });
@@ -176,7 +262,7 @@ app.get('/api/scan-html', (req, res) => {
 
 // 读取HTML内容（用于元素选择器）
 app.get('/api/html-content', (req, res) => {
-  const htmlDir = config.htmlPath || path.join(__dirname, 'html');
+  const htmlDir = getHtmlDir();
   const htmlPath = path.join(htmlDir, req.query.path);
 
   if (!fs.existsSync(htmlPath)) {
@@ -190,7 +276,7 @@ app.get('/api/html-content', (req, res) => {
 
 // 分析HTML结构
 app.get('/api/analyze-html', (req, res) => {
-  const htmlDir = config.htmlPath || path.join(__dirname, 'html');
+  const htmlDir = getHtmlDir();
   const htmlPath = path.join(htmlDir, req.query.path);
 
   if (!fs.existsSync(htmlPath)) {
@@ -283,7 +369,7 @@ function getElementType(tag, classes) {
 
 // 提取HTML中的图片资源
 app.get('/api/extract-images', (req, res) => {
-  const htmlDir = config.htmlPath || path.join(__dirname, 'html');
+  const htmlDir = getHtmlDir();
   const htmlPath = path.join(htmlDir, req.query.path);
 
   if (!fs.existsSync(htmlPath)) {
@@ -350,10 +436,10 @@ app.get('/api/extract-images', (req, res) => {
 // 复制图片到项目assets目录
 app.post('/api/copy-images', (req, res) => {
   const { images, targetDir } = req.body;
-  const projectPath = config.projectPath;
+  const projectPath = config.currentProject;
 
   if (!projectPath) {
-    res.status(400).json({ error: '请先设置项目路径' });
+    res.status(400).json({ error: '请先选择项目' });
     return;
   }
 
@@ -543,7 +629,7 @@ function setupWatcher() {
     watcher.close();
   }
 
-  const htmlDir = config.htmlPath || path.join(__dirname, 'html');
+  const htmlDir = getHtmlDir();
   if (!fs.existsSync(htmlDir)) {
     return;
   }

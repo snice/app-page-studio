@@ -601,14 +601,10 @@
     <header class="header">
       <div class="logo">📱 App Page Studio</div>
 
-      <div class="path-display" onclick="showPathBrowser('project')">
+      <div class="path-display" onclick="showProjectSelector()">
         <span class="path-label">项目:</span>
-        <span class="path-value" id="projectPathDisplay">未设置</span>
-      </div>
-
-      <div class="path-display" onclick="showPathBrowser('html')">
-        <span class="path-label">HTML:</span>
-        <span class="path-value" id="htmlPathDisplay">./html</span>
+        <span class="path-value" id="projectPathDisplay">未选择</span>
+        <span style="margin-left:4px;opacity:0.6;">▼</span>
       </div>
 
       <div class="header-actions">
@@ -719,24 +715,37 @@
     </aside>
   </div>
 
-  <!-- 路径选择器弹窗 -->
-  <div class="modal-overlay" id="pathModal">
+  <!-- 项目选择器弹窗 -->
+  <div class="modal-overlay" id="projectModal">
     <div class="modal">
       <div class="modal-header">
-        <span class="modal-title" id="pathModalTitle">选择路径</span>
-        <button class="modal-close" onclick="closePathModal()">×</button>
+        <span class="modal-title">选择项目</span>
+        <button class="modal-close" onclick="closeProjectModal()">×</button>
       </div>
       <div class="modal-body">
-        <div class="browser-path">
-          <span>📁</span>
-          <input type="text" class="browser-path-input" id="browserPathInput" onkeypress="if(event.key==='Enter')browsePath(this.value)">
-          <button class="btn btn-sm btn-secondary" onclick="browsePath(document.getElementById('browserPathInput').value)">前往</button>
+        <div class="form-group">
+          <label class="form-label">最近项目</label>
+          <div id="recentProjects" class="browser-list" style="max-height:200px;margin-bottom:16px;"></div>
         </div>
-        <div class="browser-list" id="browserList"></div>
+        <div class="form-group">
+          <label class="form-label">添加新项目</label>
+          <div class="browser-path">
+            <span>📁</span>
+            <input type="text" class="browser-path-input" id="newProjectPath" placeholder="输入项目路径或浏览选择">
+            <button class="btn btn-sm btn-secondary" onclick="browseForProject()">浏览</button>
+          </div>
+        </div>
+        <div id="projectBrowser" style="display:none;">
+          <div class="browser-path" style="margin-top:8px;">
+            <button class="btn btn-sm btn-secondary" onclick="browseProjectPath('..')">⬆️</button>
+            <input type="text" class="browser-path-input" id="projectBrowserPath" onkeypress="if(event.key==='Enter')browseProjectPath(this.value)">
+          </div>
+          <div class="browser-list" id="projectBrowserList" style="margin-top:8px;"></div>
+        </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closePathModal()">取消</button>
-        <button class="btn btn-primary" onclick="confirmPath()">确认选择</button>
+        <button class="btn btn-secondary" onclick="closeProjectModal()">取消</button>
+        <button class="btn btn-primary" onclick="addAndSwitchProject()">添加并切换</button>
       </div>
     </div>
   </div>
@@ -824,15 +833,14 @@
 
   <script>
     // ==================== 状态管理 ====================
-    let config = { projectPath: '', htmlPath: '' };
+    let config = { currentProject: '', projects: [] };
     let pagesConfig = { projectName: '', pageGroups: [], htmlFiles: [] };
     let htmlFiles = [];
     let currentFile = null;
     let selectedFiles = new Set();
     let isPickerActive = false;
-    let pathBrowseType = null;
-    let currentBrowsePath = '';
     let editingGroupId = null;
+    let projectBrowsePath = '';
 
     const groupColors = [
       '#6366f1', '#8b5cf6', '#ec4899', '#ef4444',
@@ -852,7 +860,7 @@
     async function loadConfig() {
       const res = await fetch('/api/config');
       config = await res.json();
-      updatePathDisplays();
+      updateProjectDisplay();
     }
 
     async function loadPages() {
@@ -868,6 +876,16 @@
         pageGroups: data.pageGroups || []
       };
       console.log('loadPages 完成, pageGroups:', pagesConfig.pageGroups);
+    }
+
+    function updateProjectDisplay() {
+      const display = document.getElementById('projectPathDisplay');
+      if (config.currentProject) {
+        const project = config.projects.find(p => p.path === config.currentProject);
+        display.textContent = project?.name || config.currentProject.split('/').pop();
+      } else {
+        display.textContent = '未选择';
+      }
     }
 
     async function saveConfig() {
@@ -1400,41 +1418,109 @@
       editingGroupId = null;
     }
 
-    // ==================== 路径浏览器 ====================
-    function showPathBrowser(type) {
-      pathBrowseType = type;
-      document.getElementById('pathModalTitle').textContent =
-        type === 'project' ? '选择项目路径' : '选择HTML路径';
-
-      currentBrowsePath = type === 'project' ? (config.projectPath || '') : (config.htmlPath || '');
-      if (!currentBrowsePath) currentBrowsePath = '/';
-
-      browsePath(currentBrowsePath || '/');
-      document.getElementById('pathModal').classList.add('active');
+    // ==================== 项目选择器 ====================
+    function showProjectSelector() {
+      renderRecentProjects();
+      document.getElementById('newProjectPath').value = '';
+      document.getElementById('projectBrowser').style.display = 'none';
+      document.getElementById('projectModal').classList.add('active');
     }
 
-    async function browsePath(dirPath) {
-      currentBrowsePath = dirPath;
-      document.getElementById('browserPathInput').value = dirPath;
+    function closeProjectModal() {
+      document.getElementById('projectModal').classList.remove('active');
+    }
+
+    function renderRecentProjects() {
+      const container = document.getElementById('recentProjects');
+      const projects = config.projects || [];
+
+      if (projects.length === 0) {
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary)">暂无最近项目</div>';
+        return;
+      }
+
+      container.innerHTML = projects.map(p => `
+        <div class="browser-item ${p.path === config.currentProject ? 'selected' : ''}"
+             onclick="switchToProject('${p.path}')" style="position:relative;">
+          <span class="browser-icon">📁</span>
+          <div style="flex:1;min-width:0;">
+            <div class="browser-name">${p.name}</div>
+            <div style="font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.path}</div>
+          </div>
+          <button class="delete-btn" onclick="event.stopPropagation(); removeProject('${p.path}')" title="移除">✕</button>
+        </div>
+      `).join('');
+    }
+
+    async function switchToProject(projectPath) {
+      try {
+        const res = await fetch('/api/switch-project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectPath })
+        });
+        const data = await res.json();
+        if (data.success) {
+          config = data.config;
+          updateProjectDisplay();
+          closeProjectModal();
+          await loadPages();
+          await scanHtmlFiles();
+          showToast('已切换项目');
+        }
+      } catch (e) {
+        showToast('切换失败');
+      }
+    }
+
+    async function removeProject(projectPath) {
+      if (!confirm('确定从列表中移除此项目？')) return;
+
+      try {
+        const res = await fetch('/api/remove-project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectPath })
+        });
+        const data = await res.json();
+        if (data.success) {
+          config = data.config;
+          updateProjectDisplay();
+          renderRecentProjects();
+          if (config.currentProject !== projectPath) {
+            // 如果移除的不是当前项目，无需重新加载
+          } else {
+            await loadPages();
+            await scanHtmlFiles();
+          }
+        }
+      } catch (e) {
+        showToast('移除失败');
+      }
+    }
+
+    function browseForProject() {
+      projectBrowsePath = '/';
+      document.getElementById('projectBrowser').style.display = 'block';
+      browseProjectPath('/');
+    }
+
+    async function browseProjectPath(dirPath) {
+      if (dirPath === '..') {
+        const parts = projectBrowsePath.split('/').filter(Boolean);
+        parts.pop();
+        dirPath = '/' + parts.join('/');
+      }
+      projectBrowsePath = dirPath;
+      document.getElementById('projectBrowserPath').value = dirPath;
 
       try {
         const res = await fetch(`/api/browse?path=${encodeURIComponent(dirPath)}`);
         const data = await res.json();
 
-        const list = document.getElementById('browserList');
-
-        let html = '';
-        if (data.parent && data.parent !== dirPath) {
-          html += `
-            <div class="browser-item" onclick="browsePath('${data.parent}')">
-              <span class="browser-icon">📁</span>
-              <span class="browser-name">..</span>
-            </div>
-          `;
-        }
-
-        html += data.items.filter(i => i.isDirectory).map(item => `
-          <div class="browser-item" onclick="browsePath('${item.path}')">
+        const list = document.getElementById('projectBrowserList');
+        let html = data.items.filter(i => i.isDirectory).map(item => `
+          <div class="browser-item" ondblclick="browseProjectPath('${item.path}')" onclick="selectProjectPath('${item.path}')">
             <span class="browser-icon">📁</span>
             <span class="browser-name">${item.name}</span>
           </div>
@@ -1446,33 +1532,24 @@
       }
     }
 
-    async function confirmPath() {
-      if (!currentBrowsePath) return;
-
-      if (pathBrowseType === 'project') {
-        config.projectPath = currentBrowsePath;
-      } else {
-        config.htmlPath = currentBrowsePath;
-      }
-
-      await fetch('/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
+    function selectProjectPath(path) {
+      document.getElementById('newProjectPath').value = path;
+      // 高亮选中项
+      document.querySelectorAll('#projectBrowserList .browser-item').forEach(el => {
+        el.classList.remove('selected');
+        if (el.onclick.toString().includes(path)) {
+          el.classList.add('selected');
+        }
       });
-
-      updatePathDisplays();
-      closePathModal();
-
-      if (pathBrowseType === 'html') {
-        await scanHtmlFiles();
-      }
-
-      showToast('路径已更新');
     }
 
-    function closePathModal() {
-      document.getElementById('pathModal').classList.remove('active');
+    async function addAndSwitchProject() {
+      const projectPath = document.getElementById('newProjectPath').value.trim();
+      if (!projectPath) {
+        showToast('请输入或选择项目路径');
+        return;
+      }
+      await switchToProject(projectPath);
     }
 
     // ==================== 提示词生成 ====================
@@ -1509,8 +1586,8 @@
 
     // 提取并复制图片到项目assets目录
     async function extractAndCopyImages() {
-      if (!config.projectPath) {
-        showToast('请先设置项目路径');
+      if (!config.currentProject) {
+        showToast('请先选择项目');
         return;
       }
 
