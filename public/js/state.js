@@ -3,11 +3,31 @@
  * 管理应用的全局状态
  */
 
+const STORAGE_KEY_CURRENT_PROJECT = 'appPageStudio_currentProjectId';
+const STORAGE_KEY_SESSION_ID = 'appPageStudio_sessionId';
+const STORAGE_KEY_EDITOR_NAME = 'appPageStudio_editorName';
+
+/**
+ * 生成唯一 Session ID
+ */
+function generateSessionId() {
+  return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+}
+
 const State = {
   // 工具配置
   config: {
-    currentProject: '',
-    projects: []
+    currentProject: null,  // 当前项目 ID（从 localStorage 读取）
+    projects: []           // 项目列表 [{id, name, description, createdAt, updatedAt}]
+  },
+
+  // 编辑会话状态
+  session: {
+    sessionId: null,       // 当前会话 ID
+    editorName: null,      // 编辑者名称
+    isCurrentEditor: true, // 是否是当前编辑者
+    currentEditor: null,   // 当前编辑者名称（如果不是自己）
+    heartbeatTimer: null   // 心跳定时器
   },
 
   // 页面配置
@@ -32,11 +52,23 @@ const State = {
   // 元素选择器是否激活
   isPickerActive: false,
 
+  // 取色器是否激活
+  isColorPickerActive: false,
+
+  // 取到的颜色列表
+  pickedColors: [],
+
+  // 当前编辑的设计系统数据
+  editingDesignSystem: null,
+
+  // 当前编辑的设计系统项目 ID
+  editingDesignProjectId: null,
+
   // 正在编辑的分组 ID
   editingGroupId: null,
 
-  // 项目浏览路径
-  projectBrowsePath: '',
+  // 正在编辑的项目 ID
+  editingProjectId: null,
 
   // 分组颜色选项
   groupColors: [
@@ -50,6 +82,39 @@ const State = {
    */
   setConfig(newConfig) {
     this.config = { ...this.config, ...newConfig };
+  },
+
+  /**
+   * 获取当前项目 ID（从 localStorage）
+   * @returns {number|null}
+   */
+  getCurrentProjectId() {
+    const stored = localStorage.getItem(STORAGE_KEY_CURRENT_PROJECT);
+    return stored ? parseInt(stored, 10) : null;
+  },
+
+  /**
+   * 设置当前项目 ID（保存到 localStorage）
+   * @param {number|null} projectId
+   */
+  setCurrentProjectId(projectId) {
+    if (projectId) {
+      localStorage.setItem(STORAGE_KEY_CURRENT_PROJECT, String(projectId));
+      this.config.currentProject = projectId;
+    } else {
+      localStorage.removeItem(STORAGE_KEY_CURRENT_PROJECT);
+      this.config.currentProject = null;
+    }
+  },
+
+  /**
+   * 获取当前项目对象
+   * @returns {Object|null}
+   */
+  getCurrentProject() {
+    const projectId = this.getCurrentProjectId();
+    if (!projectId) return null;
+    return this.config.projects.find(p => p.id === projectId) || null;
   },
 
   /**
@@ -219,5 +284,84 @@ const State = {
   removeInteraction(index) {
     if (!this.currentFile || !this.currentFile.interactions) return;
     this.currentFile.interactions.splice(index, 1);
+  },
+
+  // ==================== 会话管理 ====================
+
+  /**
+   * 获取或创建 Session ID（存储在 sessionStorage，每个标签页唯一）
+   * @returns {string}
+   */
+  getSessionId() {
+    if (this.session.sessionId) {
+      return this.session.sessionId;
+    }
+    // 使用 sessionStorage，每个标签页独立
+    let sessionId = sessionStorage.getItem(STORAGE_KEY_SESSION_ID);
+    if (!sessionId) {
+      sessionId = generateSessionId();
+      sessionStorage.setItem(STORAGE_KEY_SESSION_ID, sessionId);
+    }
+    this.session.sessionId = sessionId;
+    return sessionId;
+  },
+
+  /**
+   * 获取编辑者名称（存储在 localStorage，跨标签页共享）
+   * @returns {string|null}
+   */
+  getEditorName() {
+    if (this.session.editorName) {
+      return this.session.editorName;
+    }
+    const name = localStorage.getItem(STORAGE_KEY_EDITOR_NAME);
+    this.session.editorName = name;
+    return name;
+  },
+
+  /**
+   * 设置编辑者名称
+   * @param {string} name
+   */
+  setEditorName(name) {
+    this.session.editorName = name;
+    if (name) {
+      localStorage.setItem(STORAGE_KEY_EDITOR_NAME, name);
+    } else {
+      localStorage.removeItem(STORAGE_KEY_EDITOR_NAME);
+    }
+  },
+
+  /**
+   * 更新会话状态
+   * @param {Object} status - { isCurrentEditor, currentEditor }
+   */
+  updateSessionStatus(status) {
+    this.session.isCurrentEditor = status.isCurrentEditor;
+    this.session.currentEditor = status.currentEditor;
+  },
+
+  /**
+   * 启动心跳
+   */
+  startHeartbeat() {
+    this.stopHeartbeat();
+    // 每 2 分钟发送一次心跳
+    this.session.heartbeatTimer = setInterval(() => {
+      const projectId = this.getCurrentProjectId();
+      if (projectId) {
+        API.sessionHeartbeat(projectId, this.getSessionId());
+      }
+    }, 2 * 60 * 1000);
+  },
+
+  /**
+   * 停止心跳
+   */
+  stopHeartbeat() {
+    if (this.session.heartbeatTimer) {
+      clearInterval(this.session.heartbeatTimer);
+      this.session.heartbeatTimer = null;
+    }
   }
 };

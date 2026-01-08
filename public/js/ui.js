@@ -45,9 +45,9 @@ const UI = {
    */
   updateProjectDisplay() {
     const display = document.getElementById('projectPathDisplay');
-    if (State.config.currentProject) {
-      const project = State.config.projects.find(p => p.path === State.config.currentProject);
-      display.textContent = project?.name || State.config.currentProject.split('/').pop();
+    const currentProject = State.getCurrentProject();
+    if (currentProject) {
+      display.textContent = currentProject.name;
     } else {
       display.textContent = '未选择';
     }
@@ -247,7 +247,12 @@ const UI = {
    */
   previewHtml(path) {
     const screen = document.getElementById('phoneScreen');
-    screen.innerHTML = `<iframe id="previewFrame" src="/html/${path}"></iframe>`;
+    const projectId = State.getCurrentProjectId();
+    if (!projectId) {
+      screen.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">请先选择项目</div>';
+      return;
+    }
+    screen.innerHTML = `<iframe id="previewFrame" src="/html/${projectId}/${path}"></iframe>`;
     document.getElementById('previewInfo').textContent = path;
 
     // 设置元素选择器
@@ -262,28 +267,39 @@ const UI = {
   // ==================== 模态框 ====================
 
   /**
-   * 渲染最近项目列表
+   * 渲染项目列表
    */
-  renderRecentProjects() {
-    const container = document.getElementById('recentProjects');
+  renderProjectList() {
+    const container = document.getElementById('projectList');
     const projects = State.config.projects || [];
+    const currentProjectId = State.getCurrentProjectId();
 
     if (projects.length === 0) {
-      container.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px;">暂无最近项目</div>';
+      container.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px;">暂无项目，请创建新项目</div>';
       return;
     }
 
     container.innerHTML = projects.map(p => `
-      <div class="browser-item ${p.path === State.config.currentProject ? 'selected' : ''}"
-           onclick="switchToProject('${p.path}')" style="position:relative;">
+      <div class="browser-item ${p.id === currentProjectId ? 'selected' : ''}" data-project-id="${p.id}">
         <span class="browser-icon">${this.icon('folder')}</span>
-        <div style="flex:1;min-width:0;">
+        <div style="flex:1;min-width:0;" onclick="switchToProject(${p.id})">
           <div class="browser-name">${p.name}</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">${p.path}</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${p.description || '无描述'}</div>
         </div>
-        <button class="delete-btn" onclick="event.stopPropagation(); removeProject('${p.path}')" title="移除">
-          ${this.icon('x', 'sm')}
-        </button>
+        <div class="project-actions" style="display:flex;gap:4px;">
+          <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); openDesignSystem(${p.id})" title="设计系统">
+            ${this.icon('palette', 'sm')}
+          </button>
+          <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); editProject(${p.id})" title="编辑">
+            ${this.icon('edit', 'sm')}
+          </button>
+          <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); replaceProjectHtml(${p.id})" title="替换 HTML">
+            ${this.icon('upload', 'sm')}
+          </button>
+          <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); deleteProject(${p.id})" title="删除">
+            ${this.icon('trash', 'sm')}
+          </button>
+        </div>
       </div>
     `).join('');
   },
@@ -323,6 +339,49 @@ const UI = {
 
   closeModal(id) {
     document.getElementById(id).classList.remove('active');
+  },
+
+  // ==================== 编辑会话警告 ====================
+
+  /**
+   * 显示编辑冲突警告
+   * @param {string} editorName - 当前编辑者名称
+   * @param {string} startedAt - 开始编辑时间
+   */
+  showEditWarning(editorName, startedAt) {
+    let warning = document.getElementById('editWarning');
+    if (!warning) {
+      warning = document.createElement('div');
+      warning.id = 'editWarning';
+      warning.className = 'edit-warning';
+      document.body.appendChild(warning);
+    }
+
+    const timeStr = startedAt ? new Date(startedAt).toLocaleTimeString() : '';
+    warning.innerHTML = `
+      <div class="edit-warning-content">
+        ${this.icon('alert', 'md')}
+        <div class="edit-warning-text">
+          <strong>${editorName}</strong> 正在编辑此项目
+          ${timeStr ? `<span class="edit-warning-time">（${timeStr} 开始）</span>` : ''}
+        </div>
+        <button class="btn btn-sm" onclick="forceAcquireEdit()">接管编辑</button>
+        <button class="btn btn-icon btn-sm" onclick="UI.hideEditWarning()">
+          ${this.icon('x', 'sm')}
+        </button>
+      </div>
+    `;
+    warning.classList.add('show');
+  },
+
+  /**
+   * 隐藏编辑冲突警告
+   */
+  hideEditWarning() {
+    const warning = document.getElementById('editWarning');
+    if (warning) {
+      warning.classList.remove('show');
+    }
   }
 };
 

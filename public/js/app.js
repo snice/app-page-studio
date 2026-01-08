@@ -6,7 +6,10 @@
 // ==================== 初始化 ====================
 
 async function init() {
+  // 确保编辑者名称已设置
+  await ensureEditorName();
   await loadConfig();
+  await registerEditSession();
   await loadPages();
   await scanHtmlFiles();
   initWebSocket();
@@ -14,9 +17,83 @@ async function init() {
   console.log('初始化完成, pagesConfig:', State.pagesConfig);
 }
 
+/**
+ * 确保编辑者名称已设置
+ */
+async function ensureEditorName() {
+  let name = State.getEditorName();
+  if (!name) {
+    name = prompt('请输入您的名称（用于标识编辑者）:', '');
+    if (name && name.trim()) {
+      State.setEditorName(name.trim());
+    } else {
+      State.setEditorName('匿名用户');
+    }
+  }
+}
+
+/**
+ * 注册编辑会话
+ */
+async function registerEditSession() {
+  const projectId = State.getCurrentProjectId();
+  if (!projectId) {
+    UI.hideEditWarning();
+    return;
+  }
+
+  const sessionId = State.getSessionId();
+  const editorName = State.getEditorName() || '匿名用户';
+
+  try {
+    const result = await API.registerSession(projectId, sessionId, editorName);
+    State.updateSessionStatus(result);
+
+    if (!result.isNewEditor) {
+      // 有其他人在编辑，显示警告
+      UI.showEditWarning(result.currentEditor, result.startedAt);
+    } else {
+      UI.hideEditWarning();
+      // 启动心跳
+      State.startHeartbeat();
+    }
+  } catch (e) {
+    console.error('注册编辑会话失败:', e);
+  }
+}
+
+/**
+ * 强制接管编辑权限
+ */
+async function forceAcquireEdit() {
+  const projectId = State.getCurrentProjectId();
+  if (!projectId) return;
+
+  const sessionId = State.getSessionId();
+  const editorName = State.getEditorName() || '匿名用户';
+
+  try {
+    await API.forceAcquireSession(projectId, sessionId, editorName);
+    State.updateSessionStatus({ isCurrentEditor: true, currentEditor: editorName });
+    UI.hideEditWarning();
+    State.startHeartbeat();
+    showToast('已接管编辑权限');
+  } catch (e) {
+    showToast('接管失败: ' + e.message);
+  }
+}
+
 async function loadConfig() {
   const data = await API.getConfig();
   State.setConfig(data);
+  // 从 localStorage 恢复当前项目 ID，或使用第一个项目
+  const storedProjectId = State.getCurrentProjectId();
+  if (storedProjectId && data.projects.some(p => p.id === storedProjectId)) {
+    State.config.currentProject = storedProjectId;
+  } else if (data.projects.length > 0) {
+    // 如果没有存储的项目 ID，或者存储的 ID 不存在，使用第一个项目
+    State.setCurrentProjectId(data.projects[0].id);
+  }
   UI.updateProjectDisplay();
 }
 
@@ -27,6 +104,32 @@ async function loadPages() {
 }
 
 async function saveConfig() {
+  const projectId = State.getCurrentProjectId();
+  if (!projectId) {
+    showToast('请先选择项目');
+    return;
+  }
+
+  // 检查是否是当前编辑者
+  const sessionId = State.getSessionId();
+  const checkResult = await API.checkSession(projectId, sessionId);
+
+  if (!checkResult.isCurrentEditor) {
+    const confirmSave = confirm(
+      `警告：${checkResult.currentEditor} 正在编辑此项目。\n` +
+      '继续保存可能会覆盖对方的修改。\n\n' +
+      '确定要强制保存吗？'
+    );
+    if (!confirmSave) {
+      return;
+    }
+    // 强制获取编辑权限
+    await API.forceAcquireSession(projectId, sessionId, State.getEditorName());
+    State.updateSessionStatus({ isCurrentEditor: true, currentEditor: State.getEditorName() });
+    UI.hideEditWarning();
+    State.startHeartbeat();
+  }
+
   await API.savePages(State.pagesConfig);
   showToast('配置已保存');
 }
@@ -137,6 +240,11 @@ function togglePicker() {
   btn.classList.toggle('active', State.isPickerActive);
   btnText.textContent = State.isPickerActive ? '点击选择' : '选择元素';
 
+  // 如果取色器激活，先关闭它
+  if (State.isPickerActive && State.isColorPickerActive) {
+    toggleColorPicker();
+  }
+
   const iframe = document.getElementById('previewFrame');
   if (iframe && iframe.contentWindow) {
     if (State.isPickerActive) {
@@ -144,6 +252,325 @@ function togglePicker() {
     } else {
       Picker.disable(iframe);
     }
+  }
+}
+
+// ==================== 取色器 ====================
+
+function toggleColorPicker() {
+  State.isColorPickerActive = !State.isColorPickerActive;
+  const btn = document.getElementById('colorPickerBtn');
+  const btnText = document.getElementById('colorPickerBtnText');
+  btn.classList.toggle('active', State.isColorPickerActive);
+  btnText.textContent = State.isColorPickerActive ? '点击取色' : '取色';
+
+  // 如果元素选择器激活，先关闭它
+  if (State.isColorPickerActive && State.isPickerActive) {
+    togglePicker();
+  }
+
+  const iframe = document.getElementById('previewFrame');
+  if (iframe && iframe.contentWindow) {
+    if (State.isColorPickerActive) {
+      ColorPicker.enable(iframe);
+    } else {
+      ColorPicker.disable(iframe);
+    }
+  }
+}
+
+function updatePickedColorsDisplay() {
+  const section = document.getElementById('pickedColorsSection');
+  const grid = document.getElementById('pickedColorsGrid');
+
+  if (State.pickedColors.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  grid.innerHTML = State.pickedColors.map((color, index) => `
+    <div class="picked-color-chip" style="background:${color}" title="${color}" onclick="copyToClipboard('${color}')">
+      <button class="remove-btn" onclick="event.stopPropagation(); removePickedColor(${index})">
+        <icon-component name="x" size="sm"></icon-component>
+      </button>
+    </div>
+  `).join('');
+}
+
+function removePickedColor(index) {
+  State.pickedColors.splice(index, 1);
+  updatePickedColorsDisplay();
+}
+
+function clearPickedColors() {
+  State.pickedColors = [];
+  updatePickedColorsDisplay();
+}
+
+// ==================== 设计系统抽屉 ====================
+
+function openCurrentProjectDesignSystem() {
+  const projectId = State.getCurrentProjectId();
+  if (!projectId) {
+    showToast('请先选择项目');
+    return;
+  }
+  openDesignSystem(projectId);
+}
+
+function openDesignSystem(projectId) {
+  const project = State.config.projects.find(p => p.id === projectId);
+  if (!project) {
+    showToast('项目不存在');
+    return;
+  }
+
+  State.editingDesignProjectId = projectId;
+  State.editingDesignSystem = project.designSystem ? JSON.parse(JSON.stringify(project.designSystem)) : {};
+
+  // 更新抽屉内容
+  document.getElementById('designProjectName').textContent = project.name;
+  renderDesignSystemForm();
+
+  // 显示抽屉
+  document.getElementById('designSystemDrawer').classList.add('active');
+}
+
+function closeDesignSystemDrawer(event) {
+  // 如果点击的是 overlay 背景或关闭按钮，则关闭
+  if (!event || event.target.id === 'designSystemDrawer') {
+    document.getElementById('designSystemDrawer').classList.remove('active');
+    State.editingDesignProjectId = null;
+    State.editingDesignSystem = null;
+  }
+}
+
+function renderDesignSystemForm() {
+  const ds = State.editingDesignSystem || {};
+
+  // 渲染颜色列表
+  renderDesignColors();
+
+  // 更新取色结果显示
+  updatePickedColorsDisplay();
+
+  // 填充间距
+  const spacing = ds.spacing || {};
+  document.getElementById('spacingXs').value = spacing.xs || '';
+  document.getElementById('spacingSm').value = spacing.sm || '';
+  document.getElementById('spacingMd').value = spacing.md || '';
+  document.getElementById('spacingLg').value = spacing.lg || '';
+  document.getElementById('spacingXl').value = spacing.xl || '';
+
+  // 填充圆角
+  const radius = ds.radius || {};
+  document.getElementById('radiusSm').value = radius.sm || '';
+  document.getElementById('radiusMd').value = radius.md || '';
+  document.getElementById('radiusLg').value = radius.lg || '';
+  document.getElementById('radiusXl').value = radius.xl || '';
+
+  // 填充原始 JSON
+  document.getElementById('designSystemJson').value = JSON.stringify(ds, null, 2);
+}
+
+function renderDesignColors() {
+  const grid = document.getElementById('designColorsGrid');
+  const colors = State.editingDesignSystem?.colors || {};
+  const entries = Object.entries(colors);
+
+  if (entries.length === 0) {
+    grid.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:16px;text-align:center;background:var(--bg);border-radius:var(--radius-md);border:1px dashed var(--border);">暂无颜色配置</div>';
+    return;
+  }
+
+  grid.innerHTML = entries.map(([name, value]) => `
+    <div class="design-color-item">
+      <input type="color" class="design-color-picker" value="${value}" onchange="updateDesignColorValue('${name}', this.value)" title="点击选择颜色">
+      <div class="design-color-info">
+        <input type="text" class="design-color-name-input" value="${name}" onchange="renameDesignColor('${name}', this.value)" title="颜色名称">
+        <input type="text" class="design-color-value-input" value="${value}" onchange="updateDesignColorValue('${name}', this.value)" title="颜色值">
+      </div>
+      <button class="btn btn-icon btn-sm" onclick="removeDesignColor('${name}')" title="删除">
+        ${UI.icon('trash', 'sm')}
+      </button>
+    </div>
+  `).join('');
+}
+
+function addDesignColor() {
+  const name = prompt('颜色名称（如 primary, secondary）:');
+  if (!name) return;
+
+  if (!State.editingDesignSystem.colors) {
+    State.editingDesignSystem.colors = {};
+  }
+  // 默认颜色
+  State.editingDesignSystem.colors[name.trim()] = '#6366f1';
+  renderDesignColors();
+  updateDesignSystemJson();
+}
+
+function updateDesignColorValue(name, value) {
+  if (State.editingDesignSystem.colors && State.editingDesignSystem.colors[name] !== undefined) {
+    State.editingDesignSystem.colors[name] = value;
+    renderDesignColors();
+    updateDesignSystemJson();
+  }
+}
+
+function renameDesignColor(oldName, newName) {
+  if (!newName || newName === oldName) return;
+  if (State.editingDesignSystem.colors) {
+    const value = State.editingDesignSystem.colors[oldName];
+    delete State.editingDesignSystem.colors[oldName];
+    State.editingDesignSystem.colors[newName] = value;
+    renderDesignColors();
+    updateDesignSystemJson();
+  }
+}
+
+function editDesignColor(name) {
+  // 已不再使用，保留以防旧代码调用
+  const currentValue = State.editingDesignSystem.colors[name];
+  const newValue = prompt(`编辑颜色 "${name}":`, currentValue);
+  if (newValue !== null) {
+    State.editingDesignSystem.colors[name] = newValue.trim();
+    renderDesignColors();
+    updateDesignSystemJson();
+  }
+}
+
+function removeDesignColor(name) {
+  if (confirm(`确定删除颜色 "${name}"？`)) {
+    delete State.editingDesignSystem.colors[name];
+    renderDesignColors();
+    updateDesignSystemJson();
+  }
+}
+
+function addPickedColorsToDesign() {
+  if (State.pickedColors.length === 0) {
+    showToast('没有已取的颜色');
+    return;
+  }
+
+  if (!State.editingDesignSystem.colors) {
+    State.editingDesignSystem.colors = {};
+  }
+
+  // 为每个取到的颜色添加到设计系统
+  let addedCount = 0;
+  for (const color of State.pickedColors) {
+    // 生成颜色名称（color1, color2, ...）
+    let baseName = 'color';
+    let index = 1;
+    let name = baseName + index;
+    while (State.editingDesignSystem.colors[name]) {
+      index++;
+      name = baseName + index;
+    }
+    State.editingDesignSystem.colors[name] = color;
+    addedCount++;
+  }
+
+  // 清空已取颜色
+  State.pickedColors = [];
+  updatePickedColorsDisplay();
+  renderDesignColors();
+  updateDesignSystemJson();
+  showToast(`已添加 ${addedCount} 个颜色`);
+}
+
+function updateDesignSpacing() {
+  if (!State.editingDesignSystem.spacing) {
+    State.editingDesignSystem.spacing = {};
+  }
+  const getValue = (id) => {
+    const val = document.getElementById(id).value;
+    return val ? parseInt(val, 10) : undefined;
+  };
+  const spacing = {
+    xs: getValue('spacingXs'),
+    sm: getValue('spacingSm'),
+    md: getValue('spacingMd'),
+    lg: getValue('spacingLg'),
+    xl: getValue('spacingXl')
+  };
+  // 移除 undefined 值
+  Object.keys(spacing).forEach(k => spacing[k] === undefined && delete spacing[k]);
+  State.editingDesignSystem.spacing = spacing;
+  updateDesignSystemJson();
+}
+
+function updateDesignRadius() {
+  if (!State.editingDesignSystem.radius) {
+    State.editingDesignSystem.radius = {};
+  }
+  const getValue = (id) => {
+    const val = document.getElementById(id).value;
+    return val ? parseInt(val, 10) : undefined;
+  };
+  const radius = {
+    sm: getValue('radiusSm'),
+    md: getValue('radiusMd'),
+    lg: getValue('radiusLg'),
+    xl: getValue('radiusXl')
+  };
+  // 移除 undefined 值
+  Object.keys(radius).forEach(k => radius[k] === undefined && delete radius[k]);
+  State.editingDesignSystem.radius = radius;
+  updateDesignSystemJson();
+}
+
+function updateDesignSystemJson() {
+  document.getElementById('designSystemJson').value = JSON.stringify(State.editingDesignSystem, null, 2);
+}
+
+function parseDesignSystemJson() {
+  const jsonStr = document.getElementById('designSystemJson').value.trim();
+  if (!jsonStr) {
+    State.editingDesignSystem = {};
+    renderDesignSystemForm();
+    showToast('已清空设计系统');
+    return;
+  }
+
+  try {
+    State.editingDesignSystem = JSON.parse(jsonStr);
+    renderDesignSystemForm();
+    showToast('JSON 解析成功');
+  } catch (e) {
+    showToast('JSON 格式错误: ' + e.message);
+  }
+}
+
+async function saveDesignSystem() {
+  const projectId = State.editingDesignProjectId;
+  if (!projectId) {
+    showToast('未选择项目');
+    return;
+  }
+
+  const project = State.config.projects.find(p => p.id === projectId);
+  if (!project) {
+    showToast('项目不存在');
+    return;
+  }
+
+  try {
+    // 合并现有设计系统和新的编辑内容
+    const designSystem = State.editingDesignSystem || {};
+
+    await API.updateProject(projectId, project.name, project.description, designSystem);
+
+    // 更新本地状态
+    project.designSystem = designSystem;
+
+    closeDesignSystemDrawer();
+    showToast('设计系统已保存');
+  } catch (e) {
+    showToast('保存失败: ' + e.message);
   }
 }
 
@@ -237,98 +664,193 @@ function closeGroupModal() {
 // ==================== 项目选择器 ====================
 
 function showProjectSelector() {
-  UI.renderRecentProjects();
-  document.getElementById('newProjectPath').value = '';
-  document.getElementById('projectBrowser').style.display = 'none';
+  UI.renderProjectList();
+  // 清空创建表单
+  document.getElementById('newProjectName').value = '';
+  document.getElementById('newProjectDescription').value = '';
+  document.getElementById('newProjectDesignSystem').value = '';
+  document.getElementById('newProjectZip').value = '';
+  document.getElementById('zipFileName').textContent = '未选择文件';
+  State.editingProjectId = null;
+  updateProjectFormTitle();
   UI.showModal('projectModal');
 }
 
 function closeProjectModal() {
   UI.closeModal('projectModal');
+  State.editingProjectId = null;
 }
 
-async function switchToProject(projectPath) {
-  try {
-    const data = await API.switchProject(projectPath);
-    if (data.success) {
-      State.setConfig(data.config);
-      UI.updateProjectDisplay();
-      closeProjectModal();
-      await loadPages();
-      await scanHtmlFiles();
-      showToast('已切换项目');
-    }
-  } catch (e) {
-    showToast('切换失败');
+function updateProjectFormTitle() {
+  const title = document.getElementById('projectFormTitle');
+  const submitBtn = document.getElementById('projectSubmitBtn');
+  if (State.editingProjectId) {
+    title.textContent = '编辑项目';
+    submitBtn.textContent = '保存';
+  } else {
+    title.textContent = '创建新项目';
+    submitBtn.textContent = '创建';
   }
 }
 
-async function removeProject(projectPath) {
-  if (!confirm('确定从列表中移除此项目？')) return;
-
-  try {
-    const data = await API.removeProject(projectPath);
-    if (data.success) {
-      State.setConfig(data.config);
-      UI.updateProjectDisplay();
-      UI.renderRecentProjects();
-      if (State.config.currentProject !== projectPath) {
-        // 无需重新加载
-      } else {
-        await loadPages();
-        await scanHtmlFiles();
-      }
-    }
-  } catch (e) {
-    showToast('移除失败');
+async function switchToProject(projectId) {
+  // 释放旧项目的编辑会话
+  const oldProjectId = State.getCurrentProjectId();
+  if (oldProjectId && oldProjectId !== projectId) {
+    State.stopHeartbeat();
+    await API.releaseSession(oldProjectId, State.getSessionId());
   }
+
+  // 切换项目
+  State.setCurrentProjectId(projectId);
+  UI.updateProjectDisplay();
+  closeProjectModal();
+
+  // 注册新项目的编辑会话
+  await registerEditSession();
+  await loadPages();
+  await scanHtmlFiles();
+  showToast('已切换项目');
 }
 
-function browseForProject() {
-  State.projectBrowsePath = '/';
-  document.getElementById('projectBrowser').style.display = 'block';
-  browseProjectPath('/');
-}
+async function createOrUpdateProject() {
+  const name = document.getElementById('newProjectName').value.trim();
+  const description = document.getElementById('newProjectDescription').value.trim();
+  const designSystemStr = document.getElementById('newProjectDesignSystem').value.trim();
+  const zipInput = document.getElementById('newProjectZip');
+  const zipFile = zipInput.files[0];
 
-async function browseProjectPath(dirPath) {
-  if (dirPath === '..') {
-    const parts = State.projectBrowsePath.split('/').filter(Boolean);
-    parts.pop();
-    dirPath = '/' + parts.join('/');
-  }
-  State.projectBrowsePath = dirPath;
-  document.getElementById('projectBrowserPath').value = dirPath;
-
-  try {
-    const data = await API.browse(dirPath);
-    UI.renderBrowserList(data.items);
-  } catch (e) {
-    console.error('浏览失败', e);
-  }
-}
-
-function selectProjectPath(path) {
-  document.getElementById('newProjectPath').value = path;
-  document.querySelectorAll('#projectBrowserList .browser-item').forEach(el => {
-    el.classList.remove('selected');
-  });
-  event.currentTarget.classList.add('selected');
-}
-
-async function addAndSwitchProject() {
-  const projectPath = document.getElementById('newProjectPath').value.trim();
-  if (!projectPath) {
-    showToast('请输入或选择项目路径');
+  if (!name) {
+    showToast('请输入项目名称');
     return;
   }
-  await switchToProject(projectPath);
+
+  // 解析设计系统 JSON
+  let designSystem = null;
+  if (designSystemStr) {
+    try {
+      designSystem = JSON.parse(designSystemStr);
+    } catch (e) {
+      showToast('设计系统 JSON 格式错误');
+      return;
+    }
+  }
+
+  try {
+    if (State.editingProjectId) {
+      // 更新项目
+      await API.updateProject(State.editingProjectId, name, description, designSystem);
+      showToast('项目已更新');
+    } else {
+      // 创建项目
+      if (!zipFile) {
+        showToast('请选择 HTML ZIP 文件');
+        return;
+      }
+      const result = await API.createProject(name, description, zipFile);
+      // 创建成功后自动切换到新项目
+      if (result.project && result.project.id) {
+        // 释放旧项目的会话
+        const oldProjectId = State.getCurrentProjectId();
+        if (oldProjectId) {
+          State.stopHeartbeat();
+          await API.releaseSession(oldProjectId, State.getSessionId());
+        }
+        State.setCurrentProjectId(result.project.id);
+        // 如果有设计系统，更新项目
+        if (designSystem) {
+          await API.updateProject(result.project.id, name, description, designSystem);
+        }
+      }
+      showToast('项目创建成功');
+    }
+
+    await loadConfig();
+    UI.renderProjectList();
+    // 注册新项目的编辑会话
+    await registerEditSession();
+    await loadPages();
+    await scanHtmlFiles();
+    UI.updateProjectDisplay();
+
+    // 清空表单
+    document.getElementById('newProjectName').value = '';
+    document.getElementById('newProjectDescription').value = '';
+    document.getElementById('newProjectDesignSystem').value = '';
+    document.getElementById('newProjectZip').value = '';
+    document.getElementById('zipFileName').textContent = '未选择文件';
+    State.editingProjectId = null;
+    updateProjectFormTitle();
+  } catch (e) {
+    showToast('操作失败: ' + e.message);
+  }
+}
+
+function editProject(projectId) {
+  const project = State.config.projects.find(p => p.id === projectId);
+  if (!project) return;
+
+  State.editingProjectId = projectId;
+  document.getElementById('newProjectName').value = project.name;
+  document.getElementById('newProjectDescription').value = project.description || '';
+  document.getElementById('newProjectDesignSystem').value = project.designSystem ? JSON.stringify(project.designSystem, null, 2) : '';
+  document.getElementById('newProjectZip').value = '';
+  document.getElementById('zipFileName').textContent = '无需重新上传';
+  updateProjectFormTitle();
+}
+
+async function replaceProjectHtml(projectId) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.zip';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      showToast('正在上传...');
+      await API.replaceProjectHtml(projectId, file);
+      showToast('HTML 已替换');
+      await scanHtmlFiles();
+    } catch (err) {
+      showToast('替换失败: ' + err.message);
+    }
+  };
+  input.click();
+}
+
+async function deleteProject(projectId) {
+  if (!confirm('确定删除此项目？所有相关数据将被删除。')) return;
+
+  try {
+    const currentProjectId = State.getCurrentProjectId();
+    await API.deleteProject(projectId);
+
+    // 如果删除的是当前项目，清除并选择其他项目
+    if (currentProjectId === projectId) {
+      State.setCurrentProjectId(null);
+    }
+
+    await loadConfig();
+    UI.renderProjectList();
+    UI.updateProjectDisplay();
+    await loadPages();
+    await scanHtmlFiles();
+    showToast('项目已删除');
+  } catch (e) {
+    showToast('删除失败: ' + e.message);
+  }
+}
+
+function handleZipSelect(input) {
+  const fileName = input.files[0]?.name || '未选择文件';
+  document.getElementById('zipFileName').textContent = fileName;
 }
 
 // ==================== 提示词生成 ====================
 
 function showPromptModal() {
   UI.showModal('promptModal');
-  document.getElementById('imageStatus').textContent = '';
   generatePrompt();
 }
 
@@ -338,63 +860,18 @@ function closePromptModal() {
 
 async function generatePrompt() {
   const platform = document.getElementById('targetPlatform').value;
-  const includeDesignSystem = document.getElementById('includeDesignSystem').checked;
+  const project = State.getCurrentProject();
+  const designSystem = project?.designSystem || null;
 
   try {
     const data = await API.generatePrompt({
       pages: State.pagesConfig,
       targetPlatform: platform,
-      includeDesignSystem: includeDesignSystem
+      designSystem: designSystem
     });
     document.getElementById('promptPreview').textContent = data.prompt;
   } catch (e) {
     showToast('生成失败');
-  }
-}
-
-async function extractAndCopyImages() {
-  if (!State.config.currentProject) {
-    showToast('请先选择项目');
-    return;
-  }
-
-  const statusEl = document.getElementById('imageStatus');
-  statusEl.textContent = '正在提取图片...';
-
-  const allImages = [];
-
-  for (const file of State.pagesConfig.htmlFiles || []) {
-    try {
-      const data = await API.extractImages(file.path);
-      allImages.push(...data.images);
-    } catch (e) {
-      console.error('提取失败:', file.path, e);
-    }
-  }
-
-  const uniqueImages = [...new Map(allImages.map(i => [i.src, i])).values()];
-
-  if (uniqueImages.length === 0) {
-    statusEl.textContent = '未发现需要提取的图片';
-    return;
-  }
-
-  statusEl.textContent = `发现 ${uniqueImages.length} 张图片，正在复制...`;
-
-  const targetDir = document.getElementById('assetsDir').value || 'assets/images';
-  try {
-    const data = await API.copyImages(uniqueImages, targetDir);
-
-    if (data.copied.length > 0) {
-      statusEl.innerHTML = `<span style="color:var(--success)">✓ 已复制 ${data.copied.length} 张图片到 ${data.assetsDir}</span>`;
-      if (data.failed.length > 0) {
-        statusEl.innerHTML += `<br><span style="color:var(--warning)">⚠ ${data.failed.length} 张失败</span>`;
-      }
-    } else {
-      statusEl.innerHTML = `<span style="color:var(--warning)">⚠ 复制失败，请检查文件路径</span>`;
-    }
-  } catch (e) {
-    statusEl.innerHTML = `<span style="color:var(--error)">✕ 复制失败: ${e.message}</span>`;
   }
 }
 

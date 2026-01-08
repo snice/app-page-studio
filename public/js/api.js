@@ -5,6 +5,14 @@
 
 const API = {
   /**
+   * 获取当前项目 ID
+   * @returns {number|null}
+   */
+  _getProjectId() {
+    return State.getCurrentProjectId();
+  },
+
+  /**
    * 获取工具配置
    * @returns {Promise<Object>}
    */
@@ -18,7 +26,18 @@ const API = {
    * @returns {Promise<Object>}
    */
   async getPages() {
-    const res = await fetch('/api/pages');
+    const projectId = this._getProjectId();
+    if (!projectId) {
+      return {
+        projectName: 'My App',
+        targetPlatform: ['flutter'],
+        designSystem: {},
+        sharedComponents: [],
+        htmlFiles: [],
+        pageGroups: []
+      };
+    }
+    const res = await fetch(`/api/pages?projectId=${projectId}`);
     return res.json();
   },
 
@@ -28,7 +47,11 @@ const API = {
    * @returns {Promise<Object>}
    */
   async savePages(pagesConfig) {
-    const res = await fetch('/api/pages', {
+    const projectId = this._getProjectId();
+    if (!projectId) {
+      return { error: '请先选择项目' };
+    }
+    const res = await fetch(`/api/pages?projectId=${projectId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(pagesConfig)
@@ -41,7 +64,11 @@ const API = {
    * @returns {Promise<Object>}
    */
   async scanHtmlFiles() {
-    const res = await fetch('/api/scan-html');
+    const projectId = this._getProjectId();
+    if (!projectId) {
+      return { files: [], htmlPath: '' };
+    }
+    const res = await fetch(`/api/scan-html?projectId=${projectId}`);
     return res.json();
   },
 
@@ -51,32 +78,8 @@ const API = {
    * @returns {Promise<Object>}
    */
   async analyzeHtml(path) {
-    const res = await fetch(`/api/analyze-html?path=${encodeURIComponent(path)}`);
-    return res.json();
-  },
-
-  /**
-   * 提取图片
-   * @param {string} path - 文件路径
-   * @returns {Promise<Object>}
-   */
-  async extractImages(path) {
-    const res = await fetch(`/api/extract-images?path=${encodeURIComponent(path)}`);
-    return res.json();
-  },
-
-  /**
-   * 复制图片到项目目录
-   * @param {Array} images - 图片列表
-   * @param {string} targetDir - 目标目录
-   * @returns {Promise<Object>}
-   */
-  async copyImages(images, targetDir) {
-    const res = await fetch('/api/copy-images', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images, targetDir })
-    });
+    const projectId = this._getProjectId();
+    const res = await fetch(`/api/analyze-html?projectId=${projectId}&path=${encodeURIComponent(path)}`);
     return res.json();
   },
 
@@ -94,41 +97,171 @@ const API = {
     return res.json();
   },
 
+  // ==================== 项目管理 API ====================
+
   /**
-   * 切换项目
-   * @param {string} projectPath - 项目路径
+   * 获取所有项目
    * @returns {Promise<Object>}
    */
-  async switchProject(projectPath) {
-    const res = await fetch('/api/switch-project', {
+  async getProjects() {
+    const res = await fetch('/api/projects');
+    return res.json();
+  },
+
+  /**
+   * 获取单个项目
+   * @param {number} id - 项目 ID
+   * @returns {Promise<Object>}
+   */
+  async getProject(id) {
+    const res = await fetch(`/api/projects/${id}`);
+    return res.json();
+  },
+
+  /**
+   * 创建项目（带 ZIP 上传）
+   * @param {string} name - 项目名称
+   * @param {string} description - 项目描述
+   * @param {File} zipFile - ZIP 文件
+   * @returns {Promise<Object>}
+   */
+  async createProject(name, description, zipFile) {
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('description', description || '');
+    if (zipFile) {
+      formData.append('htmlZip', zipFile);
+    }
+
+    const res = await fetch('/api/projects', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectPath })
+      body: formData
     });
     return res.json();
   },
 
   /**
-   * 移除项目
-   * @param {string} projectPath - 项目路径
+   * 更新项目信息
+   * @param {number} id - 项目 ID
+   * @param {string} name - 项目名称
+   * @param {string} description - 项目描述
+   * @param {Object} designSystem - 设计系统配置
    * @returns {Promise<Object>}
    */
-  async removeProject(projectPath) {
-    const res = await fetch('/api/remove-project', {
-      method: 'POST',
+  async updateProject(id, name, description, designSystem = undefined) {
+    const body = { name, description };
+    if (designSystem !== undefined) {
+      body.designSystem = designSystem;
+    }
+    const res = await fetch(`/api/projects/${id}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectPath })
+      body: JSON.stringify(body)
     });
     return res.json();
   },
 
   /**
-   * 浏览目录
-   * @param {string} path - 目录路径
+   * 替换项目 HTML（上传新的 ZIP）
+   * @param {number} id - 项目 ID
+   * @param {File} zipFile - ZIP 文件
    * @returns {Promise<Object>}
    */
-  async browse(path) {
-    const res = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
+  async replaceProjectHtml(id, zipFile) {
+    const formData = new FormData();
+    formData.append('htmlZip', zipFile);
+
+    const res = await fetch(`/api/projects/${id}/html`, {
+      method: 'POST',
+      body: formData
+    });
+    return res.json();
+  },
+
+  /**
+   * 删除项目
+   * @param {number} id - 项目 ID
+   * @returns {Promise<Object>}
+   */
+  async deleteProject(id) {
+    const res = await fetch(`/api/projects/${id}`, {
+      method: 'DELETE'
+    });
+    return res.json();
+  },
+
+  // ==================== 编辑会话 API ====================
+
+  /**
+   * 注册编辑会话
+   * @param {number} projectId - 项目 ID
+   * @param {string} sessionId - 会话 ID
+   * @param {string} editorName - 编辑者名称
+   * @returns {Promise<Object>}
+   */
+  async registerSession(projectId, sessionId, editorName) {
+    const res = await fetch('/api/session/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, sessionId, editorName })
+    });
+    return res.json();
+  },
+
+  /**
+   * 发送心跳
+   * @param {number} projectId - 项目 ID
+   * @param {string} sessionId - 会话 ID
+   * @returns {Promise<Object>}
+   */
+  async sessionHeartbeat(projectId, sessionId) {
+    const res = await fetch('/api/session/heartbeat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, sessionId })
+    });
+    return res.json();
+  },
+
+  /**
+   * 检查会话状态
+   * @param {number} projectId - 项目 ID
+   * @param {string} sessionId - 会话 ID
+   * @returns {Promise<Object>}
+   */
+  async checkSession(projectId, sessionId) {
+    const res = await fetch(`/api/session/check?projectId=${projectId}&sessionId=${encodeURIComponent(sessionId)}`);
+    return res.json();
+  },
+
+  /**
+   * 释放编辑会话
+   * @param {number} projectId - 项目 ID
+   * @param {string} sessionId - 会话 ID
+   * @returns {Promise<Object>}
+   */
+  async releaseSession(projectId, sessionId) {
+    const res = await fetch('/api/session/release', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, sessionId })
+    });
+    return res.json();
+  },
+
+  /**
+   * 强制接管会话
+   * @param {number} projectId - 项目 ID
+   * @param {string} sessionId - 会话 ID
+   * @param {string} editorName - 编辑者名称
+   * @returns {Promise<Object>}
+   */
+  async forceAcquireSession(projectId, sessionId, editorName) {
+    const res = await fetch('/api/session/force-acquire', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, sessionId, editorName })
+    });
     return res.json();
   }
 };

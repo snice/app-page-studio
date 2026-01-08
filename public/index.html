@@ -32,6 +32,10 @@
         </span>
       </div>
 
+      <button class="btn btn-icon btn-secondary" id="designSystemBtn" onclick="openCurrentProjectDesignSystem()" title="设计系统配置">
+        <icon-component name="palette" size="md"></icon-component>
+      </button>
+
       <div class="header-actions">
         <button class="btn btn-icon btn-secondary" id="themeToggle" onclick="toggleTheme()" title="切换主题">
           <span id="themeIcon">
@@ -84,6 +88,10 @@
           <button class="device-btn" data-width="360" data-height="780">Android</button>
         </div>
         <div class="preview-actions">
+          <button class="color-picker-btn" id="colorPickerBtn" onclick="toggleColorPicker()">
+            <icon-component name="pipette"></icon-component>
+            <span id="colorPickerBtnText">取色</span>
+          </button>
           <button class="picker-btn" id="pickerBtn" onclick="togglePicker()">
             <icon-component name="target"></icon-component>
             <span id="pickerBtnText">选择元素</span>
@@ -109,7 +117,7 @@
     <aside class="panel">
       <div class="panel-tabs">
         <div class="panel-tab active" data-panel="file">文件配置</div>
-        <div class="panel-tab" data-panel="analysis">智能分析</div>
+        <!-- <div class="panel-tab" data-panel="analysis">智能分析</div> -->
       </div>
 
       <!-- File Config Panel -->
@@ -167,37 +175,37 @@
   <div class="modal-overlay" id="projectModal">
     <div class="modal">
       <div class="modal-header">
-        <span class="modal-title">选择项目</span>
+        <span class="modal-title">项目管理</span>
         <button class="modal-close" onclick="closeProjectModal()">
           <icon-component name="x"></icon-component>
         </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">最近项目</label>
-          <div id="recentProjects" class="browser-list" style="max-height:200px;margin-bottom:16px;"></div>
+          <label class="form-label">项目列表</label>
+          <div id="projectList" class="browser-list" style="max-height:280px;margin-bottom:16px;"></div>
         </div>
-        <div class="form-group">
-          <label class="form-label">添加新项目</label>
-          <div class="browser-path">
-            <icon-component name="folder"></icon-component>
-            <input type="text" class="browser-path-input" id="newProjectPath" placeholder="输入项目路径或浏览选择">
-            <button class="btn btn-sm btn-secondary" onclick="browseForProject()">浏览</button>
+        <div class="form-group" style="border-top:1px solid var(--border);padding-top:16px;">
+          <label class="form-label" id="projectFormTitle">创建新项目</label>
+          <input type="text" class="form-input" id="newProjectName" placeholder="项目名称" style="margin-bottom:8px;">
+          <textarea class="form-textarea" id="newProjectDescription" placeholder="项目描述（可选）" style="margin-bottom:8px;min-height:60px;"></textarea>
+          <div class="form-group">
+            <label class="form-label">设计系统（JSON 格式，可选）</label>
+            <textarea class="form-textarea" id="newProjectDesignSystem" placeholder='{"colors": {"primary": "#6366f1"}, "spacing": {"sm": 8}}' style="min-height:80px;font-family:'JetBrains Mono',monospace;font-size:12px;"></textarea>
           </div>
-        </div>
-        <div id="projectBrowser" style="display:none;">
-          <div class="browser-path" style="margin-top:8px;">
-            <button class="btn btn-sm btn-secondary" onclick="browseProjectPath('..')">
-              <icon-component name="arrowUp" size="sm"></icon-component>
+          <div class="file-upload-wrapper">
+            <input type="file" id="newProjectZip" accept=".zip" style="display:none;" onchange="handleZipSelect(this)">
+            <button class="btn btn-secondary" style="width:100%;" onclick="document.getElementById('newProjectZip').click()">
+              <icon-component name="upload"></icon-component>
+              选择 HTML ZIP 文件
             </button>
-            <input type="text" class="browser-path-input" id="projectBrowserPath" onkeypress="if(event.key==='Enter')browseProjectPath(this.value)">
+            <div id="zipFileName" style="font-size:12px;color:var(--text-muted);margin-top:6px;text-align:center;">未选择文件</div>
           </div>
-          <div class="browser-list" id="projectBrowserList" style="margin-top:8px;"></div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeProjectModal()">取消</button>
-        <button class="btn btn-primary" onclick="addAndSwitchProject()">添加并切换</button>
+        <button class="btn btn-secondary" onclick="closeProjectModal()">关闭</button>
+        <button class="btn btn-primary" id="projectSubmitBtn" onclick="createOrUpdateProject()">创建</button>
       </div>
     </div>
   </div>
@@ -258,23 +266,6 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-            <input type="checkbox" id="includeDesignSystem" style="width:18px;height:18px;accent-color:var(--primary);">
-            包含设计系统（颜色、字体、间距定义）
-          </label>
-        </div>
-        <div class="form-group">
-          <label class="form-label">图片资源目录</label>
-          <div style="display:flex;gap:10px;">
-            <input type="text" class="form-input" id="assetsDir" value="assets/images" style="flex:1;">
-            <button class="btn btn-secondary" onclick="extractAndCopyImages()">
-              <icon-component name="package"></icon-component>
-              提取图片
-            </button>
-          </div>
-          <div id="imageStatus" style="font-size:12px;color:var(--text-muted);margin-top:8px;"></div>
-        </div>
-        <div class="form-group">
           <label class="form-label">生成的提示词</label>
           <pre class="prompt-preview" id="promptPreview">点击"生成"按钮生成提示词</pre>
         </div>
@@ -298,6 +289,153 @@
 
   <!-- Toast -->
   <div class="toast" id="toast">操作成功</div>
+
+  <!-- Design System Drawer -->
+  <div class="drawer-overlay" id="designSystemDrawer" onclick="closeDesignSystemDrawer(event)">
+    <div class="drawer" onclick="event.stopPropagation()">
+      <div class="drawer-header">
+        <span class="drawer-title">
+          <icon-component name="palette" size="md"></icon-component>
+          设计系统配置
+        </span>
+        <button class="modal-close" onclick="closeDesignSystemDrawer()">
+          <icon-component name="x"></icon-component>
+        </button>
+      </div>
+      <div class="drawer-body">
+        <!-- 项目信息 -->
+        <div class="design-section">
+          <div class="design-section-header">
+            <span class="design-section-title">
+              <icon-component name="folder" size="sm"></icon-component>
+              项目
+            </span>
+          </div>
+          <div id="designProjectName" style="font-size:14px;font-weight:500;margin-bottom:8px;">-</div>
+        </div>
+
+        <!-- 颜色配置 -->
+        <div class="design-section">
+          <div class="design-section-header">
+            <span class="design-section-title">
+              <icon-component name="palette" size="sm"></icon-component>
+              颜色
+            </span>
+            <button class="btn btn-sm btn-secondary" onclick="addDesignColor()">
+              <icon-component name="plus" size="sm"></icon-component>
+              添加
+            </button>
+          </div>
+          <div id="designColorsGrid" class="design-colors-grid">
+            <!-- 动态渲染 -->
+          </div>
+        </div>
+
+        <!-- 取色结果（如果有） -->
+        <div class="design-section" id="pickedColorsSection" style="display:none;">
+          <div class="design-section-header">
+            <span class="design-section-title">
+              <icon-component name="pipette" size="sm"></icon-component>
+              已取颜色
+            </span>
+            <button class="btn btn-sm btn-secondary" onclick="clearPickedColors()">清空</button>
+          </div>
+          <div id="pickedColorsGrid" class="picked-colors-grid">
+            <!-- 动态渲染 -->
+          </div>
+          <div style="margin-top:12px;">
+            <button class="btn btn-sm btn-primary" onclick="addPickedColorsToDesign()" style="width:100%;">
+              <icon-component name="plus" size="sm"></icon-component>
+              添加到设计系统
+            </button>
+          </div>
+        </div>
+
+        <!-- 间距配置 -->
+        <div class="design-section">
+          <div class="design-section-header">
+            <span class="design-section-title">
+              <icon-component name="package" size="sm"></icon-component>
+              间距
+            </span>
+          </div>
+          <div class="form-group" style="margin-bottom:8px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>
+                <label class="form-label">xs</label>
+                <input type="number" class="form-input" id="spacingXs" placeholder="4" onchange="updateDesignSpacing()">
+              </div>
+              <div>
+                <label class="form-label">sm</label>
+                <input type="number" class="form-input" id="spacingSm" placeholder="8" onchange="updateDesignSpacing()">
+              </div>
+              <div>
+                <label class="form-label">md</label>
+                <input type="number" class="form-input" id="spacingMd" placeholder="16" onchange="updateDesignSpacing()">
+              </div>
+              <div>
+                <label class="form-label">lg</label>
+                <input type="number" class="form-input" id="spacingLg" placeholder="24" onchange="updateDesignSpacing()">
+              </div>
+              <div>
+                <label class="form-label">xl</label>
+                <input type="number" class="form-input" id="spacingXl" placeholder="32" onchange="updateDesignSpacing()">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 圆角配置 -->
+        <div class="design-section">
+          <div class="design-section-header">
+            <span class="design-section-title">
+              <icon-component name="package" size="sm"></icon-component>
+              圆角
+            </span>
+          </div>
+          <div class="form-group" style="margin-bottom:8px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>
+                <label class="form-label">sm</label>
+                <input type="number" class="form-input" id="radiusSm" placeholder="4" onchange="updateDesignRadius()">
+              </div>
+              <div>
+                <label class="form-label">md</label>
+                <input type="number" class="form-input" id="radiusMd" placeholder="8" onchange="updateDesignRadius()">
+              </div>
+              <div>
+                <label class="form-label">lg</label>
+                <input type="number" class="form-input" id="radiusLg" placeholder="12" onchange="updateDesignRadius()">
+              </div>
+              <div>
+                <label class="form-label">xl</label>
+                <input type="number" class="form-input" id="radiusXl" placeholder="16" onchange="updateDesignRadius()">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 原始 JSON -->
+        <div class="design-section">
+          <div class="design-section-header">
+            <span class="design-section-title">
+              <icon-component name="file" size="sm"></icon-component>
+              原始 JSON
+            </span>
+          </div>
+          <textarea class="form-textarea" id="designSystemJson" style="min-height:120px;font-family:'JetBrains Mono',monospace;font-size:11px;" placeholder='{"colors": {}, "spacing": {}}'></textarea>
+          <button class="btn btn-sm btn-secondary" onclick="parseDesignSystemJson()" style="margin-top:8px;">解析 JSON</button>
+        </div>
+      </div>
+      <div class="drawer-footer">
+        <button class="btn btn-secondary" onclick="closeDesignSystemDrawer()">取消</button>
+        <button class="btn btn-primary" onclick="saveDesignSystem()">
+          <icon-component name="save" size="sm"></icon-component>
+          保存
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- JavaScript 模块 -->
   <script src="/js/state.js"></script>

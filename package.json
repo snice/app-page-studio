@@ -17,10 +17,13 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "chokidar": "^3.5.3",
-    "ws": "^8.14.2",
+    "adm-zip": "^0.5.16",
+    "better-sqlite3": "^12.5.0",
     "cheerio": "^1.0.0-rc.12",
-    "open": "^9.1.0"
+    "chokidar": "^3.5.3",
+    "express": "^4.18.2",
+    "multer": "^2.0.2",
+    "open": "^9.1.0",
+    "ws": "^8.14.2"
   }
 }

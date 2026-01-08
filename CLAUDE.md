@@ -16,12 +16,69 @@ npm run dev      # Start with auto-open browser
 
 ## Architecture
 
-### Backend (`server.js`)
-Single Express server handling:
-- Static file serving for UI (`/public`) and HTML previews (`/html`)
-- WebSocket server for hot-reload on HTML file changes
-- REST APIs for configuration, file scanning, HTML analysis, and prompt generation
-- File watcher (chokidar) monitors HTML directory for changes
+### Backend Structure
+```
+├── server.js           # Main entry, Express server, WebSocket
+├── db.js               # SQLite database module
+└── api/
+    ├── utils.js        # Shared utilities (upload, extractZip, etc.)
+    ├── projects.js     # Project management APIs
+    ├── pages.js        # Pages config APIs
+    ├── html.js         # HTML scan/analyze APIs
+    └── prompt.js       # Prompt generation API
+```
+
+### Server (`server.js`)
+Lightweight entry point:
+- Express middleware setup
+- Static file serving (`/public`, `/html`)
+- WebSocket server for hot-reload
+- File watcher (chokidar) for HTML changes
+- Mounts API routers from `api/` directory
+
+### Database (`db.js`)
+SQLite database module using `better-sqlite3`:
+- **Tables**:
+  - `projects`: id, name, description, created_at, updated_at, is_current
+  - `project_pages`: id, project_id, pages_json, updated_at
+- **Projects API**: getAll, getCurrent, getById, create, update, delete, setCurrent, getPagesJson, savePagesJson
+
+### API Modules (`api/`)
+
+**utils.js** - Shared utilities:
+- `HTML_CACHES_DIR` - Path to html_caches directory
+- `upload` - Multer middleware for ZIP upload
+- `getCurrentProject()` - Get current project from DB
+- `getHtmlDir()` - Get HTML directory path
+- `extractZipToDir()` - Extract ZIP with hidden file filtering
+
+**projects.js** - Project management:
+- `GET /api/config` - Get configuration with project list
+- `GET /api/projects` - Get all projects
+- `GET /api/projects/:id` - Get single project
+- `POST /api/projects` - Create project (multipart: name, description, htmlZip)
+- `PUT /api/projects/:id` - Update project info
+- `POST /api/projects/:id/html` - Replace project HTML (multipart: htmlZip)
+- `DELETE /api/projects/:id` - Delete project
+- `POST /api/projects/:id/activate` - Set as current project
+- `GET /api/browse` - Browse filesystem directories
+
+**pages.js** - Pages configuration:
+- `GET /api/pages` - Get pages.json for current project
+- `POST /api/pages` - Save pages.json for current project
+
+**html.js** - HTML scanning and analysis:
+- `GET /api/scan-html` - Scan HTML files in current project
+- `GET /api/html-content` - Read HTML content
+- `GET /api/analyze-html` - Analyze HTML structure (colors, interactive elements)
+- `GET /api/extract-images` - Extract image paths from HTML
+- `POST /api/copy-images` - Copy images to project assets directory
+
+**prompt.js** - Prompt generation:
+- `POST /api/generate-prompt` - Generate AI development prompt
+
+### HTML Storage
+Project HTML files are stored in `html_caches/{project_id}/` directory, uploaded as ZIP files.
 
 ### Frontend Structure
 ```
@@ -41,33 +98,21 @@ public/
 
 ### Key Data Structures
 
-**Config** (`.studio-config.json`):
-- `currentProject`: Active project path
-- `projects[]`: List of recent projects with path, name, lastOpened
+**Projects** (SQLite `projects` table):
+- `id`: Project ID (auto-increment)
+- `name`: Project name
+- `description`: Optional description
+- `is_current`: 1 if this is the active project
 
-**Pages Config** (`pages.json` in project or tool root):
+**Pages Config** (SQLite `project_pages` table, stored as JSON):
 - `pageGroups[]`: Groups of HTML files representing one app page's states
 - `htmlFiles[]`: Individual file configs with stateName, description, groupId, interactions
 
-### Path Resolution Priority
-HTML and pages.json files are resolved in order:
-1. `{currentProject}/html/` and `{currentProject}/pages.json`
-2. `{toolDir}/html/` and `{toolDir}/pages.json`
-
-### API Endpoints
-- `GET /api/config` - Get studio configuration
-- `POST /api/switch-project` - Switch active project
-- `GET /api/browse?path=` - Browse filesystem directories
-- `GET /api/pages` - Get pages.json configuration
-- `POST /api/pages` - Save pages.json
-- `GET /api/scan-html` - Scan HTML files in current project
-- `GET /api/analyze-html?path=` - Analyze HTML structure (colors, interactive elements)
-- `GET /api/extract-images?path=` - Extract image paths from HTML
-- `POST /api/copy-images` - Copy images to project assets directory
-- `POST /api/generate-prompt` - Generate AI development prompt
-
 ### Dependencies
 - `express` - HTTP server
+- `better-sqlite3` - SQLite database
+- `multer` - File upload handling
+- `adm-zip` - ZIP file extraction
 - `cheerio` - HTML parsing for analysis
 - `chokidar` - File watching
 - `ws` - WebSocket for hot reload
@@ -106,7 +151,7 @@ Available icons (defined in `ICONS` object in `icons.js`):
 - **Files**: file, fileEmpty, folder, folderOpen
 - **Navigation**: chevronDown, chevronUp, arrowUp
 - **Editing**: edit, trash, x, check
-- **Functions**: target, copy, download, package
+- **Functions**: target, copy, download, upload, package
 
 To add new icons:
 1. Add the SVG path to `ICONS` object in `icons.js`
@@ -116,3 +161,10 @@ To add new icons:
 - Use CSS variables for all colors (defined in `:root` and `[data-theme="light"]`)
 - Test both light and dark themes when adding new UI elements
 - Ensure sufficient contrast in both themes
+
+### API Development
+When adding new API endpoints:
+1. Create or update appropriate file in `api/` directory
+2. Use `express.Router()` for route definitions
+3. Import shared utilities from `api/utils.js`
+4. Export router and mount in `server.js`
