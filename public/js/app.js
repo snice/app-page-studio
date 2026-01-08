@@ -581,7 +581,9 @@ function createGroup() {
   document.getElementById('groupName').value = '';
   document.getElementById('groupDescription').value = '';
   document.getElementById('groupRoute').value = '';
-  document.getElementById('groupSourcePath').value = '';
+  document.getElementById('groupSourcePathFlutter').value = '';
+  document.getElementById('groupSourcePathRN').value = '';
+  document.getElementById('groupSourcePathUniapp').value = '';
   UI.renderGroupColorPicker();
   UI.showModal('groupModal');
 }
@@ -606,12 +608,18 @@ function confirmGroup() {
   const selectedColor = document.querySelector('#groupColorPicker .color-option.selected');
   const color = selectedColor ? selectedColor.dataset.color : State.groupColors[0];
 
+  const sourcePaths = {
+    flutter: document.getElementById('groupSourcePathFlutter').value,
+    'react-native': document.getElementById('groupSourcePathRN').value,
+    uniapp: document.getElementById('groupSourcePathUniapp').value
+  };
+
   if (State.editingGroupId) {
     State.updateGroup(State.editingGroupId, {
       name: name,
       description: document.getElementById('groupDescription').value,
       route: document.getElementById('groupRoute').value,
-      appSourcePath: document.getElementById('groupSourcePath').value,
+      sourcePaths: sourcePaths,
       color: color
     });
   } else {
@@ -621,7 +629,7 @@ function confirmGroup() {
       name: name,
       description: document.getElementById('groupDescription').value,
       route: document.getElementById('groupRoute').value,
-      appSourcePath: document.getElementById('groupSourcePath').value,
+      sourcePaths: sourcePaths,
       color: color
     });
 
@@ -644,7 +652,13 @@ function editGroup(groupId) {
   document.getElementById('groupName').value = group.name;
   document.getElementById('groupDescription').value = group.description || '';
   document.getElementById('groupRoute').value = group.route || '';
-  document.getElementById('groupSourcePath').value = group.appSourcePath || '';
+
+  // 兼容旧数据格式 (appSourcePath) 和新格式 (sourcePaths)
+  const sourcePaths = group.sourcePaths || {};
+  document.getElementById('groupSourcePathFlutter').value = sourcePaths.flutter || group.appSourcePath || '';
+  document.getElementById('groupSourcePathRN').value = sourcePaths['react-native'] || '';
+  document.getElementById('groupSourcePathUniapp').value = sourcePaths.uniapp || '';
+
   UI.renderGroupColorPicker(group.color);
   UI.showModal('groupModal');
 }

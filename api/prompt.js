@@ -53,6 +53,25 @@ function generateAIPrompt(pagesConfig, platform, designSystem) {
 - 动态路由使用 \`[id].tsx\` 命名
 - 布局文件使用 \`_layout.tsx\`
 - 如果源码路径不存在，需要在 \`app/\` 目录下自动创建对应文件`
+    },
+    'uniapp': {
+      framework: 'UniApp',
+      language: 'Vue 3 + TypeScript',
+      layoutWidget: 'view, scroll-view, swiper',
+      stateManagement: 'Pinia',
+      routing: 'uni-app 路由',
+      imageAsset: "'/static/images/xxx.png'",
+      assetsDir: 'static/images/',
+      createPageCmd: '在 pages/ 目录下创建 .vue 文件并在 pages.json 中注册',
+      routingGuide: `### UniApp 路由管理
+- 页面文件放在 \`pages/\` 目录，使用 \`.vue\` 后缀
+- 所有页面需要在 \`pages.json\` 中注册
+- 使用 \`uni.navigateTo({ url: '/pages/xxx/xxx' })\` 跳转
+- 使用 \`uni.navigateBack()\` 返回上一页
+- 使用 \`uni.switchTab({ url: '/pages/xxx/xxx' })\` 切换 Tab 页面
+- 使用 \`uni.redirectTo()\` 关闭当前页面并跳转
+- 组件使用 \`<script setup lang="ts">\` 语法
+- 样式使用 rpx 单位适配多端`
     }
   };
 
@@ -103,8 +122,15 @@ ${JSON.stringify(designSystem, null, 2)}
       // 找到属于该分组的文件
       const groupFiles = (pagesConfig.htmlFiles || []).filter(f => f.groupId === group.id);
 
-      const sourcePath = group.appSourcePath || '待创建';
-      const sourceNote = group.appSourcePath ? '' : ` ⚠️ 需要使用 \`${guide.createPageCmd}\` 创建`;
+      // 根据平台获取对应的源码路径，兼容旧数据格式
+      let sourcePath = '待创建';
+      if (group.sourcePaths && group.sourcePaths[platform]) {
+        sourcePath = group.sourcePaths[platform];
+      } else if (group.appSourcePath) {
+        // 兼容旧数据格式
+        sourcePath = group.appSourcePath;
+      }
+      const sourceNote = sourcePath === '待创建' ? ` ⚠️ 需要使用 \`${guide.createPageCmd}\` 创建` : '';
 
       prompt += `### ${group.name}
 - **描述**: ${group.description || '无'}

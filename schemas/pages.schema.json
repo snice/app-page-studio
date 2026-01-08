@@ -73,7 +73,25 @@
         },
         "appSourcePath": {
           "type": "string",
-          "description": "对应的App源代码路径（如 lib/pages/home_page.dart）"
+          "description": "对应的App源代码路径（旧格式，已废弃，请使用 sourcePaths）"
+        },
+        "sourcePaths": {
+          "type": "object",
+          "description": "各平台对应的源代码路径",
+          "properties": {
+            "flutter": {
+              "type": "string",
+              "description": "Flutter 源码路径（如 lib/pages/home_page.dart）"
+            },
+            "react-native": {
+              "type": "string",
+              "description": "React Native 源码路径（如 app/home.tsx）"
+            },
+            "uniapp": {
+              "type": "string",
+              "description": "UniApp 源码路径（如 pages/home/home.vue）"
+            }
+          }
         },
         "states": {
           "type": "array",
