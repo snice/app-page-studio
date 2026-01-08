@@ -1089,6 +1089,27 @@ function downloadPrompt() {
   URL.revokeObjectURL(url);
 }
 
+// ==================== 配置下载 ====================
+
+function downloadPagesConfig() {
+  const projectId = State.getCurrentProjectId();
+  if (!projectId) {
+    showToast('请先选择项目');
+    return;
+  }
+
+  const config = State.pagesConfig;
+  const jsonStr = JSON.stringify(config, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'pages-config.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('配置已下载');
+}
+
 // ==================== WebSocket ====================
 
 function initWebSocket() {
