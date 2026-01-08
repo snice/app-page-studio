@@ -141,6 +141,25 @@ body::before {
   z-index: 0;
 }
 
+input[type="range"] {
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
 .app {
   display: grid;
   grid-template-columns: 300px 1fr 360px;

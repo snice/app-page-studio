@@ -270,9 +270,11 @@ function showPickerActionMenu(e, selector, eventType) {
   const iframe = document.getElementById('previewFrame');
   const iframeRect = iframe.getBoundingClientRect();
 
-  // 计算菜单位置
-  const menuX = iframeRect.left + e.clientX;
-  const menuY = iframeRect.top + e.clientY;
+  // 获取当前缩放值
+  const zoom = typeof currentZoom !== 'undefined' ? currentZoom : 1;
+  // 计算菜单位置（考虑缩放）
+  const menuX = iframeRect.left + e.clientX * zoom;
+  const menuY = iframeRect.top + e.clientY * zoom;
 
   pickerActionMenu = document.createElement('div');
   pickerActionMenu.className = 'picker-action-menu';
@@ -405,7 +407,14 @@ function highlightElement(selector) {
   clearElementHighlight();
 
   try {
-    const el = doc.querySelector(selector);
+    // 处理以数字开头的ID选择器（如 #1_2165）
+    let el;
+    if (selector.startsWith('#')) {
+      const id = selector.slice(1);
+      el = doc.querySelector(`[id="${id}"]`);
+    } else {
+      el = doc.querySelector(selector);
+    }
     if (el) {
       // 添加高亮样式
       el.classList.add('element-highlight');

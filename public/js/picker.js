@@ -217,14 +217,16 @@ const ColorPicker = {
     const el = e.target;
     const color = ColorPicker.getColorFromElement(el, e);
 
-    // 计算 tooltip 位置（需要转换到主文档坐标，考虑 iframe 滚动）
+    // 计算 tooltip 位置（需要转换到主文档坐标，考虑缩放）
     const iframe = ColorPicker.iframe;
     if (!iframe) return;
 
     const iframeRect = iframe.getBoundingClientRect();
-    // e.clientX/Y 是相对于 iframe 视口的，不需要额外处理滚动
-    const tooltipX = iframeRect.left + e.clientX + 20;
-    const tooltipY = iframeRect.top + e.clientY + 20;
+    // 获取当前缩放值
+    const zoom = typeof currentZoom !== 'undefined' ? currentZoom : 1;
+    // e.clientX/Y 是相对于 iframe 内部坐标，需要乘以缩放值
+    const tooltipX = iframeRect.left + e.clientX * zoom + 20;
+    const tooltipY = iframeRect.top + e.clientY * zoom + 20;
 
     // 确保 tooltip 不超出屏幕
     const maxX = window.innerWidth - 150;
