@@ -176,18 +176,6 @@ body::before {
   letter-spacing: -0.02em;
 }
 
-.logo-icon {
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  box-shadow: var(--shadow-sm), 0 0 20px var(--primary-glow);
-}
-
 .path-display {
   display: flex;
   align-items: center;
@@ -1225,4 +1213,48 @@ body::before {
 .selection-count {
   font-weight: 700;
   font-size: 15px;
+}
+
+/* ==================== SVG Icons ==================== */
+.icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-sm { width: 14px; height: 14px; }
+.icon-md { width: 18px; height: 18px; }
+.icon-lg { width: 20px; height: 20px; }
+.icon-xl { width: 24px; height: 24px; }
+
+/* Logo icon special styling */
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm), 0 0 20px var(--primary-glow);
+}
+
+.logo-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: white;
+  fill: none;
 }

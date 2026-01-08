@@ -23,11 +23,21 @@ Single Express server handling:
 - REST APIs for configuration, file scanning, HTML analysis, and prompt generation
 - File watcher (chokidar) monitors HTML directory for changes
 
-### Frontend (`public/index.html`)
-Single-page application with:
-- Three-column layout: file list sidebar, phone preview, configuration panel
-- iframe-based HTML preview with element picker overlay
-- WebSocket client for live reload
+### Frontend Structure
+```
+public/
+├── index.html          # HTML structure only
+├── css/
+│   └── styles.css      # All styles (including theme variables)
+└── js/
+    ├── icons.js        # SVG icon Web Component (loaded first in <head>)
+    ├── theme.js        # Theme switching (loaded in <head> to prevent flash)
+    ├── state.js        # Global state management
+    ├── api.js          # API request wrappers
+    ├── picker.js       # Element picker for iframe
+    ├── ui.js           # UI rendering and interactions
+    └── app.js          # Main entry point and event bindings
+```
 
 ### Key Data Structures
 
@@ -62,3 +72,47 @@ HTML and pages.json files are resolved in order:
 - `chokidar` - File watching
 - `ws` - WebSocket for hot reload
 - `open` - Browser opening (ES module, use dynamic import)
+
+## Code Style Guidelines
+
+### Icons
+**IMPORTANT: Always use SVG icons via `<icon-component>`, never use emoji.**
+
+All icons are defined in `icons.js` as a Web Component. Use:
+
+```html
+<!-- In HTML -->
+<icon-component name="check"></icon-component>
+<icon-component name="folder" size="lg"></icon-component>
+```
+
+```javascript
+// In JS (dynamic rendering)
+UI.icon('check')           // Returns: <icon-component name="check"></icon-component>
+UI.icon('folder', 'lg')    // Returns: <icon-component name="folder" size="lg"></icon-component>
+```
+
+Size options:
+- (default) - 16x16
+- `sm` - 14x14
+- `md` - 18x18
+- `lg` - 20x20
+- `xl` - 24x24
+
+Available icons (defined in `ICONS` object in `icons.js`):
+- **App**: smartphone
+- **Actions**: refresh, save, sparkles, plus
+- **Theme**: sun, moon
+- **Files**: file, fileEmpty, folder, folderOpen
+- **Navigation**: chevronDown, chevronUp, arrowUp
+- **Editing**: edit, trash, x, check
+- **Functions**: target, copy, download, package
+
+To add new icons:
+1. Add the SVG path to `ICONS` object in `icons.js`
+2. Only include the inner content (no `<svg>` wrapper), e.g.: `newIcon: '<path d="..."/>'`
+
+### Theme Support
+- Use CSS variables for all colors (defined in `:root` and `[data-theme="light"]`)
+- Test both light and dark themes when adding new UI elements
+- Ensure sufficient contrast in both themes

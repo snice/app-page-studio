@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
+  <!-- Web Component 必须在使用前加载 -->
+  <script src="/js/icons.js"></script>
   <!-- 主题必须在 body 渲染前加载，防止闪烁 -->
   <script src="/js/theme.js"></script>
 </head>
@@ -16,28 +18,37 @@
     <!-- Header -->
     <header class="header">
       <div class="logo">
-        <div class="logo-icon">📱</div>
+        <div class="logo-icon">
+          <icon-component name="smartphone" size="md"></icon-component>
+        </div>
         <span>App Page Studio</span>
       </div>
 
       <div class="path-display" onclick="showProjectSelector()">
         <span class="path-label">项目</span>
         <span class="path-value" id="projectPathDisplay">未选择</span>
-        <span class="path-chevron">▼</span>
+        <span class="path-chevron">
+          <icon-component name="chevronDown" size="sm"></icon-component>
+        </span>
       </div>
 
       <div class="header-actions">
         <button class="btn btn-icon btn-secondary" id="themeToggle" onclick="toggleTheme()" title="切换主题">
-          <span id="themeIcon">🌙</span>
+          <span id="themeIcon">
+            <icon-component name="moon" size="md"></icon-component>
+          </span>
         </button>
         <button class="btn btn-secondary" onclick="scanHtmlFiles()">
-          <span>🔄</span> 刷新
+          <icon-component name="refresh"></icon-component>
+          刷新
         </button>
         <button class="btn btn-secondary" onclick="saveConfig()">
-          <span>💾</span> 保存
+          <icon-component name="save"></icon-component>
+          保存
         </button>
         <button class="btn btn-primary" onclick="showPromptModal()">
-          <span>✨</span> 生成提示词
+          <icon-component name="sparkles"></icon-component>
+          生成提示词
         </button>
       </div>
     </header>
@@ -47,7 +58,8 @@
       <div class="sidebar-header">
         <span class="sidebar-title">HTML 文件</span>
         <button class="btn btn-sm btn-secondary" onclick="createGroup()">
-          <span>+</span> 新建分组
+          <icon-component name="plus" size="sm"></icon-component>
+          新建分组
         </button>
       </div>
 
@@ -73,7 +85,8 @@
         </div>
         <div class="preview-actions">
           <button class="picker-btn" id="pickerBtn" onclick="togglePicker()">
-            <span>🎯</span> 选择元素
+            <icon-component name="target"></icon-component>
+            <span id="pickerBtnText">选择元素</span>
           </button>
           <span class="preview-info" id="previewInfo">未选择文件</span>
         </div>
@@ -82,7 +95,9 @@
         <div class="phone-frame">
           <div class="phone-screen" id="phoneScreen">
             <div class="empty-preview">
-              <div class="empty-preview-icon">📄</div>
+              <div class="empty-preview-icon">
+                <icon-component name="fileEmpty" size="xl"></icon-component>
+              </div>
               <p>选择 HTML 文件预览</p>
             </div>
           </div>
@@ -122,7 +137,8 @@
           <div class="panel-section-title">交互行为</div>
           <div id="interactionList"></div>
           <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px;" onclick="addInteraction()">
-            <span>+</span> 添加交互
+            <icon-component name="plus" size="sm"></icon-component>
+            添加交互
           </button>
         </div>
       </div>
@@ -152,7 +168,9 @@
     <div class="modal">
       <div class="modal-header">
         <span class="modal-title">选择项目</span>
-        <button class="modal-close" onclick="closeProjectModal()">×</button>
+        <button class="modal-close" onclick="closeProjectModal()">
+          <icon-component name="x"></icon-component>
+        </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -162,14 +180,16 @@
         <div class="form-group">
           <label class="form-label">添加新项目</label>
           <div class="browser-path">
-            <span>📁</span>
+            <icon-component name="folder"></icon-component>
             <input type="text" class="browser-path-input" id="newProjectPath" placeholder="输入项目路径或浏览选择">
             <button class="btn btn-sm btn-secondary" onclick="browseForProject()">浏览</button>
           </div>
         </div>
         <div id="projectBrowser" style="display:none;">
           <div class="browser-path" style="margin-top:8px;">
-            <button class="btn btn-sm btn-secondary" onclick="browseProjectPath('..')">⬆️</button>
+            <button class="btn btn-sm btn-secondary" onclick="browseProjectPath('..')">
+              <icon-component name="arrowUp" size="sm"></icon-component>
+            </button>
             <input type="text" class="browser-path-input" id="projectBrowserPath" onkeypress="if(event.key==='Enter')browseProjectPath(this.value)">
           </div>
           <div class="browser-list" id="projectBrowserList" style="margin-top:8px;"></div>
@@ -187,7 +207,9 @@
     <div class="modal">
       <div class="modal-header">
         <span class="modal-title">创建页面分组</span>
-        <button class="modal-close" onclick="closeGroupModal()">×</button>
+        <button class="modal-close" onclick="closeGroupModal()">
+          <icon-component name="x"></icon-component>
+        </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -223,7 +245,9 @@
     <div class="modal wide">
       <div class="modal-header">
         <span class="modal-title">生成 AI 提示词</span>
-        <button class="modal-close" onclick="closePromptModal()">×</button>
+        <button class="modal-close" onclick="closePromptModal()">
+          <icon-component name="x"></icon-component>
+        </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -244,7 +268,8 @@
           <div style="display:flex;gap:10px;">
             <input type="text" class="form-input" id="assetsDir" value="assets/images" style="flex:1;">
             <button class="btn btn-secondary" onclick="extractAndCopyImages()">
-              <span>📦</span> 提取图片
+              <icon-component name="package"></icon-component>
+              提取图片
             </button>
           </div>
           <div id="imageStatus" style="font-size:12px;color:var(--text-muted);margin-top:8px;"></div>
@@ -256,13 +281,16 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="generatePrompt()">
-          <span>🔄</span> 生成
+          <icon-component name="refresh"></icon-component>
+          生成
         </button>
         <button class="btn btn-primary" onclick="copyPrompt()">
-          <span>📋</span> 复制
+          <icon-component name="copy"></icon-component>
+          复制
         </button>
         <button class="btn btn-primary" onclick="downloadPrompt()">
-          <span>💾</span> 下载
+          <icon-component name="download"></icon-component>
+          下载
         </button>
       </div>
     </div>

@@ -4,6 +4,18 @@
  */
 
 const UI = {
+  /**
+   * 生成图标 HTML
+   * @param {string} name - 图标名称
+   * @param {string} size - 尺寸 (sm/md/lg/xl)
+   * @returns {string} HTML 字符串
+   */
+  icon(name, size = '') {
+    return size
+      ? `<icon-component name="${name}" size="${size}"></icon-component>`
+      : `<icon-component name="${name}"></icon-component>`;
+  },
+
   // ==================== 工具函数 ====================
 
   /**
@@ -63,8 +75,12 @@ const UI = {
             <span class="group-name">${group.name}</span>
             <span class="group-count">${groupFiles.length}</span>
             <div class="group-actions">
-              <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); editGroup('${group.id}')">✏️</button>
-              <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); deleteGroup('${group.id}')">🗑️</button>
+              <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); editGroup('${group.id}')" title="编辑">
+                ${this.icon('edit', 'sm')}
+              </button>
+              <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); deleteGroup('${group.id}')" title="删除">
+                ${this.icon('trash', 'sm')}
+              </button>
             </div>
           </div>
           <div class="group-files">
@@ -88,7 +104,9 @@ const UI = {
     if (files.length === 0) {
       html = `
         <div style="padding: 60px 20px; text-align: center;">
-          <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.4;">📂</div>
+          <div style="margin-bottom: 16px; opacity: 0.4;">
+            ${this.icon('folder', 'xl')}
+          </div>
           <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 6px;">暂无 HTML 文件</p>
           <p style="font-size: 12px; color: var(--text-muted);">请设置 HTML 路径</p>
         </div>
@@ -114,7 +132,7 @@ const UI = {
            data-path="${file.path}"
            onclick="selectFile('${file.path}')"
            ${groupColor ? `style="border-left-color: ${isActive ? 'white' : groupColor}"` : ''}>
-        <span class="file-icon">📄</span>
+        <span class="file-icon">${this.icon('file')}</span>
         <div class="file-info">
           <div class="file-name">${file.stateName || file.name}</div>
           <div class="file-path">${file.path}</div>
@@ -179,7 +197,9 @@ const UI = {
         <div class="interaction-header">
           <span class="interaction-selector">${item.selector}</span>
           <span class="interaction-type">${item.eventType}</span>
-          <button class="delete-btn" onclick="removeInteraction(${i})">✕</button>
+          <button class="delete-btn" onclick="removeInteraction(${i})">
+            ${this.icon('x', 'sm')}
+          </button>
         </div>
         <input class="form-input" value="${item.action}" placeholder="动作描述"
                onchange="updateInteraction(${i}, 'action', this.value)" style="margin-top:8px;">
@@ -256,12 +276,14 @@ const UI = {
     container.innerHTML = projects.map(p => `
       <div class="browser-item ${p.path === State.config.currentProject ? 'selected' : ''}"
            onclick="switchToProject('${p.path}')" style="position:relative;">
-        <span class="browser-icon">📁</span>
+        <span class="browser-icon">${this.icon('folder')}</span>
         <div style="flex:1;min-width:0;">
           <div class="browser-name">${p.name}</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">${p.path}</div>
         </div>
-        <button class="delete-btn" onclick="event.stopPropagation(); removeProject('${p.path}')" title="移除">✕</button>
+        <button class="delete-btn" onclick="event.stopPropagation(); removeProject('${p.path}')" title="移除">
+          ${this.icon('x', 'sm')}
+        </button>
       </div>
     `).join('');
   },
@@ -274,7 +296,7 @@ const UI = {
     const list = document.getElementById('projectBrowserList');
     let html = items.filter(i => i.isDirectory).map(item => `
       <div class="browser-item" ondblclick="browseProjectPath('${item.path}')" onclick="selectProjectPath('${item.path}')">
-        <span class="browser-icon">📁</span>
+        <span class="browser-icon">${this.icon('folder')}</span>
         <span class="browser-name">${item.name}</span>
       </div>
     `).join('');

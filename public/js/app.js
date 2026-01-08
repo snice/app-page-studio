@@ -133,8 +133,9 @@ function removeInteraction(index) {
 function togglePicker() {
   State.isPickerActive = !State.isPickerActive;
   const btn = document.getElementById('pickerBtn');
+  const btnText = document.getElementById('pickerBtnText');
   btn.classList.toggle('active', State.isPickerActive);
-  btn.textContent = State.isPickerActive ? '🎯 点击选择' : '🎯 选择元素';
+  btnText.textContent = State.isPickerActive ? '点击选择' : '选择元素';
 
   const iframe = document.getElementById('previewFrame');
   if (iframe && iframe.contentWindow) {

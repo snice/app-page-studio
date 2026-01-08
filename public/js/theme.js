@@ -32,7 +32,8 @@ const Theme = {
   updateIcon(theme) {
     const icon = document.getElementById('themeIcon');
     if (icon) {
-      icon.textContent = theme === this.LIGHT ? '☀️' : '🌙';
+      const iconName = theme === this.LIGHT ? 'sun' : 'moon';
+      icon.innerHTML = `<icon-component name="${iconName}" size="md"></icon-component>`;
     }
   },
 
