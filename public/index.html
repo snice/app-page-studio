@@ -92,6 +92,19 @@
           <button class="device-btn" data-width="360" data-height="780">Android</button>
         </div>
         <div class="preview-actions">
+          <div class="zoom-control">
+            <button class="zoom-btn" onclick="adjustZoom(-0.05)" title="缩小">
+              <icon-component name="minus" size="sm"></icon-component>
+            </button>
+            <input type="range" id="zoomSlider" class="zoom-slider" min="0.25" max="1.5" step="0.01" value="1" onchange="setZoom(this.value)" oninput="setZoom(this.value)">
+            <button class="zoom-btn" onclick="adjustZoom(0.05)" title="放大">
+              <icon-component name="plus" size="sm"></icon-component>
+            </button>
+            <span class="zoom-value" id="zoomValue">100%</span>
+            <button class="zoom-btn" onclick="resetZoom()" title="重置">
+              <icon-component name="refresh" size="sm"></icon-component>
+            </button>
+          </div>
           <button class="color-picker-btn" id="colorPickerBtn" onclick="toggleColorPicker()">
             <icon-component name="pipette"></icon-component>
             <span id="colorPickerBtnText">取色</span>

@@ -891,6 +891,15 @@ function updateProjectFormTitle() {
 }
 
 async function switchToProject(projectId) {
+  // resetZoom
+  resetZoom()
+  const screen = document.getElementById('phoneScreen');
+  screen.innerHTML = `<div class="empty-preview">
+    <div class="empty-preview-icon">
+      <icon-component name="fileEmpty" size="xl"></icon-component>
+    </div>
+    <p>选择 HTML 文件预览</p>
+  </div>`;
   // 释放旧项目的编辑会话
   const oldProjectId = State.getCurrentProjectId();
   if (oldProjectId && oldProjectId !== projectId) {
@@ -960,6 +969,7 @@ async function createOrUpdateProject() {
         }
       }
       showToast('项目创建成功');
+      closeProjectModal();
     }
 
     await loadConfig();
@@ -1157,6 +1167,57 @@ function initEventListeners() {
   ['fileStateName', 'fileDescription', 'fileGroup'].forEach(id => {
     document.getElementById(id).addEventListener('change', updateCurrentFile);
   });
+}
+
+// ==================== 缩放控制 ====================
+
+let currentZoom = 1;
+
+/**
+ * 设置缩放级别 - 通过调整iframe尺寸和scale实现viewport缩放
+ * @param {number|string} value - 缩放值 (0.25 ~ 1.5)
+ */
+function setZoom(value) {
+  currentZoom = parseFloat(value);
+  currentZoom = Math.max(0.25, Math.min(1.5, currentZoom));
+
+  const iframe = document.getElementById('previewFrame');
+  const screen = document.querySelector('.phone-screen');
+
+  if (iframe && screen) {
+    // 获取当前设备尺寸
+    const deviceWidth = parseInt(screen.style.width) || 375;
+    const deviceHeight = parseInt(screen.style.height) || 812;
+
+    // 计算iframe实际尺寸 (反向缩放)
+    const iframeWidth = deviceWidth / currentZoom;
+    const iframeHeight = deviceHeight / currentZoom;
+
+    // 设置iframe尺寸并使用transform缩放回来
+    iframe.style.width = iframeWidth + 'px';
+    iframe.style.height = iframeHeight + 'px';
+    iframe.style.transform = `scale(${currentZoom})`;
+    iframe.style.transformOrigin = 'top left';
+  }
+
+  // 更新UI显示
+  document.getElementById('zoomSlider').value = currentZoom;
+  document.getElementById('zoomValue').textContent = Math.round(currentZoom * 100) + '%';
+}
+
+/**
+ * 调整缩放级别
+ * @param {number} delta - 变化量
+ */
+function adjustZoom(delta) {
+  setZoom(currentZoom + delta);
+}
+
+/**
+ * 重置缩放到100%
+ */
+function resetZoom() {
+  setZoom(1);
 }
 
 // 启动应用

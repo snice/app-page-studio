@@ -292,7 +292,8 @@ const UI = {
     }
     screen.innerHTML = `<iframe id="previewFrame" src="/html/${projectId}/${path}"></iframe>`;
     document.getElementById('previewInfo').textContent = path;
-
+    // 使用当前zoom设置预览
+    setZoom(currentZoom)
     // 设置元素选择器
     setTimeout(() => {
       const iframe = document.getElementById('previewFrame');
