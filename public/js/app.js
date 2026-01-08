@@ -233,6 +233,9 @@ function removeInteraction(index) {
 
 // ==================== 元素选择器 ====================
 
+// 全局变量存储选择菜单
+let pickerActionMenu = null;
+
 function togglePicker() {
   State.isPickerActive = !State.isPickerActive;
   const btn = document.getElementById('pickerBtn');
@@ -245,6 +248,9 @@ function togglePicker() {
     toggleColorPicker();
   }
 
+  // 关闭菜单
+  hidePickerActionMenu();
+
   const iframe = document.getElementById('previewFrame');
   if (iframe && iframe.contentWindow) {
     if (State.isPickerActive) {
@@ -253,6 +259,183 @@ function togglePicker() {
       Picker.disable(iframe);
     }
   }
+}
+
+/**
+ * 显示选择器动作菜单
+ */
+function showPickerActionMenu(e, selector, eventType) {
+  hidePickerActionMenu();
+
+  const iframe = document.getElementById('previewFrame');
+  const iframeRect = iframe.getBoundingClientRect();
+
+  // 计算菜单位置
+  const menuX = iframeRect.left + e.clientX;
+  const menuY = iframeRect.top + e.clientY;
+
+  pickerActionMenu = document.createElement('div');
+  pickerActionMenu.className = 'picker-action-menu';
+  pickerActionMenu.style.cssText = `
+    position: fixed;
+    left: ${menuX}px;
+    top: ${menuY}px;
+    z-index: 10001;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    padding: 4px;
+    min-width: 140px;
+  `;
+
+  pickerActionMenu.innerHTML = `
+    <div class="picker-menu-item" onclick="handlePickerAction('interaction', '${selector}', '${eventType}')">
+      <span>${UI.icon('target', 'sm')}</span>
+      <span>添加交互</span>
+    </div>
+    <div class="picker-menu-item" onclick="handlePickerAction('image', '${selector}', '${eventType}')">
+      <span>${UI.icon('image', 'sm')}</span>
+      <span>替换为图片</span>
+    </div>
+  `;
+
+  document.body.appendChild(pickerActionMenu);
+
+  // 点击其他地方关闭菜单
+  setTimeout(() => {
+    document.addEventListener('click', hidePickerActionMenuOnClick);
+  }, 10);
+}
+
+function hidePickerActionMenuOnClick(e) {
+  if (pickerActionMenu && !pickerActionMenu.contains(e.target)) {
+    hidePickerActionMenu();
+  }
+}
+
+function hidePickerActionMenu() {
+  if (pickerActionMenu) {
+    pickerActionMenu.remove();
+    pickerActionMenu = null;
+  }
+  document.removeEventListener('click', hidePickerActionMenuOnClick);
+}
+
+/**
+ * 处理选择器动作
+ */
+function handlePickerAction(action, selector, eventType) {
+  hidePickerActionMenu();
+  togglePicker();
+
+  if (action === 'interaction') {
+    addInteractionFromElement(selector, eventType);
+  } else if (action === 'image') {
+    addImageReplacementFromElement(selector);
+  }
+}
+
+/**
+ * 从元素添加图片替换
+ */
+function addImageReplacementFromElement(selector) {
+  if (!State.currentFile) {
+    showToast('请先选择文件');
+    return;
+  }
+
+  State.addImageReplacement({
+    selector: selector,
+    imagePath: '',
+    description: ''
+  });
+
+  UI.renderImageReplacementList();
+  showToast(`已添加图片替换: ${selector}`);
+}
+
+/**
+ * 手动添加图片替换
+ */
+function addImageReplacement() {
+  if (!State.currentFile) {
+    showToast('请先选择文件');
+    return;
+  }
+
+  State.addImageReplacement({
+    selector: '',
+    imagePath: '',
+    description: ''
+  });
+
+  UI.renderImageReplacementList();
+}
+
+function updateImageReplacement(index, field, value) {
+  State.updateImageReplacement(index, field, value);
+}
+
+function removeImageReplacement(index) {
+  State.removeImageReplacement(index);
+  UI.renderImageReplacementList();
+}
+
+// ==================== 元素高亮 ====================
+
+/**
+ * 在 iframe 中高亮指定选择器的元素
+ */
+function highlightElement(selector) {
+  if (!selector) {
+    showToast('选择器为空');
+    return;
+  }
+
+  const iframe = document.getElementById('previewFrame');
+  if (!iframe || !iframe.contentDocument) {
+    showToast('请先选择文件预览');
+    return;
+  }
+
+  const doc = iframe.contentDocument;
+
+  // 清除之前的高亮
+  clearElementHighlight();
+
+  try {
+    const el = doc.querySelector(selector);
+    if (el) {
+      // 添加高亮样式
+      el.classList.add('element-highlight');
+
+      // 滚动到元素位置
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // 3秒后自动移除高亮
+      setTimeout(() => {
+        el.classList.remove('element-highlight');
+      }, 3000);
+    } else {
+      showToast('未找到匹配的元素');
+    }
+  } catch (e) {
+    showToast('选择器无效: ' + e.message);
+  }
+}
+
+/**
+ * 清除所有元素高亮
+ */
+function clearElementHighlight() {
+  const iframe = document.getElementById('previewFrame');
+  if (!iframe || !iframe.contentDocument) return;
+
+  const doc = iframe.contentDocument;
+  doc.querySelectorAll('.element-highlight').forEach(el => {
+    el.classList.remove('element-highlight');
+  });
 }
 
 // ==================== 取色器 ====================

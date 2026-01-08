@@ -19,6 +19,15 @@ const Picker = {
       .picker-hover { outline: 2px solid #6366f1 !important; outline-offset: 2px; cursor: crosshair !important; }
       .picker-selected { outline: 2px solid #22c55e !important; outline-offset: 2px; }
       .color-picker-hover { outline: 2px dashed #ec4899 !important; outline-offset: 2px; cursor: crosshair !important; }
+      .element-highlight {
+        outline: 3px solid #22c55e !important;
+        outline-offset: 2px;
+        animation: highlight-pulse 0.5s ease-in-out 3;
+      }
+      @keyframes highlight-pulse {
+        0%, 100% { outline-color: #22c55e; }
+        50% { outline-color: #86efac; }
+      }
     `;
     doc.head.appendChild(style);
   },
@@ -68,11 +77,8 @@ const Picker = {
     const selector = Picker.generateSelector(el);
     const type = Picker.guessType(el);
 
-    // 添加交互
-    addInteractionFromElement(selector, type);
-
-    // 关闭选择器
-    togglePicker();
+    // 显示选择菜单
+    showPickerActionMenu(e, selector, type);
   },
 
   /**

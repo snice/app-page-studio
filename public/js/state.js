@@ -286,6 +286,38 @@ const State = {
     this.currentFile.interactions.splice(index, 1);
   },
 
+  /**
+   * 添加图片替换
+   * @param {Object} imageReplacement - 图片替换配置
+   */
+  addImageReplacement(imageReplacement) {
+    if (!this.currentFile) return;
+    if (!this.currentFile.imageReplacements) {
+      this.currentFile.imageReplacements = [];
+    }
+    this.currentFile.imageReplacements.push(imageReplacement);
+  },
+
+  /**
+   * 更新图片替换
+   * @param {number} index - 索引
+   * @param {string} field - 字段名
+   * @param {*} value - 值
+   */
+  updateImageReplacement(index, field, value) {
+    if (!this.currentFile || !this.currentFile.imageReplacements) return;
+    this.currentFile.imageReplacements[index][field] = value;
+  },
+
+  /**
+   * 删除图片替换
+   * @param {number} index - 索引
+   */
+  removeImageReplacement(index) {
+    if (!this.currentFile || !this.currentFile.imageReplacements) return;
+    this.currentFile.imageReplacements.splice(index, 1);
+  },
+
   // ==================== 会话管理 ====================
 
   /**

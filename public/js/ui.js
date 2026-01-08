@@ -180,6 +180,7 @@ const UI = {
     document.getElementById('fileGroup').value = State.currentFile.groupId || '';
 
     this.renderInteractionList();
+    this.renderImageReplacementList();
   },
 
   /**
@@ -195,7 +196,7 @@ const UI = {
     container.innerHTML = State.currentFile.interactions.map((item, i) => `
       <div class="interaction-item">
         <div class="interaction-header">
-          <span class="interaction-selector">${item.selector}</span>
+          <span class="interaction-selector clickable" onclick="highlightElement('${this.escapeSelector(item.selector)}')" title="点击定位元素">${item.selector}</span>
           <span class="interaction-type">${item.eventType}</span>
           <button class="delete-btn" onclick="removeInteraction(${i})">
             ${this.icon('x', 'sm')}
@@ -205,6 +206,43 @@ const UI = {
                onchange="updateInteraction(${i}, 'action', this.value)" style="margin-top:8px;">
       </div>
     `).join('');
+  },
+
+  /**
+   * 渲染图片替换列表
+   */
+  renderImageReplacementList() {
+    const container = document.getElementById('imageReplacementList');
+    if (!State.currentFile || !State.currentFile.imageReplacements || State.currentFile.imageReplacements.length === 0) {
+      container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:24px;background:var(--bg);border-radius:var(--radius-md);border:1px dashed var(--border);">暂无图片替换</div>';
+      return;
+    }
+
+    container.innerHTML = State.currentFile.imageReplacements.map((item, i) => `
+      <div class="interaction-item">
+        <div class="interaction-header">
+          <span class="interaction-selector clickable" onclick="highlightElement('${this.escapeSelector(item.selector || '')}')" title="点击定位元素">${item.selector || '未指定'}</span>
+          <span class="interaction-type" style="background:linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);">图片</span>
+          <button class="delete-btn" onclick="removeImageReplacement(${i})">
+            ${this.icon('x', 'sm')}
+          </button>
+        </div>
+        <input class="form-input" value="${item.selector || ''}" placeholder="元素选择器"
+               onchange="updateImageReplacement(${i}, 'selector', this.value)" style="margin-top:8px;">
+        <input class="form-input" value="${item.imagePath || ''}" placeholder="图片路径（如：assets/banner.png）"
+               onchange="updateImageReplacement(${i}, 'imagePath', this.value)" style="margin-top:4px;">
+        <input class="form-input" value="${item.description || ''}" placeholder="图片描述（可选）"
+               onchange="updateImageReplacement(${i}, 'description', this.value)" style="margin-top:4px;">
+      </div>
+    `).join('');
+  },
+
+  /**
+   * 转义选择器中的特殊字符用于 onclick
+   */
+  escapeSelector(selector) {
+    if (!selector) return '';
+    return selector.replace(/'/g, "\\'").replace(/"/g, '\\"');
   },
 
   /**

@@ -860,6 +860,16 @@ body::before {
   white-space: nowrap;
 }
 
+.interaction-selector.clickable {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.interaction-selector.clickable:hover {
+  background: rgba(129, 140, 248, 0.25);
+  color: var(--primary-dark);
+}
+
 .interaction-type {
   font-size: 10px;
   padding: 4px 10px;
@@ -884,6 +894,27 @@ body::before {
 .delete-btn:hover {
   color: var(--error);
   background: var(--error-bg);
+}
+
+/* ==================== Picker Action Menu ==================== */
+.picker-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: all var(--transition-fast);
+}
+
+.picker-menu-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.picker-menu-item icon-component {
+  color: var(--text-muted);
 }
 
 /* ==================== Colors ==================== */

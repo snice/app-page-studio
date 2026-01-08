@@ -153,6 +153,15 @@ ${JSON.stringify(designSystem, null, 2)}
             prompt += `    - \`${interaction.selector}\` [${interaction.eventType}]: ${interaction.action}\n`;
           }
         }
+
+        // 显示图片替换
+        if (file.imageReplacements && file.imageReplacements.length > 0) {
+          prompt += `  - 图片替换:\n`;
+          for (const img of file.imageReplacements) {
+            const desc = img.description ? ` (${img.description})` : '';
+            prompt += `    - \`${img.selector}\` → 替换为图片 \`${img.imagePath || '待指定'}\`${desc}\n`;
+          }
+        }
       }
 
       prompt += '\n---\n\n';
@@ -174,6 +183,13 @@ ${JSON.stringify(designSystem, null, 2)}
           prompt += `  - \`${i.selector}\` [${i.eventType}]: ${i.action}\n`;
         }
       }
+      if (file.imageReplacements && file.imageReplacements.length > 0) {
+        prompt += `- 图片替换:\n`;
+        for (const img of file.imageReplacements) {
+          const desc = img.description ? ` (${img.description})` : '';
+          prompt += `  - \`${img.selector}\` → 替换为图片 \`${img.imagePath || '待指定'}\`${desc}\n`;
+        }
+      }
       prompt += '\n';
     }
   }
@@ -186,8 +202,9 @@ ${JSON.stringify(designSystem, null, 2)}
 3. **状态切换**：同一页面的不同状态使用条件渲染实现
 4. **交互实现**：根据交互描述实现点击、滑动等事件处理
 5. **图片资源**：自动检测并复制图片到 \`${guide.assetsDir}\`，使用正确的引用方式
-6. **响应式**：考虑不同屏幕尺寸的适配
-7. **路由创建**：如果源码路径不存在，使用 \`${guide.createPageCmd}\` 创建
+6. **图片替换**：对于标记了"图片替换"的元素，不要还原 HTML 中的内容，直接使用指定的图片替换该区域
+7. **响应式**：考虑不同屏幕尺寸的适配
+8. **路由创建**：如果源码路径不存在，使用 \`${guide.createPageCmd}\` 创建
 
 ## 使用说明
 
