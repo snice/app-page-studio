@@ -7,8 +7,8 @@ const router = express.Router();
 
 // 生成 AI 提示词
 router.post('/generate-prompt', (req, res) => {
-  const { pages, targetPlatform = 'flutter', designSystem = null } = req.body;
-  const prompt = generateAIPrompt(pages, targetPlatform, designSystem);
+  const { pages, targetPlatform = 'flutter', designSystem = null, statusFilters = null } = req.body;
+  const prompt = generateAIPrompt(pages, targetPlatform, designSystem, statusFilters);
   res.json({ prompt });
 });
 
@@ -17,9 +17,10 @@ router.post('/generate-prompt', (req, res) => {
  * @param {Object} pagesConfig - 页面配置
  * @param {string} platform - 目标平台
  * @param {Object|null} designSystem - 设计系统配置
+ * @param {Array|null} statusFilters - 开发状态筛选 ['pending', 'developing', 'completed']
  * @returns {string}
  */
-function generateAIPrompt(pagesConfig, platform, designSystem) {
+function generateAIPrompt(pagesConfig, platform, designSystem, statusFilters = null) {
   const platformGuides = {
     flutter: {
       framework: 'Flutter',
@@ -114,13 +115,23 @@ ${JSON.stringify(designSystem, null, 2)}
 `;
   }
 
+  // 辅助函数：检查文件是否符合状态筛选条件
+  const shouldIncludeFile = (file) => {
+    if (!statusFilters || statusFilters.length === 0) return true;
+    const fileStatus = file.devStatus || 'pending';
+    return statusFilters.includes(fileStatus);
+  };
+
   // 页面分组
   if (pagesConfig.pageGroups && pagesConfig.pageGroups.length > 0) {
     prompt += `## 页面列表\n\n`;
 
     for (const group of pagesConfig.pageGroups) {
-      // 找到属于该分组的文件
-      const groupFiles = (pagesConfig.htmlFiles || []).filter(f => f.groupId === group.id);
+      // 找到属于该分组的文件，并根据状态筛选
+      const groupFiles = (pagesConfig.htmlFiles || []).filter(f => f.groupId === group.id && shouldIncludeFile(f));
+
+      // 如果分组内没有符合条件的文件，跳过该分组
+      if (groupFiles.length === 0) continue;
 
       // 根据平台获取对应的源码路径，兼容旧数据格式
       let sourcePath = '待创建';
@@ -176,8 +187,8 @@ ${JSON.stringify(designSystem, null, 2)}
     }
   }
 
-  // 单独的 HTML 文件
-  const ungroupedFiles = (pagesConfig.htmlFiles || []).filter(f => !f.groupId);
+  // 单独的 HTML 文件（未分组），并根据状态筛选
+  const ungroupedFiles = (pagesConfig.htmlFiles || []).filter(f => !f.groupId && shouldIncludeFile(f));
   if (ungroupedFiles.length > 0) {
     prompt += `## 其他页面（未分组）\n\n`;
     for (const file of ungroupedFiles) {

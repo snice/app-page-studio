@@ -149,6 +149,23 @@
             <label class="form-label">状态描述</label>
             <textarea class="form-textarea" id="fileDescription" placeholder="描述此状态的显示场景"></textarea>
           </div>
+          <div class="form-group">
+            <label class="form-label">开发状态</label>
+            <div class="dev-status-radio-group" id="fileDevStatus">
+              <label class="radio-label">
+                <input type="radio" name="devStatus" value="pending">
+                <span class="dev-status-badge pending">待开发</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="devStatus" value="developing">
+                <span class="dev-status-badge developing">开发中</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="devStatus" value="completed">
+                <span class="dev-status-badge completed">已完成</span>
+              </label>
+            </div>
+          </div>
         </div>
 
         <div class="panel-section">
@@ -301,6 +318,23 @@
             <option value="react-native">React Native (TypeScript)</option>
             <option value="uniapp">UniApp (Vue)</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">筛选页面</label>
+          <div class="dev-status-filter">
+            <label class="checkbox-label">
+              <input type="checkbox" id="filterPending" value="pending">
+              <span class="dev-status-badge pending">待开发</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="filterDeveloping" value="developing" checked>
+              <span class="dev-status-badge developing">开发中</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="filterCompleted" value="completed">
+              <span class="dev-status-badge completed">已完成</span>
+            </label>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">生成的提示词</label>

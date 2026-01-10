@@ -182,9 +182,14 @@ function cancelSelection() {
 function updateCurrentFile() {
   if (!State.currentFile) return;
 
+  // 获取 radio group 的值
+  const devStatusRadio = document.querySelector('#fileDevStatus input[name="devStatus"]:checked');
+  const devStatus = devStatusRadio ? devStatusRadio.value : 'pending';
+
   State.updateCurrentFile({
     stateName: document.getElementById('fileStateName').value,
     description: document.getElementById('fileDescription').value,
+    devStatus: devStatus,
     groupId: document.getElementById('fileGroup').value || null
   });
 
@@ -1113,11 +1118,18 @@ async function generatePrompt() {
   const project = State.getCurrentProject();
   const designSystem = project?.designSystem || null;
 
+  // 获取筛选的开发状态
+  const statusFilters = [];
+  if (document.getElementById('filterPending').checked) statusFilters.push('pending');
+  if (document.getElementById('filterDeveloping').checked) statusFilters.push('developing');
+  if (document.getElementById('filterCompleted').checked) statusFilters.push('completed');
+
   try {
     const data = await API.generatePrompt({
       pages: State.pagesConfig,
       targetPlatform: platform,
-      designSystem: designSystem
+      designSystem: designSystem,
+      statusFilters: statusFilters.length > 0 ? statusFilters : null
     });
     document.getElementById('promptPreview').textContent = data.prompt;
   } catch (e) {
@@ -1209,6 +1221,11 @@ function initEventListeners() {
   // 表单自动更新
   ['fileStateName', 'fileDescription', 'fileGroup'].forEach(id => {
     document.getElementById(id).addEventListener('change', updateCurrentFile);
+  });
+
+  // 开发状态 radio group 监听
+  document.querySelectorAll('#fileDevStatus input[name="devStatus"]').forEach(radio => {
+    radio.addEventListener('change', updateCurrentFile);
   });
 }
 

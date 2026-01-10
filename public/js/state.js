@@ -152,6 +152,7 @@ const State = {
           stateName: '',
           description: '',
           groupId: null,
+          devStatus: 'pending', // 开发状态: pending(待开发), developing(开发中), completed(已完成)
           interactions: []
         });
       }

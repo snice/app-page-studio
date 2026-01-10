@@ -126,6 +126,8 @@ const UI = {
   renderFileItem(file, groupColor) {
     const isActive = State.currentFile && State.currentFile.path === file.path;
     const isSelected = State.selectedFiles.has(file.path);
+    const devStatus = file.devStatus || 'pending';
+    const devStatusLabels = { pending: '待开发', developing: '开发中', completed: '已完成' };
 
     return `
       <div class="file-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}"
@@ -137,7 +139,10 @@ const UI = {
           <div class="file-name">${file.stateName || file.name}</div>
           <div class="file-path">${file.path}</div>
         </div>
-        ${file.stateName ? `<span class="file-state-tag">${file.stateName}</span>` : ''}
+        <div class="file-tags">
+          <span class="dev-status-badge ${devStatus}">${devStatusLabels[devStatus]}</span>
+          ${file.stateName ? `<span class="file-state-tag">${file.stateName}</span>` : ''}
+        </div>
       </div>
     `;
   },
@@ -177,6 +182,10 @@ const UI = {
 
     document.getElementById('fileStateName').value = State.currentFile.stateName || '';
     document.getElementById('fileDescription').value = State.currentFile.description || '';
+    // 设置 radio group 的值
+    const devStatus = State.currentFile.devStatus || 'pending';
+    const radioInput = document.querySelector(`#fileDevStatus input[value="${devStatus}"]`);
+    if (radioInput) radioInput.checked = true;
     document.getElementById('fileGroup').value = State.currentFile.groupId || '';
 
     this.renderInteractionList();
