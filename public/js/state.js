@@ -318,6 +318,38 @@ const State = {
     this.currentFile.imageReplacements.splice(index, 1);
   },
 
+  /**
+   * 添加功能描述
+   * @param {Object} functionDescription - 功能描述配置
+   */
+  addFunctionDescription(functionDescription) {
+    if (!this.currentFile) return;
+    if (!this.currentFile.functionDescriptions) {
+      this.currentFile.functionDescriptions = [];
+    }
+    this.currentFile.functionDescriptions.push(functionDescription);
+  },
+
+  /**
+   * 更新功能描述
+   * @param {number} index - 索引
+   * @param {string} field - 字段名
+   * @param {*} value - 值
+   */
+  updateFunctionDescription(index, field, value) {
+    if (!this.currentFile || !this.currentFile.functionDescriptions) return;
+    this.currentFile.functionDescriptions[index][field] = value;
+  },
+
+  /**
+   * 删除功能描述
+   * @param {number} index - 索引
+   */
+  removeFunctionDescription(index) {
+    if (!this.currentFile || !this.currentFile.functionDescriptions) return;
+    this.currentFile.functionDescriptions.splice(index, 1);
+  },
+
   // ==================== 会话管理 ====================
 
   /**

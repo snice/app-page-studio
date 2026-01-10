@@ -181,6 +181,7 @@ const UI = {
 
     this.renderInteractionList();
     this.renderImageReplacementList();
+    this.renderFunctionDescriptionList();
   },
 
   /**
@@ -233,6 +234,33 @@ const UI = {
                onchange="updateImageReplacement(${i}, 'imagePath', this.value)" style="margin-top:4px;">
         <input class="form-input" value="${item.description || ''}" placeholder="图片描述（可选）"
                onchange="updateImageReplacement(${i}, 'description', this.value)" style="margin-top:4px;">
+      </div>
+    `).join('');
+  },
+
+  /**
+   * 渲染功能描述列表
+   */
+  renderFunctionDescriptionList() {
+    const container = document.getElementById('functionDescriptionList');
+    if (!container) return;
+
+    if (!State.currentFile || !State.currentFile.functionDescriptions || State.currentFile.functionDescriptions.length === 0) {
+      container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:24px;background:var(--bg);border-radius:var(--radius-md);border:1px dashed var(--border);">暂无功能描述</div>';
+      return;
+    }
+
+    container.innerHTML = State.currentFile.functionDescriptions.map((item, i) => `
+      <div class="interaction-item">
+        <div class="interaction-header">
+          <span class="interaction-selector clickable" onclick="highlightElement('${this.escapeSelector(item.selector || '')}')" title="点击定位元素">${item.selector || '未指定'}</span>
+          <span class="interaction-type" style="background:linear-gradient(135deg, #22c55e 0%, #16a34a 100%);">功能</span>
+          <button class="delete-btn" onclick="removeFunctionDescription(${i})">
+            ${this.icon('x', 'sm')}
+          </button>
+        </div>
+        <textarea class="form-input" placeholder="功能描述（如：点击打开摄像头拍摄、扫码识别二维码等）"
+               onchange="updateFunctionDescription(${i}, 'description', this.value)" style="margin-top:8px;min-height:60px;resize:vertical;">${item.description || ''}</textarea>
       </div>
     `).join('');
   },

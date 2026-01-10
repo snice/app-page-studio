@@ -67,7 +67,7 @@
         <span class="sidebar-title">HTML 文件</span>
         <button class="btn btn-sm btn-secondary" onclick="createGroup()">
           <icon-component name="plus" size="sm"></icon-component>
-          新建分组
+          新建页面分组
         </button>
       </div>
 
@@ -152,7 +152,7 @@
         </div>
 
         <div class="panel-section">
-          <div class="panel-section-title">所属分组</div>
+          <div class="panel-section-title">所属页面分组</div>
           <select class="form-select" id="fileGroup">
             <option value="">未分组</option>
           </select>
@@ -161,19 +161,16 @@
         <div class="panel-section">
           <div class="panel-section-title">交互行为</div>
           <div id="interactionList"></div>
-          <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px;" onclick="addInteraction()">
-            <icon-component name="plus" size="sm"></icon-component>
-            添加交互
-          </button>
         </div>
 
         <div class="panel-section">
           <div class="panel-section-title">图片替换</div>
           <div id="imageReplacementList"></div>
-          <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px;" onclick="addImageReplacement()">
-            <icon-component name="plus" size="sm"></icon-component>
-            添加替换
-          </button>
+        </div>
+
+        <div class="panel-section">
+          <div class="panel-section-title">功能描述</div>
+          <div id="functionDescriptionList"></div>
         </div>
       </div>
 

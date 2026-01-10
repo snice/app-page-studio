@@ -162,6 +162,14 @@ ${JSON.stringify(designSystem, null, 2)}
             prompt += `    - \`${img.selector}\` → 替换为图片 \`${img.imagePath || '待指定'}\`${desc}\n`;
           }
         }
+
+        // 显示功能描述
+        if (file.functionDescriptions && file.functionDescriptions.length > 0) {
+          prompt += `  - 功能描述（这些元素并非静态展示，需要实现对应的功能）:\n`;
+          for (const func of file.functionDescriptions) {
+            prompt += `    - \`${func.selector}\`: ${func.description || '待描述'}\n`;
+          }
+        }
       }
 
       prompt += '\n---\n\n';
@@ -190,6 +198,12 @@ ${JSON.stringify(designSystem, null, 2)}
           prompt += `  - \`${img.selector}\` → 替换为图片 \`${img.imagePath || '待指定'}\`${desc}\n`;
         }
       }
+      if (file.functionDescriptions && file.functionDescriptions.length > 0) {
+        prompt += `- 功能描述（这些元素并非静态展示，需要实现对应的功能）:\n`;
+        for (const func of file.functionDescriptions) {
+          prompt += `  - \`${func.selector}\`: ${func.description || '待描述'}\n`;
+        }
+      }
       prompt += '\n';
     }
   }
@@ -203,8 +217,9 @@ ${JSON.stringify(designSystem, null, 2)}
 4. **交互实现**：根据交互描述实现点击、滑动等事件处理
 5. **图片资源**：自动检测并复制图片到 \`${guide.assetsDir}\`，使用正确的引用方式
 6. **图片替换**：对于标记了"图片替换"的元素，不要还原 HTML 中的内容，直接使用指定的图片替换该区域
-7. **响应式**：考虑不同屏幕尺寸的适配
-8. **路由创建**：如果源码路径不存在，使用 \`${guide.createPageCmd}\` 创建
+7. **功能描述**：标记了"功能描述"的元素并非静态展示，需要根据描述实现对应的功能（如摄像头拍摄、扫码、地图显示等原生功能）
+8. **响应式**：考虑不同屏幕尺寸的适配
+9. **路由创建**：如果源码路径不存在，使用 \`${guide.createPageCmd}\` 创建
 
 ## 使用说明
 

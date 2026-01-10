@@ -300,6 +300,10 @@ function showPickerActionMenu(e, selector, eventType) {
       <span>${UI.icon('image', 'sm')}</span>
       <span>替换为图片</span>
     </div>
+    <div class="picker-menu-item" onclick="handlePickerAction('function', '${selector}', '${eventType}')">
+      <span>${UI.icon('info', 'sm')}</span>
+      <span>功能描述</span>
+    </div>
   `;
 
   document.body.appendChild(pickerActionMenu);
@@ -335,6 +339,8 @@ function handlePickerAction(action, selector, eventType) {
     addInteractionFromElement(selector, eventType);
   } else if (action === 'image') {
     addImageReplacementFromElement(selector);
+  } else if (action === 'function') {
+    addFunctionDescriptionFromElement(selector);
   }
 }
 
@@ -382,6 +388,52 @@ function updateImageReplacement(index, field, value) {
 function removeImageReplacement(index) {
   State.removeImageReplacement(index);
   UI.renderImageReplacementList();
+}
+
+// ==================== 功能描述 ====================
+
+/**
+ * 从元素添加功能描述
+ */
+function addFunctionDescriptionFromElement(selector) {
+  if (!State.currentFile) {
+    showToast('请先选择文件');
+    return;
+  }
+
+  State.addFunctionDescription({
+    selector: selector,
+    description: ''
+  });
+
+  UI.renderFunctionDescriptionList();
+  showToast(`已添加功能描述: ${selector}`);
+}
+
+/**
+ * 手动添加功能描述
+ */
+function addFunctionDescription() {
+  if (!State.currentFile) {
+    showToast('请先选择文件');
+    return;
+  }
+
+  State.addFunctionDescription({
+    selector: '',
+    description: ''
+  });
+
+  UI.renderFunctionDescriptionList();
+}
+
+function updateFunctionDescription(index, field, value) {
+  State.updateFunctionDescription(index, field, value);
+}
+
+function removeFunctionDescription(index) {
+  State.removeFunctionDescription(index);
+  UI.renderFunctionDescriptionList();
 }
 
 // ==================== 元素高亮 ====================
