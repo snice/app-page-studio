@@ -179,16 +179,6 @@ function selectFile(path, multiSelect = false) {
     UI.previewHtml(path);
     UI.loadFileToPanel();
     UI.renderFileList();
-    analyzeCurrentHtml(path);
-  }
-}
-
-async function analyzeCurrentHtml(path) {
-  try {
-    const data = await API.analyzeHtml(path);
-    UI.renderAnalysis(data);
-  } catch (e) {
-    console.error('分析失败', e);
   }
 }
 
@@ -465,6 +455,43 @@ function updateFunctionDescription(index, field, value) {
 function removeFunctionDescription(index) {
   State.removeFunctionDescription(index);
   UI.renderFunctionDescriptionList();
+}
+
+// ==================== 数据源管理 ====================
+
+/**
+ * 添加数据源
+ */
+function addDataSource() {
+  if (!State.currentFile) {
+    showToast('请先选择文件');
+    return;
+  }
+
+  State.addDataSource({
+    name: '',
+    timing: 'onInit',
+    method: 'GET',
+    apiPath: '',
+    description: ''
+  });
+
+  UI.renderDataSourceList();
+}
+
+/**
+ * 更新数据源
+ */
+function updateDataSource(index, field, value) {
+  State.updateDataSource(index, field, value);
+}
+
+/**
+ * 删除数据源
+ */
+function removeDataSource(index) {
+  State.removeDataSource(index);
+  UI.renderDataSourceList();
 }
 
 // ==================== 元素高亮 ====================
@@ -1693,6 +1720,11 @@ function initEventListeners() {
       const panel = tab.dataset.panel;
       document.getElementById('filePanel').style.display = panel === 'file' ? 'block' : 'none';
       document.getElementById('analysisPanel').style.display = panel === 'analysis' ? 'block' : 'none';
+
+      // 切换到数据管理面板时渲染数据源列表
+      if (panel === 'analysis') {
+        UI.renderDataSourceList();
+      }
     });
   });
 

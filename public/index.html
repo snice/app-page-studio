@@ -239,21 +239,16 @@
         </div>
       </div>
 
-      <!-- Analysis Panel -->
+      <!-- Data Management Panel -->
       <div class="panel-content" id="analysisPanel" style="display:none;">
         <div class="panel-section">
-          <div class="panel-section-title">页面结构</div>
-          <div class="tag-list" id="structureTags"></div>
-        </div>
-
-        <div class="panel-section">
-          <div class="panel-section-title">提取的颜色</div>
-          <div class="color-grid" id="colorGrid"></div>
-        </div>
-
-        <div class="panel-section">
-          <div class="panel-section-title">可交互元素</div>
-          <div id="interactiveElements"></div>
+          <div class="panel-section-title">
+            数据加载配置
+            <button class="btn-icon" onclick="addDataSource()" title="添加数据源">
+              <icon-component name="plus" size="sm"></icon-component>
+            </button>
+          </div>
+          <div id="dataSourceList"></div>
         </div>
       </div>
     </aside>

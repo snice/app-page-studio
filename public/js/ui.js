@@ -340,43 +340,75 @@ const UI = {
   },
 
   /**
+   * 渲染数据源列表
+   */
+  renderDataSourceList() {
+    const container = document.getElementById('dataSourceList');
+    if (!container) return;
+
+    if (!State.currentFile || !State.currentFile.dataSources || State.currentFile.dataSources.length === 0) {
+      container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:24px;background:var(--bg);border-radius:var(--radius-md);border:1px dashed var(--border);">暂无数据源配置<br><span style="font-size:11px;margin-top:4px;display:block;">点击 + 添加 HTTP API 数据加载</span></div>';
+      return;
+    }
+
+    const timingOptions = [
+      { value: 'onInit', label: '页面初始化' },
+      { value: 'onRefresh', label: '下拉刷新' },
+      { value: 'onLoadMore', label: '上拉加载更多' },
+      { value: 'onFocus', label: '页面获得焦点' },
+      { value: 'manual', label: '手动触发' }
+    ];
+
+    const methodOptions = ['GET', 'POST', 'PUT', 'DELETE'];
+
+    container.innerHTML = State.currentFile.dataSources.map((item, i) => `
+      <div class="data-source-item">
+        <div class="data-source-header">
+          <span class="data-source-name">${item.name || '未命名数据源'}</span>
+          <button class="delete-btn" onclick="removeDataSource(${i})" title="删除">
+            ${this.icon('x', 'sm')}
+          </button>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+          <label class="form-label" style="font-size:11px;">数据源名称</label>
+          <input class="form-input" value="${item.name || ''}" placeholder="如：用户列表、商品详情"
+                 onchange="updateDataSource(${i}, 'name', this.value)">
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="font-size:11px;">触发时机</label>
+          <select class="form-select" onchange="updateDataSource(${i}, 'timing', this.value)">
+            ${timingOptions.map(opt => `<option value="${opt.value}" ${item.timing === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row" style="display:flex;gap:8px;">
+          <div class="form-group" style="flex:0 0 80px;">
+            <label class="form-label" style="font-size:11px;">方法</label>
+            <select class="form-select" onchange="updateDataSource(${i}, 'method', this.value)">
+              ${methodOptions.map(m => `<option value="${m}" ${item.method === m ? 'selected' : ''}>${m}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label class="form-label" style="font-size:11px;">API 路径</label>
+            <input class="form-input" value="${item.apiPath || ''}" placeholder="/api/xxx"
+                   onchange="updateDataSource(${i}, 'apiPath', this.value)">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="font-size:11px;">数据说明</label>
+          <textarea class="form-input" placeholder="描述返回的数据结构和用途"
+                    onchange="updateDataSource(${i}, 'description', this.value)"
+                    style="min-height:50px;resize:vertical;">${item.description || ''}</textarea>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  /**
    * 转义选择器中的特殊字符用于 onclick
    */
   escapeSelector(selector) {
     if (!selector) return '';
     return selector.replace(/'/g, "\\'").replace(/"/g, '\\"');
-  },
-
-  /**
-   * 渲染分析结果
-   * @param {Object} data - 分析数据
-   */
-  renderAnalysis(data) {
-    // 结构标签
-    const structureTags = document.getElementById('structureTags');
-    const structures = [];
-    if (data.structure.hasHeader) structures.push('Header');
-    if (data.structure.hasFooter) structures.push('Footer/TabBar');
-    if (data.structure.hasList) structures.push('列表');
-    if (data.structure.hasForm) structures.push('表单');
-    if (data.structure.hasModal) structures.push('弹窗');
-    if (data.structure.hasCard) structures.push('卡片');
-    structureTags.innerHTML = structures.map(s => `<span class="tag active">${s}</span>`).join('') || '<span style="color:var(--text-muted);font-size:12px;">无特殊结构</span>';
-
-    // 颜色
-    const colorGrid = document.getElementById('colorGrid');
-    colorGrid.innerHTML = data.colors.slice(0, 16).map(c =>
-      `<div class="color-chip" style="background:${c}" data-color="${c}" onclick="UI.copyToClipboard('${c}')"></div>`
-    ).join('') || '<span style="color:var(--text-muted);font-size:12px;">未提取到颜色</span>';
-
-    // 可交互元素
-    const interactiveElements = document.getElementById('interactiveElements');
-    interactiveElements.innerHTML = data.interactiveElements.slice(0, 10).map(el => `
-      <div class="tag clickable" style="margin-bottom:6px; display:block; padding:10px 12px;" onclick="addInteractionFromElement('${el.selector}', '${el.type}')">
-        <strong style="color:var(--primary);">${el.type}</strong>
-        <span style="color:var(--text-secondary);margin-left:6px;">${el.text || el.selector}</span>
-      </div>
-    `).join('') || '<span style="color:var(--text-muted);font-size:12px;">未发现可交互元素</span>';
   },
 
   // ==================== 预览 ====================

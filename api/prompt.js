@@ -251,6 +251,24 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
             prompt += `    - \`${func.selector}\`: ${func.description || '待描述'}\n`;
           }
         }
+
+        // 显示数据源配置
+        if (file.dataSources && file.dataSources.length > 0) {
+          prompt += `  - 数据加载:\n`;
+          for (const ds of file.dataSources) {
+            const timingLabels = {
+              onInit: '页面初始化',
+              onRefresh: '下拉刷新',
+              onLoadMore: '上拉加载更多',
+              onFocus: '页面获得焦点',
+              manual: '手动触发'
+            };
+            prompt += `    - **${ds.name || '未命名'}** [${timingLabels[ds.timing] || ds.timing}]: \`${ds.method || 'GET'} ${ds.apiPath || '/api/xxx'}\`\n`;
+            if (ds.description) {
+              prompt += `      ${ds.description}\n`;
+            }
+          }
+        }
       }
 
       prompt += '\n---\n\n';
@@ -285,6 +303,22 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
           prompt += `  - \`${func.selector}\`: ${func.description || '待描述'}\n`;
         }
       }
+      if (file.dataSources && file.dataSources.length > 0) {
+        prompt += `- 数据加载:\n`;
+        for (const ds of file.dataSources) {
+          const timingLabels = {
+            onInit: '页面初始化',
+            onRefresh: '下拉刷新',
+            onLoadMore: '上拉加载更多',
+            onFocus: '页面获得焦点',
+            manual: '手动触发'
+          };
+          prompt += `  - **${ds.name || '未命名'}** [${timingLabels[ds.timing] || ds.timing}]: \`${ds.method || 'GET'} ${ds.apiPath || '/api/xxx'}\`\n`;
+          if (ds.description) {
+            prompt += `    ${ds.description}\n`;
+          }
+        }
+      }
       prompt += '\n';
     }
   }
@@ -299,8 +333,9 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
 5. **图片资源**：自动检测并复制图片到 \`${guide.assetsDir}\`，使用正确的引用方式
 6. **图片替换**：对于标记了"图片替换"的元素，不要还原 HTML 中的内容，直接使用指定的图片替换该区域
 7. **功能描述**：标记了"功能描述"的元素并非静态展示，需要根据描述实现对应的功能（如摄像头拍摄、扫码、地图显示等原生功能）
-8. **响应式**：考虑不同屏幕尺寸的适配
-9. **路由创建**：如果源码路径不存在，使用 \`${guide.createPageCmd}\` 创建
+8. **数据加载**：根据数据加载配置实现 HTTP API 调用，注意触发时机（页面初始化、下拉刷新、上拉加载更多等）
+9. **响应式**：考虑不同屏幕尺寸的适配
+10. **路由创建**：如果源码路径不存在，使用 \`${guide.createPageCmd}\` 创建
 
 ## 使用说明
 

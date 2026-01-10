@@ -1059,6 +1059,23 @@ input[type="range"]::-moz-range-thumb {
   background: var(--border);
 }
 
+.panel-section-title .btn-icon {
+  order: 1;
+  padding: 4px;
+  min-width: auto;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.panel-section-title .btn-icon:hover {
+  color: var(--primary);
+  background: var(--bg-tertiary);
+}
+
 /* ==================== Forms ==================== */
 .form-group { margin-bottom: 16px; }
 
@@ -1176,6 +1193,53 @@ input[type="range"]::-moz-range-thumb {
 .delete-btn:hover {
   color: var(--error);
   background: var(--error-bg);
+}
+
+/* ==================== Data Source List ==================== */
+.data-source-item {
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  transition: all var(--transition-normal);
+}
+
+.data-source-item:hover {
+  border-color: rgba(255,255,255,0.12);
+}
+
+.data-source-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.data-source-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--primary);
+}
+
+.data-source-item .form-group {
+  margin-bottom: 8px;
+}
+
+.data-source-item .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.data-source-item .form-label {
+  margin-bottom: 4px;
+}
+
+.data-source-item .form-input,
+.data-source-item .form-select {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 /* ==================== Picker Action Menu ==================== */

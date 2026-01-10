@@ -357,6 +357,38 @@ const State = {
     this.currentFile.functionDescriptions.splice(index, 1);
   },
 
+  /**
+   * 添加数据源
+   * @param {Object} dataSource - 数据源配置
+   */
+  addDataSource(dataSource) {
+    if (!this.currentFile) return;
+    if (!this.currentFile.dataSources) {
+      this.currentFile.dataSources = [];
+    }
+    this.currentFile.dataSources.push(dataSource);
+  },
+
+  /**
+   * 更新数据源
+   * @param {number} index - 索引
+   * @param {string} field - 字段名
+   * @param {*} value - 值
+   */
+  updateDataSource(index, field, value) {
+    if (!this.currentFile || !this.currentFile.dataSources) return;
+    this.currentFile.dataSources[index][field] = value;
+  },
+
+  /**
+   * 删除数据源
+   * @param {number} index - 索引
+   */
+  removeDataSource(index) {
+    if (!this.currentFile || !this.currentFile.dataSources) return;
+    this.currentFile.dataSources.splice(index, 1);
+  },
+
   // ==================== 会话管理 ====================
 
   /**
