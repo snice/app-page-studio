@@ -330,6 +330,10 @@ function showPickerActionMenu(e, selector, eventType) {
       <span>${UI.icon('info', 'sm')}</span>
       <span>功能描述</span>
     </div>
+    <div class="picker-menu-item" onclick="handlePickerAction('styles', '${selector}', '${eventType}')">
+      <span>${UI.icon('code', 'sm')}</span>
+      <span>查看样式</span>
+    </div>
   `;
 
   document.body.appendChild(pickerActionMenu);
@@ -367,6 +371,8 @@ function handlePickerAction(action, selector, eventType) {
     addImageReplacementFromElement(selector);
   } else if (action === 'function') {
     addFunctionDescriptionFromElement(selector);
+  } else if (action === 'styles') {
+    showElementStylesPanel(selector);
   }
 }
 
@@ -505,6 +511,452 @@ function clearElementHighlight() {
   doc.querySelectorAll('.element-highlight').forEach(el => {
     el.classList.remove('element-highlight');
   });
+}
+
+// ==================== 查看样式 ====================
+
+// 样式面板引用
+let elementStylesPanel = null;
+
+/**
+ * 显示元素样式面板
+ * @param {string} selector - 元素选择器
+ */
+function showElementStylesPanel(selector) {
+  const el = Picker.selectedElement;
+  if (!el) {
+    showToast('未选中元素');
+    return;
+  }
+
+  const iframe = document.getElementById('previewFrame');
+  if (!iframe || !iframe.contentDocument) {
+    showToast('请先选择文件预览');
+    return;
+  }
+
+  const doc = iframe.contentDocument;
+  const computedStyle = doc.defaultView.getComputedStyle(el);
+  const tagName = el.tagName.toLowerCase();
+
+  // 判断是否为文本元素
+  const textTags = ['span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'label', 'strong', 'em', 'b', 'i', 'u', 'small', 'mark', 'del', 'ins', 'sub', 'sup', 'code', 'pre', 'blockquote', 'li', 'dt', 'dd', 'th', 'td', 'caption', 'figcaption', 'cite', 'q', 'abbr', 'time', 'var', 'samp', 'kbd'];
+  const isTextElement = textTags.includes(tagName);
+
+  // 获取元素文本内容（如果是文本元素）
+  const textContent = isTextElement ? (el.textContent || '').trim().substring(0, 50) : '';
+
+  // 提取关键样式信息
+  const styleInfo = extractElementStyles(el, computedStyle, isTextElement);
+
+  // 关闭之前的面板
+  closeElementStylesPanel();
+
+  // 创建面板
+  elementStylesPanel = document.createElement('div');
+  elementStylesPanel.className = 'element-styles-panel';
+  elementStylesPanel.innerHTML = `
+    <div class="styles-panel-header">
+      <div class="styles-panel-title">
+        <icon-component name="code" size="md"></icon-component>
+        <span>元素样式</span>
+      </div>
+      <button class="modal-close" onclick="closeElementStylesPanel()">
+        <icon-component name="x"></icon-component>
+      </button>
+    </div>
+    <div class="styles-panel-body">
+      <div class="styles-section">
+        <div class="styles-section-title">基本信息</div>
+        <div class="styles-row">
+          <span class="styles-label">标签</span>
+          <span class="styles-value tag-value">&lt;${tagName}&gt;</span>
+        </div>
+        <div class="styles-row">
+          <span class="styles-label">选择器</span>
+          <span class="styles-value selector-value clickable" onclick="highlightElement('${escapeAttr(selector)}')" title="点击定位元素">${selector}</span>
+        </div>
+        ${textContent ? `
+        <div class="styles-row">
+          <span class="styles-label">文本内容</span>
+          <span class="styles-value text-content">${escapeHtml(textContent)}${textContent.length >= 50 ? '...' : ''}</span>
+        </div>
+        ` : ''}
+      </div>
+
+      ${isTextElement ? `
+      <div class="styles-section">
+        <div class="styles-section-title">
+          <icon-component name="type" size="sm"></icon-component>
+          文字样式
+        </div>
+        ${renderStyleRow('字体', styleInfo.fontFamily, true)}
+        ${renderStyleRow('字号', styleInfo.fontSize, true)}
+        ${renderStyleRow('字重', styleInfo.fontWeight, true)}
+        ${renderStyleRow('行高', styleInfo.lineHeight, true)}
+        ${renderStyleRow('字间距', styleInfo.letterSpacing, true)}
+        ${renderColorRow('文字颜色', styleInfo.color)}
+        ${renderStyleRow('对齐', styleInfo.textAlign, true)}
+        ${renderStyleRow('装饰', styleInfo.textDecoration, true)}
+      </div>
+      ` : ''}
+
+      <div class="styles-section">
+        <div class="styles-section-title">
+          <icon-component name="package" size="sm"></icon-component>
+          盒模型
+        </div>
+        ${renderStyleRow('宽度', styleInfo.width, true)}
+        ${renderStyleRow('高度', styleInfo.height, true)}
+        ${renderStyleRow('内边距', styleInfo.padding, true)}
+        ${renderStyleRow('外边距', styleInfo.margin, true)}
+        ${renderStyleRow('边框', styleInfo.border, true)}
+        ${renderStyleRow('圆角', styleInfo.borderRadius, true)}
+      </div>
+
+      <div class="styles-section">
+        <div class="styles-section-title">
+          <icon-component name="palette" size="sm"></icon-component>
+          背景与视觉
+        </div>
+        ${renderColorRow('背景色', styleInfo.backgroundColor)}
+        ${renderBackgroundImageRow(styleInfo.backgroundImage)}
+        ${renderStyleRow('透明度', styleInfo.opacity, true)}
+        ${renderStyleRow('阴影', styleInfo.boxShadow, true)}
+      </div>
+
+      <div class="styles-section">
+        <div class="styles-section-title">
+          <icon-component name="target" size="sm"></icon-component>
+          布局
+        </div>
+        ${renderStyleRow('显示', styleInfo.display, true)}
+        ${renderStyleRow('定位', styleInfo.position, true)}
+        ${styleInfo.display === 'flex' || styleInfo.display === 'inline-flex' ? `
+          ${renderStyleRow('主轴方向', styleInfo.flexDirection, true)}
+          ${renderStyleRow('主轴对齐', styleInfo.justifyContent, true)}
+          ${renderStyleRow('交叉轴对齐', styleInfo.alignItems, true)}
+          ${renderStyleRow('间距', styleInfo.gap, true)}
+        ` : ''}
+        ${renderStyleRow('溢出', styleInfo.overflow, true)}
+        ${renderStyleRow('层级', styleInfo.zIndex, true)}
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(elementStylesPanel);
+
+  // 初始化拖拽功能
+  initStylesPanelDrag(elementStylesPanel);
+}
+
+/**
+ * 初始化样式面板拖拽功能
+ */
+function initStylesPanelDrag(panel) {
+  const header = panel.querySelector('.styles-panel-header');
+  if (!header) return;
+
+  let isDragging = false;
+  let startX, startY;
+  let panelStartX, panelStartY;
+
+  header.style.cursor = 'move';
+
+  header.addEventListener('mousedown', (e) => {
+    // 忽略关闭按钮点击
+    if (e.target.closest('.modal-close')) return;
+
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+
+    const rect = panel.getBoundingClientRect();
+    panelStartX = rect.left;
+    panelStartY = rect.top;
+
+    // 移除 right 定位，改用 left
+    panel.style.right = 'auto';
+    panel.style.left = panelStartX + 'px';
+    panel.style.top = panelStartY + 'px';
+
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragEnd);
+
+    e.preventDefault();
+  });
+
+  function onDragMove(e) {
+    if (!isDragging) return;
+
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    let newX = panelStartX + dx;
+    let newY = panelStartY + dy;
+
+    // 限制面板在可视区域内
+    const panelRect = panel.getBoundingClientRect();
+    const maxX = window.innerWidth - panelRect.width;
+    const maxY = window.innerHeight - panelRect.height;
+
+    newX = Math.max(0, Math.min(newX, maxX));
+    newY = Math.max(0, Math.min(newY, maxY));
+
+    panel.style.left = newX + 'px';
+    panel.style.top = newY + 'px';
+  }
+
+  function onDragEnd() {
+    isDragging = false;
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', onDragEnd);
+  }
+}
+
+/**
+ * 提取元素样式
+ */
+function extractElementStyles(el, style, isTextElement) {
+  const info = {
+    // 文字样式
+    fontFamily: style.fontFamily,
+    fontSize: style.fontSize,
+    fontWeight: style.fontWeight,
+    lineHeight: style.lineHeight,
+    letterSpacing: style.letterSpacing,
+    color: style.color,
+    textAlign: style.textAlign,
+    textDecoration: style.textDecoration,
+
+    // 盒模型
+    width: style.width,
+    height: style.height,
+    padding: formatBoxValue(style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft),
+    margin: formatBoxValue(style.marginTop, style.marginRight, style.marginBottom, style.marginLeft),
+    border: formatBorder(style),
+    borderRadius: formatBorderRadius(style),
+
+    // 背景
+    backgroundColor: style.backgroundColor,
+    backgroundImage: style.backgroundImage,
+    opacity: style.opacity,
+    boxShadow: style.boxShadow === 'none' ? 'none' : '有阴影',
+
+    // 布局
+    display: style.display,
+    position: style.position,
+    flexDirection: style.flexDirection,
+    justifyContent: style.justifyContent,
+    alignItems: style.alignItems,
+    gap: style.gap,
+    overflow: style.overflow,
+    zIndex: style.zIndex
+  };
+
+  return info;
+}
+
+/**
+ * 格式化盒模型值
+ */
+function formatBoxValue(top, right, bottom, left) {
+  top = parseFloat(top) || 0;
+  right = parseFloat(right) || 0;
+  bottom = parseFloat(bottom) || 0;
+  left = parseFloat(left) || 0;
+
+  if (top === 0 && right === 0 && bottom === 0 && left === 0) {
+    return '0';
+  }
+  if (top === right && right === bottom && bottom === left) {
+    return `${top}px`;
+  }
+  if (top === bottom && left === right) {
+    return `${top}px ${right}px`;
+  }
+  return `${top}px ${right}px ${bottom}px ${left}px`;
+}
+
+/**
+ * 格式化边框值
+ */
+function formatBorder(style) {
+  const width = style.borderTopWidth;
+  const borderStyle = style.borderTopStyle;
+  const color = style.borderTopColor;
+
+  if (borderStyle === 'none' || parseFloat(width) === 0) {
+    return 'none';
+  }
+  return `${width} ${borderStyle}`;
+}
+
+/**
+ * 格式化圆角值
+ */
+function formatBorderRadius(style) {
+  const tl = parseFloat(style.borderTopLeftRadius) || 0;
+  const tr = parseFloat(style.borderTopRightRadius) || 0;
+  const br = parseFloat(style.borderBottomRightRadius) || 0;
+  const bl = parseFloat(style.borderBottomLeftRadius) || 0;
+
+  if (tl === 0 && tr === 0 && br === 0 && bl === 0) {
+    return '0';
+  }
+  if (tl === tr && tr === br && br === bl) {
+    return `${tl}px`;
+  }
+  return `${tl}px ${tr}px ${br}px ${bl}px`;
+}
+
+/**
+ * 渲染样式行
+ */
+function renderStyleRow(label, value, copyable = false) {
+  if (!value || value === 'none' || value === 'normal' || value === 'auto' || value === 'static') {
+    return '';
+  }
+  const displayValue = value.length > 30 ? value.substring(0, 30) + '...' : value;
+  const copyAttr = copyable ? `onclick="copyToClipboard('${escapeAttr(value)}')" title="点击复制: ${escapeAttr(value)}"` : '';
+  return `
+    <div class="styles-row">
+      <span class="styles-label">${label}</span>
+      <span class="styles-value ${copyable ? 'copyable' : ''}" ${copyAttr}>${escapeHtml(displayValue)}</span>
+    </div>
+  `;
+}
+
+/**
+ * 渲染颜色行（带色块）
+ */
+function renderColorRow(label, colorValue) {
+  if (!colorValue || colorValue === 'transparent' || colorValue === 'rgba(0, 0, 0, 0)') {
+    return '';
+  }
+  const hexColor = rgbaToHex(colorValue);
+  return `
+    <div class="styles-row">
+      <span class="styles-label">${label}</span>
+      <span class="styles-value color-value" onclick="copyToClipboard('${hexColor}')" title="点击复制: ${hexColor}">
+        <span class="color-swatch" style="background:${colorValue}"></span>
+        <span>${hexColor}</span>
+      </span>
+    </div>
+  `;
+}
+
+/**
+ * 渲染背景图行（带缩略图）
+ */
+function renderBackgroundImageRow(bgImage) {
+  if (!bgImage || bgImage === 'none') {
+    return '';
+  }
+  // 提取 URL
+  const urlMatch = bgImage.match(/url\(["']?([^"')]+)["']?\)/);
+  if (!urlMatch) {
+    return '';
+  }
+  const imageUrl = urlMatch[1];
+  return `
+    <div class="styles-row bg-image-row">
+      <span class="styles-label">背景图</span>
+      <span class="styles-value bg-image-value" onclick="showImagePreview('${escapeAttr(imageUrl)}')" title="点击放大查看">
+        <img src="${imageUrl}" class="bg-image-thumbnail" alt="背景图" onerror="this.style.display='none'">
+        <span class="bg-image-hint">点击放大</span>
+      </span>
+    </div>
+  `;
+}
+
+/**
+ * 显示图片预览弹窗
+ */
+function showImagePreview(imageUrl) {
+  // 关闭已存在的预览
+  closeImagePreview();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'imagePreviewOverlay';
+  overlay.className = 'image-preview-overlay';
+  overlay.onclick = closeImagePreview;
+  overlay.innerHTML = `
+    <div class="image-preview-container" onclick="event.stopPropagation()">
+      <button class="image-preview-close" onclick="closeImagePreview()">
+        <icon-component name="x"></icon-component>
+      </button>
+      <img src="${imageUrl}" class="image-preview-img" alt="背景图预览">
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // 支持 ESC 关闭
+  document.addEventListener('keydown', handleImagePreviewEsc);
+}
+
+/**
+ * 关闭图片预览
+ */
+function closeImagePreview() {
+  const overlay = document.getElementById('imagePreviewOverlay');
+  if (overlay) {
+    overlay.remove();
+  }
+  document.removeEventListener('keydown', handleImagePreviewEsc);
+}
+
+/**
+ * 处理 ESC 键关闭图片预览
+ */
+function handleImagePreviewEsc(e) {
+  if (e.key === 'Escape') {
+    closeImagePreview();
+  }
+}
+
+/**
+ * RGBA 转 HEX
+ */
+function rgbaToHex(rgba) {
+  const match = rgba.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (match) {
+    const r = parseInt(match[1]);
+    const g = parseInt(match[2]);
+    const b = parseInt(match[3]);
+    return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('').toLowerCase();
+  }
+  return rgba;
+}
+
+/**
+ * HTML 转义
+ */
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * 属性值转义
+ */
+function escapeAttr(str) {
+  return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+/**
+ * 关闭元素样式面板
+ */
+function closeElementStylesPanel() {
+  if (elementStylesPanel) {
+    elementStylesPanel.remove();
+    elementStylesPanel = null;
+  }
+  Picker.selectedElement = null;
 }
 
 // ==================== 取色器 ====================

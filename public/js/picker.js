@@ -77,9 +77,15 @@ const Picker = {
     const selector = Picker.generateSelector(el);
     const type = Picker.guessType(el);
 
+    // 存储当前选中的元素引用，用于查看样式
+    Picker.selectedElement = el;
+
     // 显示选择菜单
     showPickerActionMenu(e, selector, type);
   },
+
+  // 当前选中的元素
+  selectedElement: null,
 
   /**
    * 生成元素选择器
