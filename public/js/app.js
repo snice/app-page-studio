@@ -191,20 +191,20 @@ function updateCurrentFile() {
   UI.renderFileList();
 }
 
-function addInteraction() {
-  if (!State.currentFile) {
-    showToast('请先选择文件');
-    return;
-  }
+// function addInteraction() {
+//   if (!State.currentFile) {
+//     showToast('请先选择文件');
+//     return;
+//   }
 
-  State.addInteraction({
-    selector: '',
-    eventType: 'tap',
-    action: ''
-  });
+//   State.addInteraction({
+//     selector: '',
+//     eventType: 'tap',
+//     action: ''
+//   });
 
-  UI.renderInteractionList();
-}
+//   UI.renderInteractionList();
+// }
 
 function addInteractionFromElement(selector, eventType) {
   if (!State.currentFile) {
@@ -361,24 +361,6 @@ function addImageReplacementFromElement(selector) {
 
   UI.renderImageReplacementList();
   showToast(`已添加图片替换: ${selector}`);
-}
-
-/**
- * 手动添加图片替换
- */
-function addImageReplacement() {
-  if (!State.currentFile) {
-    showToast('请先选择文件');
-    return;
-  }
-
-  State.addImageReplacement({
-    selector: '',
-    imagePath: '',
-    description: ''
-  });
-
-  UI.renderImageReplacementList();
 }
 
 function updateImageReplacement(index, field, value) {
