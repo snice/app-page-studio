@@ -265,6 +265,64 @@ AI 会根据提示词：
 
 AI 会根据配置在对应时机调用 API 并处理数据。
 
+## 📋 提示词使用指南
+
+生成提示词后，按以下步骤在 Cursor IDE 中使用：
+
+### 1. 准备 HTML 设计稿
+
+将上传到本工具的 ZIP 文件解压，放置到项目代码根目录的 `html` 文件夹中：
+
+**Flutter 项目：**
+```
+my_flutter_app/
+├── lib/
+├── html/                  ← 放置设计稿 HTML
+│   ├── home.html
+│   ├── profile.html
+│   └── images/
+├── pubspec.yaml
+└── ...
+```
+
+**React Native 项目：**
+```
+my_rn_app/
+├── app/
+├── html/                  ← 放置设计稿 HTML
+│   ├── home.html
+│   ├── profile.html
+│   └── images/
+├── package.json
+└── ...
+```
+
+**UniApp 项目：**
+```
+my_uniapp/
+├── pages/
+├── html/                  ← 放置设计稿 HTML
+│   ├── home.html
+│   ├── profile.html
+│   └── images/
+├── pages.json
+└── ...
+```
+
+### 2. 在 Cursor IDE 中使用
+
+1. 打开 Cursor IDE，进入你的项目
+2. 按 `Cmd+L`（Mac）或 `Ctrl+L`（Windows）打开 AI 对话框
+3. 将生成的提示词粘贴到对话框中
+4. 发送消息，AI 将根据提示词和 HTML 设计稿生成代码
+
+### 3. 最佳实践
+
+- **分批开发**：建议按页面分组逐个开发，避免一次性生成过多代码
+- **状态筛选**：使用"开发中"状态筛选，只生成当前需要开发的页面
+- **检查代码**：AI 生成的代码需要人工审查和测试
+- **图片资源**：确保 HTML 中引用的图片文件存在于 `html/` 目录中
+
 ## 🔧 技术栈
 
 - **后端**: Node.js + Express + SQLite
