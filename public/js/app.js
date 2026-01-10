@@ -198,7 +198,7 @@ function cancelSelection() {
   UI.renderFileList();
 }
 
-// ==================== 文件配置 ====================
+// ==================== 页面配置 ====================
 
 function updateCurrentFile() {
   if (!State.currentFile) return;
@@ -207,14 +207,31 @@ function updateCurrentFile() {
   const devStatusRadio = document.querySelector('#fileDevStatus input[name="devStatus"]:checked');
   const devStatus = devStatusRadio ? devStatusRadio.value : 'pending';
 
+  // 获取 Tabbar 配置
+  const isTabbarPage = document.getElementById('isTabbarPage').checked;
+
   State.updateCurrentFile({
     stateName: document.getElementById('fileStateName').value,
     description: document.getElementById('fileDescription').value,
     devStatus: devStatus,
-    groupId: document.getElementById('fileGroup').value || null
+    groupId: document.getElementById('fileGroup').value || null,
+    isTabbarPage: isTabbarPage,
+    tabIndex: isTabbarPage ? parseInt(document.getElementById('tabIndex').value) || null : null,
+    tabName: isTabbarPage ? document.getElementById('tabName').value || null : null,
+    tabIconDefault: isTabbarPage ? document.getElementById('tabIconDefault').value || null : null,
+    tabIconSelected: isTabbarPage ? document.getElementById('tabIconSelected').value || null : null
   });
 
   UI.renderFileList();
+}
+
+/**
+ * 切换 Tabbar 配置显示
+ */
+function toggleTabbarConfig() {
+  const isChecked = document.getElementById('isTabbarPage').checked;
+  document.getElementById('tabbarConfigFields').style.display = isChecked ? 'block' : 'none';
+  updateCurrentFile();
 }
 
 // function addInteraction() {
@@ -1693,6 +1710,11 @@ function initEventListeners() {
 
   // 表单自动更新
   ['fileStateName', 'fileDescription', 'fileGroup'].forEach(id => {
+    document.getElementById(id).addEventListener('change', updateCurrentFile);
+  });
+
+  // Tabbar 配置字段监听
+  ['tabIndex', 'tabName', 'tabIconDefault', 'tabIconSelected'].forEach(id => {
     document.getElementById(id).addEventListener('change', updateCurrentFile);
   });
 

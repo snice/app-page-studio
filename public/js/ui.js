@@ -244,6 +244,15 @@ const UI = {
     if (radioInput) radioInput.checked = true;
     document.getElementById('fileGroup').value = State.currentFile.groupId || '';
 
+    // Tabbar 配置
+    const isTabbar = State.currentFile.isTabbarPage || false;
+    document.getElementById('isTabbarPage').checked = isTabbar;
+    document.getElementById('tabbarConfigFields').style.display = isTabbar ? 'block' : 'none';
+    document.getElementById('tabIndex').value = State.currentFile.tabIndex || '';
+    document.getElementById('tabName').value = State.currentFile.tabName || '';
+    document.getElementById('tabIconDefault').value = State.currentFile.tabIconDefault || '';
+    document.getElementById('tabIconSelected').value = State.currentFile.tabIconSelected || '';
+
     this.renderInteractionList();
     this.renderImageReplacementList();
     this.renderFunctionDescriptionList();

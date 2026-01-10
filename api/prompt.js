@@ -122,6 +122,76 @@ ${JSON.stringify(designSystem, null, 2)}
     return statusFilters.includes(fileStatus);
   };
 
+  // 收集 Tabbar 配置
+  const tabbarItems = (pagesConfig.htmlFiles || [])
+    .filter(f => f.isTabbarPage && f.tabIndex)
+    .sort((a, b) => a.tabIndex - b.tabIndex)
+    .map(f => ({
+      index: f.tabIndex,
+      name: f.tabName || f.stateName || '未命名',
+      iconDefault: f.tabIconDefault || '',
+      iconSelected: f.tabIconSelected || '',
+      route: getTabRoute(f, pagesConfig.pageGroups)
+    }));
+
+  // 辅助函数：获取 Tab 对应的路由
+  function getTabRoute(file, groups) {
+    if (file.groupId && groups) {
+      const group = groups.find(g => g.id === file.groupId);
+      if (group && group.route) return group.route;
+    }
+    return '待定义';
+  }
+
+  // 如果有 Tabbar 配置，输出 Tabbar 信息
+  if (tabbarItems.length > 0) {
+    prompt += `## Tabbar 配置
+
+应用底部有 ${tabbarItems.length} 个 Tab 页面：
+
+| Tab序号 | 名称 | 默认图标 | 选中图标 | 路由 |
+|--------|------|---------|---------|------|
+`;
+    for (const tab of tabbarItems) {
+      prompt += `| ${tab.index} | ${tab.name} | \`${tab.iconDefault || '待配置'}\` | \`${tab.iconSelected || '待配置'}\` | \`${tab.route}\` |\n`;
+    }
+
+    // 根据平台输出 Tabbar 实现建议
+    if (platform === 'flutter') {
+      prompt += `
+### Flutter Tabbar 实现
+- 使用 \`BottomNavigationBar\` 或 \`GetX\` 的 Tab 控制
+- 图标文件放在 \`${guide.assetsDir}\` 目录
+- 使用 \`IndexedStack\` 保持页面状态
+`;
+    } else if (platform === 'react-native') {
+      prompt += `
+### React Native Tabbar 实现
+- 使用 Expo Router 的 Tab 布局: \`app/(tabs)/_layout.tsx\`
+- 配置 \`<Tabs>\` 组件的 \`tabBarIcon\` 属性
+- 图标文件放在 \`${guide.assetsDir}\` 目录
+`;
+    } else if (platform === 'uniapp') {
+      prompt += `
+### UniApp Tabbar 实现
+- 在 \`pages.json\` 中配置 \`tabBar\` 字段
+- 设置 \`list\` 数组定义各 Tab 页面
+- 图标文件放在 \`static/\` 目录
+- 示例配置:
+\`\`\`json
+"tabBar": {
+  "color": "#999",
+  "selectedColor": "#333",
+  "list": [
+${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/index/index' : tab.route}", "text": "${tab.name}", "iconPath": "${tab.iconDefault}", "selectedIconPath": "${tab.iconSelected}" }`).join(',\n')}
+  ]
+}
+\`\`\`
+`;
+    }
+    prompt += '\n';
+  }
+
   // 页面分组
   if (pagesConfig.pageGroups && pagesConfig.pageGroups.length > 0) {
     prompt += `## 页面列表\n\n`;

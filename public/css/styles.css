@@ -642,6 +642,7 @@ input[type="range"]::-moz-range-thumb {
   gap: 6px;
   cursor: pointer;
   user-select: none;
+  font-size: 13px;
 }
 
 .checkbox-label input[type="checkbox"] {
@@ -785,7 +786,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .zoom-slider {
-  width: 80px;
+  width: 100px;
   height: 4px;
   -webkit-appearance: none;
   appearance: none;
