@@ -179,6 +179,7 @@ function selectFile(path, multiSelect = false) {
     UI.previewHtml(path);
     UI.loadFileToPanel();
     UI.renderFileList();
+    UI.renderDataSourceList();
   }
 }
 
@@ -1474,8 +1475,12 @@ async function switchToProject(projectId) {
 
   // 切换项目
   State.setCurrentProjectId(projectId);
+  State.currentFile = null;  // 清空当前文件
   UI.updateProjectDisplay();
   closeProjectModal();
+
+  // 清空数据管理面板
+  UI.renderDataSourceList();
 
   // 注册新项目的编辑会话
   await registerEditSession();
