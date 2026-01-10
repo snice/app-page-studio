@@ -76,6 +76,12 @@ const State = {
     '#f59e0b', '#22c55e', '#14b8a6', '#3b82f6'
   ],
 
+  // 文件列表筛选条件
+  fileFilter: {
+    searchText: '',      // 搜索文本
+    devStatus: 'all'     // 开发状态筛选: 'all', 'pending', 'developing', 'completed'
+  },
+
   /**
    * 更新配置
    * @param {Object} newConfig - 新配置

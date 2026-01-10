@@ -143,6 +143,27 @@ async function scanHtmlFiles() {
   UI.renderFileList();
 }
 
+/**
+ * 筛选文件列表
+ */
+function filterFileList() {
+  State.fileFilter.searchText = document.getElementById('fileSearchInput').value.trim().toLowerCase();
+  UI.renderFileList();
+}
+
+/**
+ * 设置开发状态筛选
+ * @param {string} status - 'all', 'pending', 'developing', 'completed'
+ */
+function setStatusFilter(status) {
+  State.fileFilter.devStatus = status;
+  // 更新按钮状态
+  document.querySelectorAll('.status-filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.status === status);
+  });
+  UI.renderFileList();
+}
+
 function selectFile(path, multiSelect = false) {
   if (multiSelect || event?.shiftKey || event?.metaKey) {
     State.toggleSelectedFile(path);

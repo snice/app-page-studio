@@ -71,6 +71,26 @@
         </button>
       </div>
 
+      <!-- Search and Filter -->
+      <div class="sidebar-filter">
+        <div class="search-box">
+          <icon-component name="search" size="sm"></icon-component>
+          <input type="text" id="fileSearchInput" placeholder="搜索文件名..." oninput="filterFileList()">
+        </div>
+        <div class="status-filter-bar">
+          <button class="status-filter-btn active" data-status="all" onclick="setStatusFilter('all')">全部</button>
+          <button class="status-filter-btn" data-status="pending" onclick="setStatusFilter('pending')">
+            <span class="status-dot pending"></span>待开发
+          </button>
+          <button class="status-filter-btn" data-status="developing" onclick="setStatusFilter('developing')">
+            <span class="status-dot developing"></span>开发中
+          </button>
+          <button class="status-filter-btn" data-status="completed" onclick="setStatusFilter('completed')">
+            <span class="status-dot completed"></span>已完成
+          </button>
+        </div>
+      </div>
+
       <!-- Selection toolbar -->
       <div class="selection-toolbar" id="selectionToolbar">
         <span>已选择 <span class="selection-count" id="selectionCount">0</span> 个文件</span>

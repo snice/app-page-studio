@@ -30,6 +30,7 @@ const ICONS = {
   chevronDown: `<polyline points="6 9 12 15 18 9"/>`,
   chevronUp: `<polyline points="18 15 12 9 6 15"/>`,
   arrowUp: `<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>`,
+  search: `<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>`,
 
   // 编辑图标
   edit: `<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>`,

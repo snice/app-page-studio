@@ -327,6 +327,115 @@ input[type="range"]::-moz-range-thumb {
   letter-spacing: -0.01em;
 }
 
+/* ==================== Sidebar Filter ==================== */
+.sidebar-filter {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  transition: all var(--transition-fast);
+}
+
+.search-box:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.search-box icon-component {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.search-box input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.search-box input::placeholder {
+  color: var(--text-muted);
+}
+
+.status-filter-bar {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.status-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.status-filter-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text);
+}
+
+.status-filter-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.status-dot.pending {
+  background: var(--warning);
+}
+
+.status-dot.developing {
+  background: #3b82f6;
+}
+
+.status-dot.completed {
+  background: var(--success);
+}
+
+.status-filter-btn.active .status-dot {
+  background: white;
+}
+
+/* Search Highlight */
+.search-highlight {
+  background: var(--warning);
+  color: #000;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.file-item.active .search-highlight {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--primary-dark);
+}
+
 .sidebar-content {
   flex: 1;
   overflow-y: auto;

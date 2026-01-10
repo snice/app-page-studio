@@ -56,18 +56,48 @@ const UI = {
   // ==================== 文件列表渲染 ====================
 
   /**
+   * 检查文件是否符合筛选条件
+   * @param {Object} file - 文件对象
+   * @returns {boolean}
+   */
+  matchesFilter(file) {
+    const { searchText, devStatus } = State.fileFilter;
+
+    // 状态筛选
+    if (devStatus !== 'all') {
+      const fileStatus = file.devStatus || 'pending';
+      if (fileStatus !== devStatus) return false;
+    }
+
+    // 搜索文本筛选
+    if (searchText) {
+      const name = (file.stateName || file.name || '').toLowerCase();
+      const path = (file.path || '').toLowerCase();
+      if (!name.includes(searchText) && !path.includes(searchText)) return false;
+    }
+
+    return true;
+  },
+
+  /**
    * 渲染文件列表
    */
   renderFileList() {
     const container = document.getElementById('fileList');
     const groups = State.pagesConfig.pageGroups || [];
-    const files = State.pagesConfig.htmlFiles || [];
+    const allFiles = State.pagesConfig.htmlFiles || [];
+
+    // 应用筛选
+    const files = allFiles.filter(f => this.matchesFilter(f));
 
     let html = '';
 
     // 渲染分组
     for (const group of groups) {
       const groupFiles = files.filter(f => f.groupId === group.id);
+      // 如果分组内没有符合筛选条件的文件，跳过
+      if (groupFiles.length === 0) continue;
+
       html += `
         <div class="file-group" data-group-id="${group.id}">
           <div class="file-group-header" style="border-left-color: ${group.color || '#6366f1'}">
@@ -102,19 +132,39 @@ const UI = {
     }
 
     if (files.length === 0) {
+      const hasFilter = State.fileFilter.searchText || State.fileFilter.devStatus !== 'all';
       html = `
         <div style="padding: 60px 20px; text-align: center;">
           <div style="margin-bottom: 16px; opacity: 0.4;">
-            ${this.icon('folder', 'xl')}
+            ${this.icon(hasFilter ? 'search' : 'folder', 'xl')}
           </div>
-          <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 6px;">暂无 HTML 文件</p>
-          <p style="font-size: 12px; color: var(--text-muted);">请设置 HTML 路径</p>
+          <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 6px;">${hasFilter ? '没有匹配的文件' : '暂无 HTML 文件'}</p>
+          <p style="font-size: 12px; color: var(--text-muted);">${hasFilter ? '尝试修改筛选条件' : '请设置 HTML 路径'}</p>
         </div>
       `;
     }
 
     container.innerHTML = html;
     this.updateGroupSelect();
+  },
+
+  /**
+   * 高亮文本中的搜索关键字
+   * @param {string} text - 原始文本
+   * @param {string} keyword - 搜索关键字
+   * @returns {string} 带高亮标记的 HTML
+   */
+  highlightText(text, keyword) {
+    if (!keyword || !text) return text;
+    const lowerText = text.toLowerCase();
+    const lowerKeyword = keyword.toLowerCase();
+    const index = lowerText.indexOf(lowerKeyword);
+    if (index === -1) return text;
+    // 保持原始大小写
+    const before = text.substring(0, index);
+    const match = text.substring(index, index + keyword.length);
+    const after = text.substring(index + keyword.length);
+    return `${before}<mark class="search-highlight">${match}</mark>${after}`;
   },
 
   /**
@@ -129,6 +179,12 @@ const UI = {
     const devStatus = file.devStatus || 'pending';
     const devStatusLabels = { pending: '待开发', developing: '开发中', completed: '已完成' };
 
+    // 获取搜索关键字并高亮
+    const searchText = State.fileFilter.searchText;
+    const displayName = file.stateName || file.name;
+    const highlightedName = this.highlightText(displayName, searchText);
+    const highlightedPath = this.highlightText(file.path, searchText);
+
     return `
       <div class="file-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}"
            data-path="${file.path}"
@@ -136,8 +192,8 @@ const UI = {
            ${groupColor ? `style="border-left-color: ${isActive ? 'white' : groupColor}"` : ''}>
         <span class="file-icon">${this.icon('file')}</span>
         <div class="file-info">
-          <div class="file-name">${file.stateName || file.name}</div>
-          <div class="file-path">${file.path}</div>
+          <div class="file-name">${highlightedName}</div>
+          <div class="file-path">${highlightedPath}</div>
         </div>
         <div class="file-tags">
           <span class="dev-status-badge ${devStatus}">${devStatusLabels[devStatus]}</span>
