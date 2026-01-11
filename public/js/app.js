@@ -12,8 +12,8 @@ async function init() {
   await registerEditSession();
   await loadPages();
   await scanHtmlFiles();
-  initWebSocket();
   initEventListeners();
+  initWebSocket();
   console.log('初始化完成, pagesConfig:', State.pagesConfig);
 }
 
