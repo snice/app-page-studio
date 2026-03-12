@@ -695,3 +695,147 @@ const ColorPicker = {
     }).join('').toLowerCase();
   }
 };
+
+/**
+ * 图片取色器（用于设计图预览）
+ */
+const ImageColorPicker = {
+  img: null,
+  canvas: null,
+  ctx: null,
+  isActive: false,
+
+  enable(img) {
+    if (!img) return;
+    this.img = img;
+    this.isActive = true;
+    this.canvas = document.createElement('canvas');
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+
+    if (!ColorPicker.tooltip) {
+      ColorPicker.createTooltip();
+    }
+
+    const draw = () => {
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      if (!w || !h) return;
+      this.canvas.width = w;
+      this.canvas.height = h;
+      this.ctx.drawImage(img, 0, 0, w, h);
+    };
+    if (img.complete) {
+      draw();
+    } else {
+      img.addEventListener('load', draw, { once: true });
+    }
+
+    img.style.cursor = 'crosshair';
+    img.addEventListener('mousemove', this.handleMouseMove);
+    img.addEventListener('click', this.handleClick);
+    img.addEventListener('mouseleave', this.handleMouseLeave);
+  },
+
+  disable() {
+    if (this.img) {
+      this.img.style.cursor = '';
+      this.img.removeEventListener('mousemove', this.handleMouseMove);
+      this.img.removeEventListener('click', this.handleClick);
+      this.img.removeEventListener('mouseleave', this.handleMouseLeave);
+    }
+    if (ColorPicker.tooltip) {
+      ColorPicker.tooltip.style.display = 'none';
+    }
+    this.img = null;
+    this.canvas = null;
+    this.ctx = null;
+    this.isActive = false;
+  },
+
+  handleMouseMove(e) {
+    if (!ImageColorPicker.isActive) return;
+    const color = ImageColorPicker.getColorAtEvent(e);
+    if (!color) return;
+
+    const tooltip = ColorPicker.tooltip;
+    if (!tooltip) return;
+
+    const tooltipX = e.clientX + 20;
+    const tooltipY = e.clientY + 20;
+    const maxX = window.innerWidth - 150;
+    const maxY = window.innerHeight - 80;
+
+    tooltip.style.display = 'block';
+    tooltip.style.left = Math.min(tooltipX, maxX) + 'px';
+    tooltip.style.top = Math.min(tooltipY, maxY) + 'px';
+
+    const swatch = document.getElementById('colorPreviewSwatch');
+    const hexText = document.getElementById('colorPreviewHex');
+    const rgbText = document.getElementById('colorPreviewRgb');
+
+    if (swatch) swatch.style.background = color.hex;
+    if (hexText) hexText.textContent = color.hex;
+    if (rgbText) rgbText.textContent = `RGB(${color.r}, ${color.g}, ${color.b})`;
+  },
+
+  handleMouseLeave() {
+    if (ColorPicker.tooltip) {
+      ColorPicker.tooltip.style.display = 'none';
+    }
+  },
+
+  handleClick(e) {
+    if (!ImageColorPicker.isActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const color = ImageColorPicker.getColorAtEvent(e);
+    if (!color) {
+      showToast('未检测到有效颜色');
+      return;
+    }
+
+    if (!State.pickedColors.includes(color.hex)) {
+      State.pickedColors.push(color.hex);
+    }
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(color.hex);
+    }
+    showToast(`已复制: ${color.hex}`);
+    updatePickedColorsDisplay();
+  },
+
+  getColorAtEvent(e) {
+    const img = ImageColorPicker.img;
+    const ctx = ImageColorPicker.ctx;
+    if (!img || !ctx) return null;
+
+    const rect = img.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+
+    const naturalW = img.naturalWidth || rect.width;
+    const naturalH = img.naturalHeight || rect.height;
+    const scale = Math.min(rect.width / naturalW, rect.height / naturalH);
+    const drawW = naturalW * scale;
+    const drawH = naturalH * scale;
+    const offsetX = (rect.width - drawW) / 2;
+    const offsetY = (rect.height - drawH) / 2;
+
+    const localX = x - offsetX;
+    const localY = y - offsetY;
+    if (localX < 0 || localY < 0 || localX > drawW || localY > drawH) return null;
+
+    const imgX = Math.floor(localX / scale);
+    const imgY = Math.floor(localY / scale);
+    const pixel = ctx.getImageData(imgX, imgY, 1, 1).data;
+    return {
+      r: pixel[0],
+      g: pixel[1],
+      b: pixel[2],
+      hex: ColorPicker.rgbToHex(pixel[0], pixel[1], pixel[2])
+    };
+  }
+};

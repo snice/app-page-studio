@@ -585,6 +585,21 @@ input[type="range"]::-moz-range-thumb {
   font-weight: 500;
 }
 
+.file-source-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.file-item.active .file-source-tag {
+  background: rgba(255,255,255,0.2);
+  color: white;
+}
+
 .file-item.active .file-state-tag {
   background: rgba(255,255,255,0.2);
   color: white;
@@ -629,6 +644,10 @@ input[type="range"]::-moz-range-thumb {
   color: white;
 }
 
+.dev-status-filter.is-disabled {
+  opacity: 0.6;
+}
+
 /* Dev Status Filter in Modal */
 .dev-status-filter {
   display: flex;
@@ -652,6 +671,15 @@ input[type="range"]::-moz-range-thumb {
   accent-color: var(--primary);
 }
 
+#promptModal .checkbox-label {
+  font-size: 12px;
+}
+
+#promptModal .dev-status-badge {
+  font-size: 9px;
+  padding: 2px 5px;
+}
+
 /* Dev Status Radio Group */
 .dev-status-radio-group {
   display: flex;
@@ -667,11 +695,59 @@ input[type="range"]::-moz-range-thumb {
   user-select: none;
 }
 
+.radio-label span {
+  font-size: 12px;
+}
+
 .radio-label input[type="radio"] {
   width: 14px;
   height: 14px;
   cursor: pointer;
   accent-color: var(--primary);
+}
+
+/* ==================== Image Upload ==================== */
+.upload-dropzone {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  text-align: center;
+  background: var(--bg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.upload-dropzone:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
+}
+
+.upload-dropzone.is-dragover {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.upload-dropzone-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--bg-tertiary);
+  margin-bottom: 10px;
+}
+
+.upload-dropzone-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.upload-dropzone-sub {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* ==================== Ungrouped Files ==================== */
@@ -908,6 +984,78 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .phone-screen iframe { width: 100%; height: 100%; border: none; }
+.design-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: white;
+  transform-origin: top left;
+}
+
+.phone-screen.image-selecting .design-image {
+  cursor: crosshair;
+}
+
+.image-selection-rect {
+  position: absolute;
+  border: 2px solid #6366f1;
+  background: rgba(99, 102, 241, 0.12);
+  border-radius: 6px;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
+}
+
+.image-region-highlight {
+  position: absolute;
+  border: 2px solid #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+  border-radius: 6px;
+  pointer-events: none;
+  animation: image-highlight-pulse 0.6s ease-in-out 3;
+}
+
+/* Image Region Boxes */
+.image-region-box {
+  position: absolute;
+  border: 2px solid rgba(99, 102, 241, 0.9);
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 6px;
+  cursor: move;
+}
+
+.image-region-box:hover {
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.image-region-box.function {
+  border-color: rgba(34, 197, 94, 0.9);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.image-region-box.function:hover {
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
+}
+
+.image-region-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: white;
+  border: 1px solid rgba(0,0,0,0.3);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.image-region-handle.handle-nw { left: -5px; top: -5px; cursor: nwse-resize; }
+.image-region-handle.handle-ne { right: -5px; top: -5px; cursor: nesw-resize; }
+.image-region-handle.handle-se { right: -5px; bottom: -5px; cursor: nwse-resize; }
+.image-region-handle.handle-sw { left: -5px; bottom: -5px; cursor: nesw-resize; }
+
+@keyframes image-highlight-pulse {
+  0%, 100% { border-color: #22c55e; }
+  50% { border-color: #86efac; }
+}
 
 .empty-preview {
   height: 100%;
@@ -1257,6 +1405,10 @@ input[type="range"]::-moz-range-thumb {
 
 .picker-menu-item:hover {
   background: var(--bg-tertiary);
+}
+
+.picker-menu-item:active {
+  background: rgba(99, 102, 241, 0.16);
 }
 
 .picker-menu-item icon-component {

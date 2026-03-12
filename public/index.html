@@ -46,6 +46,10 @@
           <icon-component name="refresh"></icon-component>
           刷新
         </button>
+        <button class="btn btn-secondary" onclick="openImageUpload()">
+          <icon-component name="image"></icon-component>
+          上传设计图
+        </button>
         <button class="btn btn-secondary" onclick="saveConfig()">
           <icon-component name="save"></icon-component>
           保存
@@ -60,11 +64,10 @@
         </button>
       </div>
     </header>
-
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <span class="sidebar-title">HTML 文件</span>
+        <span class="sidebar-title">页面文件</span>
         <button class="btn btn-sm btn-secondary" onclick="createGroup()">
           <icon-component name="plus" size="sm"></icon-component>
           新建页面分组
@@ -132,7 +135,7 @@
           </button>
           <button class="picker-btn" id="pickerBtn" onclick="togglePicker()">
             <icon-component name="target"></icon-component>
-            <span id="pickerBtnText">选择元素</span>
+            <span id="pickerBtnText">添加交互</span>
           </button>
         </div>
       </div>
@@ -143,7 +146,7 @@
               <div class="empty-preview-icon">
                 <icon-component name="fileEmpty" size="xl"></icon-component>
               </div>
-              <p>选择 HTML 文件预览</p>
+              <p>选择文件预览</p>
             </div>
           </div>
         </div>
@@ -186,6 +189,22 @@
               </label>
             </div>
           </div>
+        </div>
+
+        <div class="panel-section" id="imageModeSection" style="display:none;">
+          <div class="panel-section-title">设计图模式</div>
+          <div class="form-group">
+            <label class="form-label">设计图路径</label>
+            <input type="text" class="form-input" id="imagePath" readonly>
+          </div>
+          <div class="form-group">
+            <label class="form-label">UI IR 提示词（PNG → IR）</label>
+            <textarea class="form-textarea" id="irPrompt" placeholder="为该设计图生成 UI IR 的提示词"></textarea>
+          </div>
+          <button class="btn btn-sm btn-secondary" onclick="generateIrPromptTemplate()">
+            <icon-component name="sparkles" size="sm"></icon-component>
+            生成 UI IR 提示词
+          </button>
         </div>
 
         <div class="panel-section">
@@ -280,7 +299,7 @@
             <input type="file" id="newProjectZip" accept=".zip" style="display:none;" onchange="handleZipSelect(this)">
             <button class="btn btn-secondary" style="width:100%;" onclick="document.getElementById('newProjectZip').click()">
               <icon-component name="upload"></icon-component>
-              选择 HTML ZIP 文件
+              选择 HTML/PNG ZIP 文件
             </button>
             <div id="zipFileName" style="font-size:12px;color:var(--text-muted);margin-top:6px;text-align:center;">未选择文件</div>
           </div>
@@ -289,6 +308,31 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeProjectModal()">关闭</button>
         <button class="btn btn-primary" id="projectSubmitBtn" onclick="createOrUpdateProject()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Upload Modal -->
+  <div class="modal-overlay" id="imageUploadModal">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">上传设计图</span>
+        <button class="modal-close" onclick="closeImageUploadModal()">
+          <icon-component name="x"></icon-component>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="upload-dropzone" id="imageDropzone" onclick="triggerImagePicker()">
+          <div class="upload-dropzone-icon">
+            <icon-component name="upload" size="lg"></icon-component>
+          </div>
+          <div class="upload-dropzone-title">点击选择图片</div>
+          <div class="upload-dropzone-sub">或拖拽图片到此处，支持粘贴（Ctrl/Cmd + V）</div>
+        </div>
+        <input type="file" id="designImageInput" accept="image/*" multiple style="display:none;" onchange="handleImageSelect(this)">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeImageUploadModal()">关闭</button>
       </div>
     </div>
   </div>
@@ -364,7 +408,20 @@
         </div>
         <div class="form-group">
           <label class="form-label">筛选页面</label>
-          <div class="dev-status-filter">
+          <div class="dev-status-radio-group" id="promptFilterMode">
+            <label class="radio-label">
+              <input type="radio" name="promptFilterMode" value="status" checked>
+              <span>开发状态</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="promptFilterMode" value="current">
+              <span>当前页</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">开发状态筛选</label>
+          <div class="dev-status-filter" id="promptStatusFilters">
             <label class="checkbox-label">
               <input type="checkbox" id="filterPending" value="pending">
               <span class="dev-status-badge pending">待开发</span>

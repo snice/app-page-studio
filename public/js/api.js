@@ -73,6 +73,40 @@ const API = {
   },
 
   /**
+   * 获取设计图列表
+   * @returns {Promise<Object>}
+   */
+  async listDesignImages() {
+    const projectId = this._getProjectId();
+    if (!projectId) {
+      return { files: [] };
+    }
+    const res = await fetch(`/api/list-images?projectId=${projectId}`);
+    return res.json();
+  },
+
+  /**
+   * 上传设计图（PNG/JPG/WebP）
+   * @param {File[]} files
+   * @returns {Promise<Object>}
+   */
+  async uploadDesignImages(files) {
+    const projectId = this._getProjectId();
+    if (!projectId) {
+      return { error: '请先选择项目' };
+    }
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('images', file);
+    }
+    const res = await fetch(`/api/upload-image?projectId=${projectId}`, {
+      method: 'POST',
+      body: formData
+    });
+    return res.json();
+  },
+
+  /**
    * 分析 HTML 文件
    * @param {string} path - 文件路径
    * @returns {Promise<Object>}

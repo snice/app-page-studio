@@ -55,6 +55,9 @@ const State = {
   // 取色器是否激活
   isColorPickerActive: false,
 
+  // 设计图区域选择是否激活
+  isImageRegionSelecting: false,
+
   // 取到的颜色列表
   pickedColors: [],
 
@@ -150,11 +153,20 @@ const State = {
     for (const file of this.htmlFiles) {
       const existing = existingFilesMap.get(file.path);
       if (existing) {
+        if (!existing.sourceType && file.sourceType) {
+          existing.sourceType = file.sourceType;
+        }
+        if (file.sourceType === 'image' && !existing.imagePath) {
+          existing.imagePath = file.path;
+        }
         updatedFiles.push(existing);
       } else {
         updatedFiles.push({
           path: file.path,
           name: file.name,
+          sourceType: file.sourceType || 'html',
+          imagePath: file.sourceType === 'image' ? file.path : null,
+          irPrompt: '',
           stateName: '',
           description: '',
           groupId: null,

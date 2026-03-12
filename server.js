@@ -14,6 +14,7 @@ const projectsRouter = require('./api/projects');
 const pagesRouter = require('./api/pages');
 const htmlRouter = require('./api/html');
 const promptRouter = require('./api/prompt');
+const imageRouter = require('./api/image');
 const sessionsRouter = require('./api/sessions');
 const { HTML_CACHES_DIR } = require('./api/utils');
 
@@ -40,6 +41,7 @@ app.use('/api', projectsRouter);
 app.use('/api', pagesRouter);
 app.use('/api', htmlRouter);
 app.use('/api', promptRouter);
+app.use('/api', imageRouter);
 app.use('/api', sessionsRouter);
 
 // 启动服务器

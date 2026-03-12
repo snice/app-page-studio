@@ -137,8 +137,13 @@ async function saveConfig() {
 // ==================== HTML 文件管理 ====================
 
 async function scanHtmlFiles() {
-  const data = await API.scanHtmlFiles();
-  State.htmlFiles = data.files;
+  const [htmlData, imageData] = await Promise.all([
+    API.scanHtmlFiles(),
+    API.listDesignImages()
+  ]);
+  const htmlFiles = (htmlData.files || []).map(f => ({ ...f, sourceType: 'html' }));
+  const imageFiles = (imageData.files || []).map(f => ({ ...f, sourceType: 'image' }));
+  State.htmlFiles = [...htmlFiles, ...imageFiles];
   State.syncFilesToConfig();
   UI.renderFileList();
 }
@@ -176,10 +181,25 @@ function selectFile(path, multiSelect = false) {
   UI.updateSelectionToolbar();
 
   if (State.setCurrentFile(path)) {
-    UI.previewHtml(path);
+    UI.previewFile(State.currentFile);
     UI.loadFileToPanel();
     UI.renderFileList();
     UI.renderDataSourceList();
+
+    if (State.currentFile.sourceType === 'image') {
+      setImageRegionSelecting(false);
+      if (State.isPickerActive) {
+        State.isPickerActive = false;
+        const btn = document.getElementById('pickerBtn');
+        const btnText = document.getElementById('pickerBtnText');
+        if (btn) btn.classList.remove('active');
+        if (btnText) btnText.textContent = '添加交互';
+      }
+    } else {
+      setImageRegionSelecting(false);
+      const btnText = document.getElementById('pickerBtnText');
+      if (btnText) btnText.textContent = State.isPickerActive ? '点击选择' : '添加交互';
+    }
   }
 }
 
@@ -201,6 +221,10 @@ function updateCurrentFile() {
   // 获取 Tabbar 配置
   const isTabbarPage = document.getElementById('isTabbarPage').checked;
 
+  const irPromptEl = document.getElementById('irPrompt');
+  const irPromptValue = (State.currentFile.sourceType === 'image' && irPromptEl)
+    ? irPromptEl.value
+    : (State.currentFile.irPrompt || '');
   State.updateCurrentFile({
     stateName: document.getElementById('fileStateName').value,
     description: document.getElementById('fileDescription').value,
@@ -210,7 +234,8 @@ function updateCurrentFile() {
     tabIndex: isTabbarPage ? parseInt(document.getElementById('tabIndex').value) || null : null,
     tabName: isTabbarPage ? document.getElementById('tabName').value || null : null,
     tabIconDefault: isTabbarPage ? document.getElementById('tabIconDefault').value || null : null,
-    tabIconSelected: isTabbarPage ? document.getElementById('tabIconSelected').value || null : null
+    tabIconSelected: isTabbarPage ? document.getElementById('tabIconSelected').value || null : null,
+    irPrompt: irPromptValue
   });
 
   UI.renderFileList();
@@ -269,13 +294,25 @@ function removeInteraction(index) {
 
 // 全局变量存储选择菜单
 let pickerActionMenu = null;
+let imageRegionSelection = {
+  isDragging: false,
+  start: null,
+  rectEl: null,
+  layout: null
+};
+let pendingImageRegion = null;
+let regionDragState = null;
 
 function togglePicker() {
+  if (State.currentFile && State.currentFile.sourceType === 'image') {
+    setImageRegionSelecting(!State.isImageRegionSelecting);
+    return;
+  }
   State.isPickerActive = !State.isPickerActive;
   const btn = document.getElementById('pickerBtn');
   const btnText = document.getElementById('pickerBtnText');
   btn.classList.toggle('active', State.isPickerActive);
-  btnText.textContent = State.isPickerActive ? '点击选择' : '选择元素';
+  btnText.textContent = State.isPickerActive ? '点击选择' : '添加交互';
 
   // 如果取色器激活，先关闭它
   if (State.isPickerActive && State.isColorPickerActive) {
@@ -353,6 +390,9 @@ function showPickerActionMenu(e, selector, eventType) {
 }
 
 function hidePickerActionMenuOnClick(e) {
+  if (State.isImageRegionSelecting) {
+    return;
+  }
   if (pickerActionMenu && !pickerActionMenu.contains(e.target)) {
     hidePickerActionMenu();
   }
@@ -382,6 +422,412 @@ function handlePickerAction(action, selector, eventType) {
   } else if (action === 'styles') {
     showElementStylesPanel(selector);
   }
+}
+
+function setImageRegionSelecting(active) {
+  State.isImageRegionSelecting = active;
+  const btn = document.getElementById('pickerBtn');
+  const btnText = document.getElementById('pickerBtnText');
+  const screen = document.querySelector('.phone-screen');
+  if (btn) btn.classList.toggle('active', active);
+  if (btnText) btnText.textContent = active ? '拖拽选择' : '添加交互';
+  if (screen) screen.classList.toggle('image-selecting', active);
+
+  if (active && State.isColorPickerActive) {
+    toggleColorPicker();
+  }
+  if (!active) {
+    hidePickerActionMenu();
+    pendingImageRegion = null;
+    clearImageSelectionRect();
+    clearImageRegionOverlays();
+    return;
+  }
+  renderImageRegionOverlays();
+}
+
+function setupImageRegionPicker(img) {
+  if (!img || img.dataset.regionPickerBound) return;
+  img.dataset.regionPickerBound = '1';
+  img.addEventListener('dragstart', (e) => e.preventDefault());
+  img.addEventListener('mousedown', handleImageRegionMouseDown);
+  img.addEventListener('mousemove', handleImageRegionMouseMove);
+  img.addEventListener('mouseup', handleImageRegionMouseUp);
+  img.addEventListener('mouseleave', handleImageRegionMouseLeave);
+}
+
+function handleImageRegionMouseDown(e) {
+  if (!State.isImageRegionSelecting) return;
+  hidePickerActionMenu();
+  if (State.isColorPickerActive) {
+    toggleColorPicker();
+  }
+  const img = e.currentTarget;
+  const layout = getImageLayout(img);
+  if (!layout) return;
+
+  imageRegionSelection.isDragging = true;
+  imageRegionSelection.layout = layout;
+  const point = getClampedPoint(layout, e.clientX, e.clientY);
+  imageRegionSelection.start = point;
+  imageRegionSelection.end = point;
+
+  ensureImageSelectionRect();
+  updateImageSelectionRect(point, point);
+}
+
+function handleImageRegionMouseMove(e) {
+  if (!State.isImageRegionSelecting || !imageRegionSelection.isDragging) return;
+  const layout = imageRegionSelection.layout;
+  if (!layout) return;
+  const point = getClampedPoint(layout, e.clientX, e.clientY);
+  imageRegionSelection.end = point;
+  updateImageSelectionRect(imageRegionSelection.start, point);
+}
+
+function handleImageRegionMouseUp(e) {
+  if (!State.isImageRegionSelecting || !imageRegionSelection.isDragging) return;
+  imageRegionSelection.isDragging = false;
+  const layout = imageRegionSelection.layout;
+  const start = imageRegionSelection.start;
+  const end = getClampedPoint(layout, e.clientX, e.clientY);
+  imageRegionSelection.end = end;
+  updateImageSelectionRect(start, end);
+  if (!layout || !start || !end) return;
+
+  const region = buildRegionFromPoints(layout, start, end);
+  if (!region) {
+    clearImageSelectionRect();
+    return;
+  }
+
+  pendingImageRegion = region;
+  showImageRegionMenu(e.clientX, e.clientY);
+}
+
+function handleImageRegionMouseLeave() {
+  if (!imageRegionSelection.isDragging) return;
+  imageRegionSelection.isDragging = false;
+  clearImageSelectionRect();
+}
+
+function ensureImageSelectionRect() {
+  if (imageRegionSelection.rectEl) return;
+  const screen = document.querySelector('.phone-screen');
+  if (!screen) return;
+  const rect = document.createElement('div');
+  rect.className = 'image-selection-rect';
+  screen.appendChild(rect);
+  imageRegionSelection.rectEl = rect;
+}
+
+function clearImageSelectionRect() {
+  if (imageRegionSelection.rectEl) {
+    imageRegionSelection.rectEl.remove();
+    imageRegionSelection.rectEl = null;
+  }
+}
+
+function updateImageSelectionRect(start, end) {
+  const rectEl = imageRegionSelection.rectEl;
+  if (!rectEl) return;
+  const left = Math.min(start.screenX, end.screenX);
+  const top = Math.min(start.screenY, end.screenY);
+  const width = Math.abs(end.screenX - start.screenX);
+  const height = Math.abs(end.screenY - start.screenY);
+  rectEl.style.left = `${left}px`;
+  rectEl.style.top = `${top}px`;
+  rectEl.style.width = `${width}px`;
+  rectEl.style.height = `${height}px`;
+}
+
+function getImageLayout(img) {
+  if (!img) return null;
+  const rect = img.getBoundingClientRect();
+  const imageW = img.naturalWidth || rect.width;
+  const imageH = img.naturalHeight || rect.height;
+  if (!imageW || !imageH) return null;
+  const scale = Math.min(rect.width / imageW, rect.height / imageH);
+  const drawW = imageW * scale;
+  const drawH = imageH * scale;
+  const offsetX = (rect.width - drawW) / 2;
+  const offsetY = (rect.height - drawH) / 2;
+  return { rect, imageW, imageH, scale, drawW, drawH, offsetX, offsetY };
+}
+
+function getClampedPoint(layout, clientX, clientY) {
+  const localX = clientX - layout.rect.left;
+  const localY = clientY - layout.rect.top;
+  const clampX = Math.max(layout.offsetX, Math.min(localX, layout.offsetX + layout.drawW));
+  const clampY = Math.max(layout.offsetY, Math.min(localY, layout.offsetY + layout.drawH));
+  return {
+    screenX: clampX,
+    screenY: clampY
+  };
+}
+
+function buildRegionFromPoints(layout, start, end) {
+  const x1 = Math.min(start.screenX, end.screenX);
+  const y1 = Math.min(start.screenY, end.screenY);
+  const x2 = Math.max(start.screenX, end.screenX);
+  const y2 = Math.max(start.screenY, end.screenY);
+  const width = x2 - x1;
+  const height = y2 - y1;
+  if (width < 2 || height < 2) return null;
+
+  const imgX = Math.round((x1 - layout.offsetX) / layout.scale);
+  const imgY = Math.round((y1 - layout.offsetY) / layout.scale);
+  const imgW = Math.round(width / layout.scale);
+  const imgH = Math.round(height / layout.scale);
+
+  const screen = document.querySelector('.phone-screen');
+  const deviceW = parseInt(screen?.style.width, 10) || Math.round(layout.rect.width / (typeof currentZoom !== 'undefined' ? currentZoom : 1));
+  const deviceH = parseInt(screen?.style.height, 10) || Math.round(layout.rect.height / (typeof currentZoom !== 'undefined' ? currentZoom : 1));
+
+  const devX = Math.round(imgX * deviceW / layout.imageW);
+  const devY = Math.round(imgY * deviceH / layout.imageH);
+  const devW = Math.round(imgW * deviceW / layout.imageW);
+  const devH = Math.round(imgH * deviceH / layout.imageH);
+
+  return {
+    device: { x: devX, y: devY, width: devW, height: devH, unit: 'px', base: { width: deviceW, height: deviceH } },
+    image: { x: imgX, y: imgY, width: imgW, height: imgH, unit: 'px', base: { width: layout.imageW, height: layout.imageH } }
+  };
+}
+
+function showImageRegionMenu(clientX, clientY) {
+  hidePickerActionMenu();
+  pickerActionMenu = document.createElement('div');
+  pickerActionMenu.className = 'picker-action-menu';
+  pickerActionMenu.style.cssText = `
+    position: fixed;
+    top: ${clientY + 8}px;
+    left: ${clientX + 8}px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+    padding: 6px;
+    z-index: 9999;
+    min-width: 160px;
+  `;
+  pickerActionMenu.innerHTML = `
+    <div class="picker-menu-item" onclick="handleImageRegionAction('interaction')">
+      <span>${UI.icon('target', 'sm')}</span>
+      <span>添加交互</span>
+    </div>
+    <div class="picker-menu-item" onclick="handleImageRegionAction('function')">
+      <span>${UI.icon('info', 'sm')}</span>
+      <span>功能描述</span>
+    </div>
+  `;
+  document.body.appendChild(pickerActionMenu);
+  setTimeout(() => {
+    document.removeEventListener('click', hidePickerActionMenuOnClick);
+    document.addEventListener('click', hidePickerActionMenuOnClick);
+  }, 10);
+}
+
+function handleImageRegionAction(action) {
+  hidePickerActionMenu();
+  if (!pendingImageRegion) return;
+  if (action === 'interaction') {
+    addInteractionFromRegion(pendingImageRegion);
+  } else if (action === 'function') {
+    addFunctionDescriptionFromRegion(pendingImageRegion);
+  }
+  clearImageSelectionRect();
+  renderImageRegionOverlays();
+}
+
+function addInteractionFromRegion(region) {
+  if (!State.currentFile) {
+    showToast('请先选择文件');
+    return;
+  }
+  if (!region) return;
+  State.addInteraction({
+    selector: '区域',
+    eventType: 'tap',
+    action: '',
+    region: region
+  });
+  UI.renderInteractionList();
+  showToast('已添加交互区域');
+}
+
+function addFunctionDescriptionFromRegion(region) {
+  if (!State.currentFile) {
+    showToast('请先选择文件');
+    return;
+  }
+  if (!region) return;
+  State.addFunctionDescription({
+    selector: '区域',
+    description: '',
+    region: region
+  });
+  UI.renderFunctionDescriptionList();
+  showToast('已添加功能描述区域');
+}
+
+function getImageRegions() {
+  const regions = [];
+  const interactions = State.currentFile?.interactions || [];
+  interactions.forEach((item, index) => {
+    if (item.region) regions.push({ type: 'interaction', index, region: item.region });
+  });
+  const functions = State.currentFile?.functionDescriptions || [];
+  functions.forEach((item, index) => {
+    if (item.region) regions.push({ type: 'function', index, region: item.region });
+  });
+  return regions;
+}
+
+function renderImageRegionOverlays() {
+  if (!State.currentFile || State.currentFile.sourceType !== 'image') return;
+  if (!State.isImageRegionSelecting) return;
+  const img = document.querySelector('.design-image');
+  const screen = document.querySelector('.phone-screen');
+  if (!img || !screen) return;
+  const layout = getImageLayout(img);
+  if (!layout) return;
+
+  clearImageRegionOverlays();
+
+  const regions = getImageRegions();
+  for (const item of regions) {
+    const box = document.createElement('div');
+    box.className = `image-region-box ${item.type}`;
+    box.dataset.type = item.type;
+    box.dataset.index = String(item.index);
+    applyRegionBoxStyle(box, layout, item.region);
+
+    box.addEventListener('mousedown', (e) => {
+      if (e.target.classList.contains('image-region-handle')) return;
+      startRegionDrag(e, item, 'move', null, box);
+    });
+
+    const handles = ['nw', 'ne', 'se', 'sw'];
+    for (const handle of handles) {
+      const h = document.createElement('div');
+      h.className = `image-region-handle handle-${handle}`;
+      h.addEventListener('mousedown', (e) => {
+        startRegionDrag(e, item, 'resize', handle, box);
+      });
+      box.appendChild(h);
+    }
+
+    screen.appendChild(box);
+  }
+}
+
+function clearImageRegionOverlays() {
+  document.querySelectorAll('.image-region-box').forEach(el => el.remove());
+}
+
+function applyRegionBoxStyle(box, layout, region) {
+  if (!box || !region || !region.image) return;
+  const imgR = region.image;
+  const left = imgR.x * layout.scale + layout.offsetX;
+  const top = imgR.y * layout.scale + layout.offsetY;
+  const width = imgR.width * layout.scale;
+  const height = imgR.height * layout.scale;
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+  box.style.width = `${width}px`;
+  box.style.height = `${height}px`;
+}
+
+function startRegionDrag(e, regionInfo, mode, handle, boxEl) {
+  if (!State.isImageRegionSelecting) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const img = document.querySelector('.design-image');
+  if (!img) return;
+  const layout = getImageLayout(img);
+  if (!layout) return;
+  const region = regionInfo.region;
+  if (!region || !region.image) return;
+
+  regionDragState = {
+    regionInfo,
+    mode,
+    handle,
+    boxEl,
+    layout,
+    startClient: { x: e.clientX, y: e.clientY },
+    startRegion: { ...region.image }
+  };
+
+  document.addEventListener('mousemove', handleRegionDragMove);
+  document.addEventListener('mouseup', handleRegionDragEnd);
+}
+
+function handleRegionDragMove(e) {
+  if (!regionDragState) return;
+  const { regionInfo, mode, handle, layout, startClient, startRegion, boxEl } = regionDragState;
+  const region = regionInfo.region;
+  if (!region || !region.image) return;
+
+  const dx = (e.clientX - startClient.x) / layout.scale;
+  const dy = (e.clientY - startClient.y) / layout.scale;
+
+  let x = startRegion.x;
+  let y = startRegion.y;
+  let w = startRegion.width;
+  let h = startRegion.height;
+  const minSize = 4;
+
+  if (mode === 'move') {
+    x = startRegion.x + dx;
+    y = startRegion.y + dy;
+  } else if (mode === 'resize') {
+    if (handle.includes('e')) w = startRegion.width + dx;
+    if (handle.includes('s')) h = startRegion.height + dy;
+    if (handle.includes('w')) {
+      x = startRegion.x + dx;
+      w = startRegion.width - dx;
+    }
+    if (handle.includes('n')) {
+      y = startRegion.y + dy;
+      h = startRegion.height - dy;
+    }
+  }
+
+  w = Math.max(minSize, w);
+  h = Math.max(minSize, h);
+  x = Math.max(0, Math.min(x, layout.imageW - w));
+  y = Math.max(0, Math.min(y, layout.imageH - h));
+
+  region.image = {
+    ...region.image,
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.round(w),
+    height: Math.round(h)
+  };
+
+  const devBase = region.device?.base || { width: layout.rect.width, height: layout.rect.height };
+  const imgBase = region.image?.base || { width: layout.imageW, height: layout.imageH };
+  const devX = Math.round(region.image.x * devBase.width / imgBase.width);
+  const devY = Math.round(region.image.y * devBase.height / imgBase.height);
+  const devW = Math.round(region.image.width * devBase.width / imgBase.width);
+  const devH = Math.round(region.image.height * devBase.height / imgBase.height);
+  region.device = { ...region.device, x: devX, y: devY, width: devW, height: devH, unit: 'px', base: devBase };
+
+  if (boxEl) {
+    applyRegionBoxStyle(boxEl, layout, region);
+  }
+}
+
+function handleRegionDragEnd() {
+  if (!regionDragState) return;
+  document.removeEventListener('mousemove', handleRegionDragMove);
+  document.removeEventListener('mouseup', handleRegionDragEnd);
+  regionDragState = null;
+  UI.renderInteractionList();
+  UI.renderFunctionDescriptionList();
 }
 
 /**
@@ -543,6 +989,55 @@ function highlightElement(selector) {
   } catch (e) {
     showToast('选择器无效: ' + e.message);
   }
+}
+
+function highlightInteraction(index) {
+  const item = State.currentFile?.interactions?.[index];
+  if (!item) return;
+  if (item.region) {
+    highlightImageRegion(item.region);
+  } else {
+    highlightElement(item.selector);
+  }
+}
+
+function highlightFunctionDescription(index) {
+  const item = State.currentFile?.functionDescriptions?.[index];
+  if (!item) return;
+  if (item.region) {
+    highlightImageRegion(item.region);
+  } else {
+    highlightElement(item.selector);
+  }
+}
+
+function highlightImageRegion(region) {
+  const screen = document.querySelector('.phone-screen');
+  const img = document.querySelector('.design-image');
+  if (!screen || !img) {
+    showToast('请先选择设计图预览');
+    return;
+  }
+  if (!region || !region.image) return;
+
+  const layout = getImageLayout(img);
+  if (!layout) return;
+
+  const imgRegion = region.image;
+  const x = imgRegion.x * layout.scale + layout.offsetX;
+  const y = imgRegion.y * layout.scale + layout.offsetY;
+  const w = imgRegion.width * layout.scale;
+  const h = imgRegion.height * layout.scale;
+
+  const highlight = document.createElement('div');
+  highlight.className = 'image-region-highlight';
+  highlight.style.left = `${x}px`;
+  highlight.style.top = `${y}px`;
+  highlight.style.width = `${w}px`;
+  highlight.style.height = `${h}px`;
+  screen.appendChild(highlight);
+
+  setTimeout(() => highlight.remove(), 3000);
 }
 
 /**
@@ -1017,13 +1512,36 @@ function toggleColorPicker() {
   if (State.isColorPickerActive && State.isPickerActive) {
     togglePicker();
   }
+  if (State.isColorPickerActive && State.isImageRegionSelecting) {
+    setImageRegionSelecting(false);
+  }
 
+  const isImage = State.currentFile && State.currentFile.sourceType === 'image';
   const iframe = document.getElementById('previewFrame');
-  if (iframe && iframe.contentWindow) {
-    if (State.isColorPickerActive) {
-      ColorPicker.enable(iframe);
+  const img = document.querySelector('.design-image');
+
+  if (State.isColorPickerActive) {
+    if (isImage) {
+      if (iframe) {
+        ColorPicker.disable(iframe);
+      }
+      if (img && typeof ImageColorPicker !== 'undefined') {
+        ImageColorPicker.enable(img);
+      }
     } else {
+      if (typeof ImageColorPicker !== 'undefined') {
+        ImageColorPicker.disable();
+      }
+      if (iframe && iframe.contentWindow) {
+        ColorPicker.enable(iframe);
+      }
+    }
+  } else {
+    if (iframe) {
       ColorPicker.disable(iframe);
+    }
+    if (typeof ImageColorPicker !== 'undefined') {
+      ImageColorPicker.disable();
     }
   }
 }
@@ -1464,7 +1982,7 @@ async function switchToProject(projectId) {
     <div class="empty-preview-icon">
       <icon-component name="fileEmpty" size="xl"></icon-component>
     </div>
-    <p>选择 HTML 文件预览</p>
+    <p>选择文件预览</p>
   </div>`;
   // 释放旧项目的编辑会话
   const oldProjectId = State.getCurrentProjectId();
@@ -1520,7 +2038,7 @@ async function createOrUpdateProject() {
     } else {
       // 创建项目
       if (!zipFile) {
-        showToast('请选择 HTML ZIP 文件');
+        showToast('请选择 HTML/PNG ZIP 文件');
         return;
       }
       const result = await API.createProject(name, description, zipFile);
@@ -1624,10 +2142,80 @@ function handleZipSelect(input) {
   document.getElementById('zipFileName').textContent = fileName;
 }
 
+// ==================== 设计图上传 ====================
+
+function openImageUpload() {
+  UI.showModal('imageUploadModal');
+}
+
+function closeImageUploadModal() {
+  UI.closeModal('imageUploadModal');
+  const dropzone = document.getElementById('imageDropzone');
+  if (dropzone) dropzone.classList.remove('is-dragover');
+}
+
+function triggerImagePicker() {
+  const input = document.getElementById('designImageInput');
+  if (input) input.click();
+}
+
+async function handleDesignImageFiles(files) {
+  if (!files || files.length === 0) return;
+  try {
+    showToast('正在上传...');
+    const res = await API.uploadDesignImages(files);
+    if (res.error) {
+      throw new Error(res.error);
+    }
+    showToast('设计图已上传');
+    await scanHtmlFiles();
+    closeImageUploadModal();
+  } catch (e) {
+    showToast('上传失败: ' + e.message);
+  }
+}
+
+async function handleImageSelect(input) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  await handleDesignImageFiles(files);
+}
+
+function handleImageDrop(e) {
+  e.preventDefault();
+  const dropzone = document.getElementById('imageDropzone');
+  if (dropzone) dropzone.classList.remove('is-dragover');
+  const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
+  handleDesignImageFiles(files);
+}
+
+function generateIrPromptTemplate() {
+  if (!State.currentFile || State.currentFile.sourceType !== 'image') {
+    showToast('请先选择设计图');
+    return;
+  }
+
+  const screen = document.querySelector('.phone-screen');
+  const deviceWidth = parseInt(screen?.style.width, 10) || 375;
+  const deviceHeight = parseInt(screen?.style.height, 10) || 812;
+  const imagePath = State.currentFile.imagePath || State.currentFile.path;
+  const pageName = State.currentFile.stateName || State.currentFile.name || '页面';
+
+  const prompt = `你是UI解析器。请根据设计图生成UI IR(JSON)，用于后续生成Flutter/React Native/UniApp代码。\n\n输入设计图:\n- 路径: ${imagePath}\n- 页面名: ${pageName}\n- 设备尺寸: ${deviceWidth}x${deviceHeight} (px)\n\n输出要求:\n1. 只输出严格JSON，不要解释文字。\n2. 使用像素单位，bbox为 {x,y,width,height}。\n3. 尽量识别布局层级、容器、文本、图片、按钮、列表、Tabbar等。\n4. 对不确定元素标注confidence(0~1)并在notes说明。\n5. 颜色使用HEX，字体给出size/weight/lineHeight/alignment。\n\nJSON Schema 参考:\n{\n  \"meta\": {\"pageName\":\"\",\"device\":{\"width\":0,\"height\":0}},\n  \"nodes\": [\n    {\n      \"id\":\"node_1\",\n      \"type\":\"container|text|image|icon|button|list|tabbar|input|divider\",\n      \"bbox\":{\"x\":0,\"y\":0,\"width\":0,\"height\":0},\n      \"style\":{\"bg\":\"#FFFFFF\",\"radius\":0,\"shadow\":\"\",\"padding\":[0,0,0,0],\"margin\":[0,0,0,0],\"alignment\":\"left|center|right\"},\n      \"text\":{\"content\":\"\",\"size\":14,\"weight\":400,\"color\":\"#111111\",\"lineHeight\":20,\"align\":\"left\"},\n      \"children\":[\"node_2\"],\n      \"confidence\":0.8,\n      \"notes\":\"\"\n    }\n  ]\n}`;
+
+  const textarea = document.getElementById('irPrompt');
+  if (textarea) {
+    textarea.value = prompt;
+  }
+  State.updateCurrentFile({ irPrompt: prompt });
+  showToast('已生成 UI IR 提示词');
+}
+
 // ==================== 提示词生成 ====================
 
 function showPromptModal() {
   UI.showModal('promptModal');
+  syncPromptFilterUI();
   generatePrompt();
 }
 
@@ -1639,6 +2227,8 @@ async function generatePrompt() {
   const platform = document.getElementById('targetPlatform').value;
   const project = State.getCurrentProject();
   const designSystem = project?.designSystem || null;
+  const mode = document.querySelector('input[name="promptFilterMode"]:checked')?.value || 'status';
+  const currentOnly = mode === 'current';
 
   // 获取筛选的开发状态
   const statusFilters = [];
@@ -1647,15 +2237,40 @@ async function generatePrompt() {
   if (document.getElementById('filterCompleted').checked) statusFilters.push('completed');
 
   try {
+    if (currentOnly && !State.currentFile) {
+      showToast('请先选择当前页面');
+      return;
+    }
+
+    const pagesForPrompt = currentOnly
+      ? {
+          ...State.pagesConfig,
+          htmlFiles: (State.pagesConfig.htmlFiles || []).filter(f => f.path === State.currentFile.path)
+        }
+      : State.pagesConfig;
+
     const data = await API.generatePrompt({
-      pages: State.pagesConfig,
+      pages: pagesForPrompt,
       targetPlatform: platform,
       designSystem: designSystem,
-      statusFilters: statusFilters.length > 0 ? statusFilters : null
+      statusFilters: currentOnly ? null : (statusFilters.length > 0 ? statusFilters : null)
     });
     document.getElementById('promptPreview').textContent = data.prompt;
   } catch (e) {
     showToast('生成失败');
+  }
+}
+
+function syncPromptFilterUI() {
+  const mode = document.querySelector('input[name="promptFilterMode"]:checked')?.value || 'status';
+  const disabled = mode === 'current';
+  ['filterPending', 'filterDeveloping', 'filterCompleted'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  });
+  const statusBox = document.getElementById('promptStatusFilters');
+  if (statusBox) {
+    statusBox.classList.toggle('is-disabled', disabled);
   }
 }
 
@@ -1706,7 +2321,7 @@ function initWebSocket() {
     if (data.type === 'reload') {
       scanHtmlFiles();
       if (State.currentFile) {
-        UI.previewHtml(State.currentFile.path);
+        UI.previewFile(State.currentFile);
       }
     }
   };
@@ -1742,6 +2357,7 @@ function initEventListeners() {
       const screen = document.querySelector('.phone-screen');
       screen.style.width = btn.dataset.width + 'px';
       screen.style.height = btn.dataset.height + 'px';
+      setZoom(currentZoom);
     });
   });
 
@@ -1749,6 +2365,10 @@ function initEventListeners() {
   ['fileStateName', 'fileDescription', 'fileGroup'].forEach(id => {
     document.getElementById(id).addEventListener('change', updateCurrentFile);
   });
+  const irPromptEl = document.getElementById('irPrompt');
+  if (irPromptEl) {
+    irPromptEl.addEventListener('change', updateCurrentFile);
+  }
 
   // Tabbar 配置字段监听
   ['tabIndex', 'tabName', 'tabIconDefault', 'tabIconSelected'].forEach(id => {
@@ -1758,6 +2378,36 @@ function initEventListeners() {
   // 开发状态 radio group 监听
   document.querySelectorAll('#fileDevStatus input[name="devStatus"]').forEach(radio => {
     radio.addEventListener('change', updateCurrentFile);
+  });
+
+  document.querySelectorAll('input[name="promptFilterMode"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      syncPromptFilterUI();
+    });
+  });
+
+  const dropzone = document.getElementById('imageDropzone');
+  if (dropzone) {
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('is-dragover');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('is-dragover'));
+    dropzone.addEventListener('drop', handleImageDrop);
+  }
+
+  document.addEventListener('paste', (e) => {
+    const modal = document.getElementById('imageUploadModal');
+    if (!modal || !modal.classList.contains('active')) return;
+    const items = Array.from(e.clipboardData?.items || []);
+    const images = items
+      .filter(item => item.type && item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter(Boolean);
+    if (images.length > 0) {
+      e.preventDefault();
+      handleDesignImageFiles(images);
+    }
   });
 }
 
@@ -1775,6 +2425,7 @@ function setZoom(value) {
 
   const iframe = document.getElementById('previewFrame');
   const screen = document.querySelector('.phone-screen');
+  const image = document.querySelector('.design-image');
 
   if (iframe && screen) {
     // 获取当前设备尺寸
@@ -1790,6 +2441,14 @@ function setZoom(value) {
     iframe.style.height = iframeHeight + 'px';
     iframe.style.transform = `scale(${currentZoom})`;
     iframe.style.transformOrigin = 'top left';
+  }
+  if (image && screen) {
+    const deviceWidth = parseInt(screen.style.width) || 375;
+    const deviceHeight = parseInt(screen.style.height) || 812;
+    image.style.width = deviceWidth + 'px';
+    image.style.height = deviceHeight + 'px';
+    image.style.transform = `scale(${currentZoom})`;
+    image.style.transformOrigin = 'top left';
   }
 
   // 更新UI显示

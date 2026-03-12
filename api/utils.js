@@ -28,6 +28,20 @@ const upload = multer({
   }
 });
 
+// 图片上传配置（设计图）
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB 限制
+  fileFilter: (req, file, cb) => {
+    const isImage = file.mimetype.startsWith('image/') || /\.(png|jpg|jpeg|webp)$/i.test(file.originalname);
+    if (isImage) {
+      cb(null, true);
+    } else {
+      cb(new Error('只支持图片文件'));
+    }
+  }
+});
+
 /**
  * 获取 HTML 目录路径（基于请求中的 projectId）
  * @param {number} projectId - 项目 ID
@@ -111,6 +125,7 @@ function extractZipToDir(zipBuffer, targetDir) {
 module.exports = {
   HTML_CACHES_DIR,
   upload,
+  imageUpload,
   getHtmlDir,
   extractZipToDir,
   Projects

@@ -5,6 +5,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const AdmZip = require('adm-zip');
 const router = express.Router();
 const {
   HTML_CACHES_DIR,
@@ -12,6 +13,38 @@ const {
   extractZipToDir,
   Projects
 } = require('./utils');
+
+function inspectZipContents(zipBuffer) {
+  const zip = new AdmZip(zipBuffer);
+  const entries = zip.getEntries();
+
+  const shouldSkip = (entryPath) => {
+    const parts = entryPath.split('/');
+    for (const part of parts) {
+      if (part === '__MACOSX') return true;
+      if (part.startsWith('.')) return true;
+    }
+    return false;
+  };
+
+  let hasHtml = false;
+  let hasImages = false;
+
+  for (const entry of entries) {
+    if (entry.isDirectory) continue;
+    if (shouldSkip(entry.entryName)) continue;
+    const lower = entry.entryName.toLowerCase();
+    if (lower.endsWith('.html') || lower.endsWith('.htm')) {
+      hasHtml = true;
+    }
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) {
+      hasImages = true;
+    }
+    if (hasHtml && hasImages) break;
+  }
+
+  return { hasHtml, hasImages };
+}
 
 // 获取配置（返回项目列表）
 router.get('/config', (req, res) => {
@@ -74,7 +107,16 @@ router.post('/projects', upload.single('htmlZip'), (req, res) => {
     // 如果有上传 ZIP 文件，解压到项目目录
     if (req.file) {
       const projectDir = path.join(HTML_CACHES_DIR, String(projectId));
-      extractZipToDir(req.file.buffer, projectDir);
+      const { hasHtml, hasImages } = inspectZipContents(req.file.buffer);
+
+      if (hasHtml) {
+        extractZipToDir(req.file.buffer, projectDir);
+      } else if (hasImages) {
+        const designDir = path.join(projectDir, '__design__');
+        extractZipToDir(req.file.buffer, designDir);
+      } else {
+        return res.status(400).json({ error: 'ZIP 未包含 HTML 或图片文件' });
+      }
     }
 
     res.json({

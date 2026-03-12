@@ -138,8 +138,8 @@ const UI = {
           <div style="margin-bottom: 16px; opacity: 0.4;">
             ${this.icon(hasFilter ? 'search' : 'folder', 'xl')}
           </div>
-          <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 6px;">${hasFilter ? '没有匹配的文件' : '暂无 HTML 文件'}</p>
-          <p style="font-size: 12px; color: var(--text-muted);">${hasFilter ? '尝试修改筛选条件' : '请设置 HTML 路径'}</p>
+          <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 6px;">${hasFilter ? '没有匹配的文件' : '暂无文件'}</p>
+          <p style="font-size: 12px; color: var(--text-muted);">${hasFilter ? '尝试修改筛选条件' : '请上传 HTML 或设计图'}</p>
         </div>
       `;
     }
@@ -178,6 +178,9 @@ const UI = {
     const isSelected = State.selectedFiles.has(file.path);
     const devStatus = file.devStatus || 'pending';
     const devStatusLabels = { pending: '待开发', developing: '开发中', completed: '已完成' };
+    const sourceType = file.sourceType === 'image' ? 'image' : 'html';
+    const sourceLabel = sourceType === 'image' ? '设计图' : 'HTML';
+    const fileIcon = sourceType === 'image' ? this.icon('image') : this.icon('file');
 
     // 获取搜索关键字并高亮
     const searchText = State.fileFilter.searchText;
@@ -190,13 +193,14 @@ const UI = {
            data-path="${file.path}"
            onclick="selectFile('${file.path}')"
            ${groupColor ? `style="border-left-color: ${isActive ? 'white' : groupColor}"` : ''}>
-        <span class="file-icon">${this.icon('file')}</span>
+        <span class="file-icon">${fileIcon}</span>
         <div class="file-info">
           <div class="file-name">${highlightedName}</div>
           <div class="file-path">${highlightedPath}</div>
         </div>
         <div class="file-tags">
           <span class="dev-status-badge ${devStatus}">${devStatusLabels[devStatus]}</span>
+          <span class="file-source-tag">${sourceLabel}</span>
           ${file.stateName ? `<span class="file-state-tag">${file.stateName}</span>` : ''}
         </div>
       </div>
@@ -253,6 +257,16 @@ const UI = {
     document.getElementById('tabIconDefault').value = State.currentFile.tabIconDefault || '';
     document.getElementById('tabIconSelected').value = State.currentFile.tabIconSelected || '';
 
+    const imageSection = document.getElementById('imageModeSection');
+    if (imageSection) {
+      const isImage = State.currentFile.sourceType === 'image';
+      imageSection.style.display = isImage ? 'block' : 'none';
+      if (isImage) {
+        document.getElementById('imagePath').value = State.currentFile.imagePath || State.currentFile.path || '';
+        document.getElementById('irPrompt').value = State.currentFile.irPrompt || '';
+      }
+    }
+
     this.renderInteractionList();
     this.renderImageReplacementList();
     this.renderFunctionDescriptionList();
@@ -271,7 +285,7 @@ const UI = {
     container.innerHTML = State.currentFile.interactions.map((item, i) => `
       <div class="interaction-item">
         <div class="interaction-header">
-          <span class="interaction-selector clickable" onclick="highlightElement('${this.escapeSelector(item.selector)}')" title="点击定位元素">${item.selector}</span>
+          <span class="interaction-selector clickable" onclick="highlightInteraction(${i})" title="点击定位区域/元素">${this.formatRegionLabel(item)}</span>
           <span class="interaction-type">${item.eventType}</span>
           <button class="delete-btn" onclick="removeInteraction(${i})">
             ${this.icon('x', 'sm')}
@@ -281,6 +295,10 @@ const UI = {
                onchange="updateInteraction(${i}, 'action', this.value)" style="margin-top:8px;">
       </div>
     `).join('');
+
+    if (State.currentFile?.sourceType === 'image' && State.isImageRegionSelecting && typeof renderImageRegionOverlays !== 'undefined') {
+      renderImageRegionOverlays();
+    }
   },
 
   /**
@@ -327,7 +345,7 @@ const UI = {
     container.innerHTML = State.currentFile.functionDescriptions.map((item, i) => `
       <div class="interaction-item">
         <div class="interaction-header">
-          <span class="interaction-selector clickable" onclick="highlightElement('${this.escapeSelector(item.selector || '')}')" title="点击定位元素">${item.selector || '未指定'}</span>
+          <span class="interaction-selector clickable" onclick="highlightFunctionDescription(${i})" title="点击定位区域/元素">${this.formatRegionLabel(item)}</span>
           <span class="interaction-type" style="background:linear-gradient(135deg, #22c55e 0%, #16a34a 100%);">功能</span>
           <button class="delete-btn" onclick="removeFunctionDescription(${i})">
             ${this.icon('x', 'sm')}
@@ -337,6 +355,10 @@ const UI = {
                onchange="updateFunctionDescription(${i}, 'description', this.value)" style="margin-top:8px;min-height:60px;resize:vertical;">${item.description || ''}</textarea>
       </div>
     `).join('');
+
+    if (State.currentFile?.sourceType === 'image' && State.isImageRegionSelecting && typeof renderImageRegionOverlays !== 'undefined') {
+      renderImageRegionOverlays();
+    }
   },
 
   /**
@@ -411,6 +433,13 @@ const UI = {
     return selector.replace(/'/g, "\\'").replace(/"/g, '\\"');
   },
 
+  formatRegionLabel(item) {
+    if (!item || !item.region) return item?.selector || '未指定';
+    const r = item.region.device || item.region;
+    if (!r) return '区域';
+    return `区域 ${r.x},${r.y},${r.width},${r.height}`;
+  },
+
   // ==================== 预览 ====================
 
   /**
@@ -424,6 +453,9 @@ const UI = {
       screen.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">请先选择项目</div>';
       return;
     }
+    if (typeof ImageColorPicker !== 'undefined') {
+      ImageColorPicker.disable();
+    }
     screen.innerHTML = `<iframe id="previewFrame" src="/html/${projectId}/${path}"></iframe>`;
     document.getElementById('previewInfo').textContent = path;
     // 使用当前zoom设置预览
@@ -433,8 +465,55 @@ const UI = {
       const iframe = document.getElementById('previewFrame');
       if (iframe && iframe.contentWindow) {
         Picker.setup(iframe);
+        if (State.isColorPickerActive) {
+          ColorPicker.enable(iframe);
+        }
       }
     }, 500);
+  },
+
+  /**
+   * 预览图片文件
+   * @param {string} path - 图片路径
+   */
+  previewImage(path) {
+    const screen = document.getElementById('phoneScreen');
+    const projectId = State.getCurrentProjectId();
+    if (!projectId) {
+      screen.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">请先选择项目</div>';
+      return;
+    }
+    const iframe = document.getElementById('previewFrame');
+    if (iframe) {
+      ColorPicker.disable(iframe);
+    }
+    screen.innerHTML = `<img class="design-image" src="/html/${projectId}/${path}" alt="设计图">`;
+    document.getElementById('previewInfo').textContent = path;
+    setZoom(currentZoom);
+    if (State.isColorPickerActive && typeof ImageColorPicker !== 'undefined') {
+      const img = document.querySelector('.design-image');
+      if (img) ImageColorPicker.enable(img);
+    }
+    const img = document.querySelector('.design-image');
+    if (img && typeof setupImageRegionPicker !== 'undefined') {
+      setupImageRegionPicker(img);
+    }
+    if (State.isImageRegionSelecting && typeof renderImageRegionOverlays !== 'undefined') {
+      renderImageRegionOverlays();
+    }
+  },
+
+  /**
+   * 预览文件（HTML 或 设计图）
+   * @param {Object} file - 文件对象
+   */
+  previewFile(file) {
+    if (!file) return;
+    if (file.sourceType === 'image') {
+      this.previewImage(file.path);
+    } else {
+      this.previewHtml(file.path);
+    }
   },
 
   // ==================== 模态框 ====================

@@ -115,11 +115,33 @@ ${JSON.stringify(designSystem, null, 2)}
 `;
   }
 
+  const hasImageFiles = (pagesConfig.htmlFiles || []).some(f => f.sourceType === 'image' || f.imagePath);
+  if (hasImageFiles) {
+    prompt += `## 设计图模式流程
+1. 对每个标记为“设计图”的页面，先使用对应的 UI IR 提示词生成 UI IR(JSON)
+2. 以 UI IR 为准实现页面布局与样式，必要时补全缺失信息
+3. 如与设计图有偏差，优先修正布局、尺寸与对齐
+
+`;
+  }
+
   // 辅助函数：检查文件是否符合状态筛选条件
   const shouldIncludeFile = (file) => {
     if (!statusFilters || statusFilters.length === 0) return true;
     const fileStatus = file.devStatus || 'pending';
     return statusFilters.includes(fileStatus);
+  };
+
+  const formatRegion = (region) => {
+    if (!region) return '';
+    const r = region.device || region;
+    if (!r) return '';
+    let text = ` [区域: ${r.x},${r.y},${r.width},${r.height}]`;
+    if (region.image) {
+      const img = region.image;
+      text += ` (图像像素: ${img.x},${img.y},${img.width},${img.height})`;
+    }
+    return text;
   };
 
   // 收集 Tabbar 配置
@@ -222,16 +244,27 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
 `;
 
       for (const file of groupFiles) {
+        const isImage = file.sourceType === 'image' || file.imagePath;
+        const refLabel = isImage ? '设计图' : 'HTML参考';
+        const refPath = isImage ? (file.imagePath || file.path) : file.path;
         prompt += `- **${file.stateName || file.name}**
-  - HTML参考: \`${file.path}\`
+  - ${refLabel}: \`${refPath}\`
   - 描述: ${file.description || ''}
 `;
+
+        if (isImage && file.irPrompt) {
+          prompt += `  - UI IR 提示词:\n\`\`\`\n${file.irPrompt}\n\`\`\`\n`;
+        }
+        if (isImage) {
+          prompt += `  - 说明: 先根据设计图生成 UI IR(JSON)，再基于 UI IR 实现代码\n`;
+        }
 
         // 显示交互行为
         if (file.interactions && file.interactions.length > 0) {
           prompt += `  - 交互:\n`;
           for (const interaction of file.interactions) {
-            prompt += `    - \`${interaction.selector}\` [${interaction.eventType}]: ${interaction.action}\n`;
+            const regionText = formatRegion(interaction.region);
+            prompt += `    - \`${interaction.selector}\`${regionText} [${interaction.eventType}]: ${interaction.action}\n`;
           }
         }
 
@@ -248,7 +281,8 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
         if (file.functionDescriptions && file.functionDescriptions.length > 0) {
           prompt += `  - 功能描述（这些元素并非静态展示，需要实现对应的功能）:\n`;
           for (const func of file.functionDescriptions) {
-            prompt += `    - \`${func.selector}\`: ${func.description || '待描述'}\n`;
+            const regionText = formatRegion(func.region);
+            prompt += `    - \`${func.selector}\`${regionText}: ${func.description || '待描述'}\n`;
           }
         }
 
@@ -280,14 +314,24 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
   if (ungroupedFiles.length > 0) {
     prompt += `## 其他页面（未分组）\n\n`;
     for (const file of ungroupedFiles) {
+      const isImage = file.sourceType === 'image' || file.imagePath;
+      const refLabel = isImage ? '设计图' : 'HTML';
+      const refPath = isImage ? (file.imagePath || file.path) : file.path;
       prompt += `### ${file.stateName || file.name}
-- HTML: \`${file.path}\`
+- ${refLabel}: \`${refPath}\`
 - 描述: ${file.description || '待补充'}
 `;
+      if (isImage && file.irPrompt) {
+        prompt += `- UI IR 提示词:\n\`\`\`\n${file.irPrompt}\n\`\`\`\n`;
+      }
+      if (isImage) {
+        prompt += `- 说明: 先根据设计图生成 UI IR(JSON)，再基于 UI IR 实现代码\n`;
+      }
       if (file.interactions && file.interactions.length > 0) {
         prompt += `- 交互:\n`;
         for (const i of file.interactions) {
-          prompt += `  - \`${i.selector}\` [${i.eventType}]: ${i.action}\n`;
+          const regionText = formatRegion(i.region);
+          prompt += `  - \`${i.selector}\`${regionText} [${i.eventType}]: ${i.action}\n`;
         }
       }
       if (file.imageReplacements && file.imageReplacements.length > 0) {
@@ -300,7 +344,8 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
       if (file.functionDescriptions && file.functionDescriptions.length > 0) {
         prompt += `- 功能描述（这些元素并非静态展示，需要实现对应的功能）:\n`;
         for (const func of file.functionDescriptions) {
-          prompt += `  - \`${func.selector}\`: ${func.description || '待描述'}\n`;
+          const regionText = formatRegion(func.region);
+          prompt += `  - \`${func.selector}\`${regionText}: ${func.description || '待描述'}\n`;
         }
       }
       if (file.dataSources && file.dataSources.length > 0) {
@@ -339,7 +384,7 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
 
 ## 使用说明
 
-将此提示词与对应的HTML文件一起提供给AI工具（如Cursor），AI将根据设计稿生成${guide.framework}代码。
+将此提示词与对应的HTML文件或设计图一起提供给AI工具（如Cursor），AI将根据设计稿生成${guide.framework}代码。
 `;
 
   return prompt;
