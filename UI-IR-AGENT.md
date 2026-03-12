@@ -162,7 +162,7 @@
 - 使用 **Playwright** 无头打开该 HTML，视口与设计图设备尺寸一致（如 375×812），`deviceScaleFactor: 1`。
 - 对页面进行截图，保存到**当前项目根目录**下的 **`__html_snapshot`** 目录，文件名与设计图对应（如设计图 `xxx.png` 则截图 `xxx-html.png`），便于与设计图并排或叠图对比。
   - 本项目提供独立截图工具：`tools/html-snapshot`（独立 Node 项目）。
-  - 安装依赖：`cd tools/html-snapshot && pnpm i`
+  - 安装依赖：`cd tools/html-snapshot && npm i && npm run installchromium`
   - 运行截图（示例）：`node tools/html-snapshot/index.js __design__/xxx.html __html_snapshot/xxx-html.png 375x812`
 
 ### 3. 截图与设计图对比

@@ -6,7 +6,8 @@
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "snapshot": "node index.js"
+    "snapshot": "node index.js",
+    "installchromium": "playwright install chromium"
   },
   "dependencies": {
     "playwright": "^1.43.0"
