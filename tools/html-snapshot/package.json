@@ -1,0 +1,14 @@
+{
+  "name": "html-snapshot",
+  "version": "1.0.0",
+  "description": "CLI tool to snapshot HTML to PNG using Playwright",
+  "private": true,
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "snapshot": "node index.js"
+  },
+  "dependencies": {
+    "playwright": "^1.43.0"
+  }
+}

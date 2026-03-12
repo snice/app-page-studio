@@ -263,7 +263,6 @@ const UI = {
       imageSection.style.display = isImage ? 'block' : 'none';
       if (isImage) {
         document.getElementById('imagePath').value = State.currentFile.imagePath || State.currentFile.path || '';
-        document.getElementById('irPrompt').value = State.currentFile.irPrompt || '';
       }
     }
 

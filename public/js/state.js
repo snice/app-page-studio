@@ -166,7 +166,6 @@ const State = {
           name: file.name,
           sourceType: file.sourceType || 'html',
           imagePath: file.sourceType === 'image' ? file.path : null,
-          irPrompt: '',
           stateName: '',
           description: '',
           groupId: null,

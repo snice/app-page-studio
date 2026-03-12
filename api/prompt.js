@@ -118,12 +118,21 @@ ${JSON.stringify(designSystem, null, 2)}
   const hasImageFiles = (pagesConfig.htmlFiles || []).some(f => f.sourceType === 'image' || f.imagePath);
   if (hasImageFiles) {
     prompt += `## 设计图模式流程
-1. 对每个标记为“设计图”的页面，先使用对应的 UI IR 提示词生成 UI IR(JSON)
-2. 以 UI IR 为准实现页面布局与样式，必要时补全缺失信息
+1. 对每个标记为“设计图”的页面，先依据 \`UI-IR-AGENT.md\` 生成 UI IR(HTML)
+2. 以 UI IR(HTML) 为准实现页面布局与样式，必要时补全缺失信息
 3. 如与设计图有偏差，优先修正布局、尺寸与对齐
 
 ## UI-IR-AGENT 规范
-请将 \`UI-IR-AGENT.md\` 放在项目根目录，并在生成 UI IR 时作为严格规则引用。
+请将 \`UI-IR-AGENT.md\` 放在项目根目录，并在生成 UI IR(HTML) 时作为严格规则引用。
+
+## UI IR 固定提示词（PNG → IR）
+你是 UI IR 解析器。请根据设计图生成 UI IR(HTML)，用于后续生成 ${guide.framework} 代码。
+输入设计图信息从页面列表中读取（路径与页面名）。
+输出要求：
+1. 只输出严格 HTML，不要解释文字。
+2. 坐标与尺寸使用 px，基于设备内容区。
+3. 包含层级结构、布局、样式、文本、图片、列表/Tabbar 等。
+4. 对不确定元素在 HTML 元素上标注 \`data-confidence\` 与 \`data-notes\`。
 
 `;
   }
@@ -255,11 +264,8 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
   - 描述: ${file.description || ''}
 `;
 
-        if (isImage && file.irPrompt) {
-          prompt += `  - UI IR 提示词:\n\`\`\`\n${file.irPrompt}\n\`\`\`\n`;
-        }
         if (isImage) {
-          prompt += `  - 说明: 先根据设计图生成 UI IR(JSON)，再基于 UI IR 实现代码\n`;
+          prompt += `  - 说明: 先根据设计图生成 UI IR(HTML)，再基于 UI IR 实现代码\n`;
         }
 
         // 显示交互行为
@@ -324,11 +330,8 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
 - ${refLabel}: \`${refPath}\`
 - 描述: ${file.description || '待补充'}
 `;
-      if (isImage && file.irPrompt) {
-        prompt += `- UI IR 提示词:\n\`\`\`\n${file.irPrompt}\n\`\`\`\n`;
-      }
       if (isImage) {
-        prompt += `- 说明: 先根据设计图生成 UI IR(JSON)，再基于 UI IR 实现代码\n`;
+        prompt += `- 说明: 先根据设计图生成 UI IR(HTML)，再基于 UI IR 实现代码\n`;
       }
       if (file.interactions && file.interactions.length > 0) {
         prompt += `- 交互:\n`;

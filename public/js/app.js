@@ -221,10 +221,6 @@ function updateCurrentFile() {
   // 获取 Tabbar 配置
   const isTabbarPage = document.getElementById('isTabbarPage').checked;
 
-  const irPromptEl = document.getElementById('irPrompt');
-  const irPromptValue = (State.currentFile.sourceType === 'image' && irPromptEl)
-    ? irPromptEl.value
-    : (State.currentFile.irPrompt || '');
   State.updateCurrentFile({
     stateName: document.getElementById('fileStateName').value,
     description: document.getElementById('fileDescription').value,
@@ -234,8 +230,7 @@ function updateCurrentFile() {
     tabIndex: isTabbarPage ? parseInt(document.getElementById('tabIndex').value) || null : null,
     tabName: isTabbarPage ? document.getElementById('tabName').value || null : null,
     tabIconDefault: isTabbarPage ? document.getElementById('tabIconDefault').value || null : null,
-    tabIconSelected: isTabbarPage ? document.getElementById('tabIconSelected').value || null : null,
-    irPrompt: irPromptValue
+    tabIconSelected: isTabbarPage ? document.getElementById('tabIconSelected').value || null : null
   });
 
   UI.renderFileList();
@@ -2189,28 +2184,6 @@ function handleImageDrop(e) {
   handleDesignImageFiles(files);
 }
 
-function generateIrPromptTemplate() {
-  if (!State.currentFile || State.currentFile.sourceType !== 'image') {
-    showToast('请先选择设计图');
-    return;
-  }
-
-  const screen = document.querySelector('.phone-screen');
-  const deviceWidth = parseInt(screen?.style.width, 10) || 375;
-  const deviceHeight = parseInt(screen?.style.height, 10) || 812;
-  const imagePath = State.currentFile.imagePath || State.currentFile.path;
-  const pageName = State.currentFile.stateName || State.currentFile.name || '页面';
-
-  const prompt = `你是UI解析器。请根据设计图生成UI IR(JSON)，用于后续生成Flutter/React Native/UniApp代码。\n\n必须遵循项目根目录中的 UI-IR-AGENT.md 规范。\n\n输入设计图:\n- 路径: ${imagePath}\n- 页面名: ${pageName}\n- 设备尺寸: ${deviceWidth}x${deviceHeight} (px)\n\n输出要求:\n1. 只输出严格JSON，不要解释文字。\n2. 坐标与尺寸使用px，基于设备内容区。\n3. 包含层级结构、布局、样式、文本、图片、列表/Tabbar等。\n4. 对不确定元素标注 confidence 与 notes。`;
-
-  const textarea = document.getElementById('irPrompt');
-  if (textarea) {
-    textarea.value = prompt;
-  }
-  State.updateCurrentFile({ irPrompt: prompt });
-  showToast('已生成 UI IR 提示词');
-}
-
 // ==================== 提示词生成 ====================
 
 function showPromptModal() {
@@ -2366,11 +2339,6 @@ function initEventListeners() {
   ['fileStateName', 'fileDescription', 'fileGroup'].forEach(id => {
     document.getElementById(id).addEventListener('change', updateCurrentFile);
   });
-  const irPromptEl = document.getElementById('irPrompt');
-  if (irPromptEl) {
-    irPromptEl.addEventListener('change', updateCurrentFile);
-  }
-
   // Tabbar 配置字段监听
   ['tabIndex', 'tabName', 'tabIconDefault', 'tabIconSelected'].forEach(id => {
     document.getElementById(id).addEventListener('change', updateCurrentFile);
