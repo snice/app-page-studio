@@ -209,6 +209,63 @@ function cancelSelection() {
   UI.renderFileList();
 }
 
+function toggleFileSelection(event, path) {
+  if (event && typeof event.stopPropagation === 'function') {
+    event.stopPropagation();
+  }
+  State.toggleSelectedFile(path);
+  UI.updateSelectionToolbar();
+  UI.renderFileList();
+}
+
+async function downloadSelectedDesigns() {
+  const projectId = State.getCurrentProjectId();
+  if (!projectId) {
+    showToast('请先选择项目');
+    return;
+  }
+
+  const selectedPaths = State.selectedFiles.size > 0
+    ? Array.from(State.selectedFiles)
+    : (State.currentFile ? [State.currentFile.path] : []);
+
+  if (selectedPaths.length === 0) {
+    showToast('请先选择文件');
+    return;
+  }
+
+  const selected = selectedPaths
+    .map(path => State.pagesConfig.htmlFiles.find(f => f.path === path))
+    .filter(Boolean)
+    .map(f => ({
+      path: f.path,
+      sourceType: f.sourceType || (f.imagePath ? 'image' : 'html')
+    }));
+
+  if (selected.length === 0) {
+    showToast('未找到可下载的文件');
+    return;
+  }
+
+  try {
+    const blob = await API.downloadDesignZip({
+      projectId,
+      files: selected
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `design-pack-${projectId}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('下载已开始');
+  } catch (e) {
+    showToast('下载失败: ' + e.message);
+  }
+}
+
 // ==================== 页面配置 ====================
 
 function updateCurrentFile() {

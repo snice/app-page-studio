@@ -198,6 +198,9 @@ const UI = {
           <div class="file-name">${highlightedName}</div>
           <div class="file-path">${highlightedPath}</div>
         </div>
+        <div class="file-select">
+          <input class="file-select-checkbox" type="checkbox" ${isSelected ? 'checked' : ''} onclick="toggleFileSelection(event, '${file.path}')" aria-label="选择文件">
+        </div>
         <div class="file-tags">
           <span class="dev-status-badge ${devStatus}">${devStatusLabels[devStatus]}</span>
           <span class="file-source-tag">${sourceLabel}</span>

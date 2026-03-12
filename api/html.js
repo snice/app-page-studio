@@ -6,6 +6,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const cheerio = require('cheerio');
+const AdmZip = require('adm-zip');
 const router = express.Router();
 const { getHtmlDir } = require('./utils');
 
@@ -13,6 +14,7 @@ const { getHtmlDir } = require('./utils');
 router.get('/scan-html', (req, res) => {
   const projectId = parseInt(req.query.projectId);
   const htmlDir = getHtmlDir(projectId);
+  const htmlRoot = path.resolve(htmlDir);
   console.log('扫描 HTML 目录:', htmlDir);
 
   if (!fs.existsSync(htmlDir)) {
@@ -129,6 +131,71 @@ router.get('/analyze-html', (req, res) => {
     structure,
     title: $('title').text() || path.basename(htmlPath, '.html')
   });
+});
+
+// 打包下载设计稿（HTML + 设计图）
+router.post('/download-design-zip', (req, res) => {
+  const projectId = parseInt(req.body.projectId);
+  const files = Array.isArray(req.body.files) ? req.body.files : [];
+
+  if (!projectId || files.length === 0) {
+    res.status(400).json({ error: '缺少 projectId 或 files' });
+    return;
+  }
+
+  const htmlDir = getHtmlDir(projectId);
+  if (!fs.existsSync(htmlDir)) {
+    res.status(404).json({ error: '项目目录不存在' });
+    return;
+  }
+
+  const htmlRoot = path.resolve(htmlDir);
+
+  const zip = new AdmZip();
+  let addedCount = 0;
+
+  const toPosix = (p) => p.replace(/\\/g, '/');
+  const stripLeading = (p) => p.replace(/^[/\\]+/, '');
+  const isImageFile = (name) => {
+    const ext = path.extname(name).toLowerCase();
+    return ['.png', '.jpg', '.jpeg', '.webp'].includes(ext);
+  };
+
+  for (const item of files) {
+    if (!item || !item.path) continue;
+    const relPath = stripLeading(String(item.path));
+    const absPath = path.resolve(htmlDir, relPath);
+    if (absPath !== htmlRoot && !absPath.startsWith(htmlRoot + path.sep)) continue;
+    if (!fs.existsSync(absPath) || fs.statSync(absPath).isDirectory()) continue;
+
+    const posixPath = toPosix(relPath);
+    const isImage = item.sourceType === 'image' || isImageFile(posixPath);
+    let targetPath = posixPath;
+    if (isImage) {
+      if (targetPath.startsWith('__design__/')) {
+        targetPath = targetPath.slice('__design__/'.length);
+      }
+      targetPath = `__design__/${targetPath}`;
+    } else {
+      if (targetPath.startsWith('html/')) {
+        targetPath = targetPath.slice('html/'.length);
+      }
+      targetPath = `html/${targetPath}`;
+    }
+
+    zip.addFile(targetPath, fs.readFileSync(absPath));
+    addedCount += 1;
+  }
+
+  if (addedCount === 0) {
+    res.status(400).json({ error: '未找到可打包的文件' });
+    return;
+  }
+
+  const zipBuffer = zip.toBuffer();
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="design-pack-${projectId}.zip"`);
+  res.send(zipBuffer);
 });
 
 // 生成 CSS 选择器

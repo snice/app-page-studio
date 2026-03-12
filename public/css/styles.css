@@ -556,6 +556,19 @@ input[type="range"]::-moz-range-thumb {
 
 .file-info { flex: 1; min-width: 0; }
 
+.file-select {
+  display: flex;
+  align-items: center;
+  margin-right: 6px;
+}
+
+.file-select-checkbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
 .file-name {
   font-size: 13px;
   font-weight: 500;

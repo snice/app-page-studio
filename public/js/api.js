@@ -131,6 +131,24 @@ const API = {
     return res.json();
   },
 
+  /**
+   * 下载设计稿 ZIP（HTML + 设计图）
+   * @param {Object} payload
+   * @returns {Promise<Blob>}
+   */
+  async downloadDesignZip(payload) {
+    const res = await fetch('/api/download-design-zip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: '下载失败' }));
+      throw new Error(data.error || '下载失败');
+    }
+    return res.blob();
+  },
+
   // ==================== 项目管理 API ====================
 
   /**
