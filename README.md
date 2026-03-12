@@ -1,10 +1,11 @@
 # App Page Studio
 
-一个用于将设计稿 HTML 转换为 AI 开发提示词的工具，帮助快速还原 Flutter、React Native 和 UniApp 页面。
+一个用于将 **设计稿 HTML / 设计图(PNG/JPG/WebP)** 转换为 AI 开发提示词的工具，帮助快速还原 Flutter、React Native 和 UniApp 页面。
 
 ## ✨ 功能特性
 
-- **HTML 预览** - 在模拟手机框架中实时预览设计稿 HTML，支持多种设备尺寸
+- **HTML/设计图预览** - 在模拟手机框架中实时预览设计稿 HTML 或设计图，支持多种设备尺寸
+- **设计图模式** - 支持 PNG/JPG/WebP 设计图，配合 UI-IR-AGENT 生成 UI IR(HTML)
 - **多平台支持** - 支持 Flutter、React Native、UniApp 三种平台，生成对应的代码提示
 - **多状态管理** - 将多个 HTML 文件分组为同一页面的不同状态（默认、加载中、空数据等）
 - **开发状态追踪** - 为每个页面标记开发状态（待开发/开发中/已完成），方便进度管理
@@ -48,11 +49,16 @@ npm start
 ### 1. 创建/选择项目
 - 点击顶部项目选择器
 - 创建新项目或选择现有项目
-- 上传包含 HTML 设计稿的 ZIP 文件
+- 上传包含 HTML 设计稿或设计图的 ZIP 文件（可混合）
 - 可选配置设计系统 JSON
 
-### 2. 扫描 HTML 文件
-- 点击"刷新"按钮扫描 HTML 文件
+> 提示词使用指南：
+> - `html/` 存放 HTML 设计稿
+> - `__design__/` 存放图片设计稿
+> - 使用提示词前，需将 `tools/` 目录拷贝到项目根目录
+
+### 2. 扫描 HTML / 设计图文件
+- 点击"刷新"按钮扫描 HTML / 设计图文件
 - 文件列表显示在左侧边栏
 - 新文件默认为"待开发"状态
 
@@ -134,6 +140,7 @@ npm start
 - 选择要包含的开发状态（默认选中"开发中"）
 - 点击"生成"按钮
 - 复制或下载提示词
+> 设计图页面会提示先按 `UI-IR-AGENT.md` 生成 UI IR(HTML)，再基于 IR 实现代码。
 
 ## 📁 项目结构
 
@@ -160,6 +167,9 @@ app-page-studio/
 │       └── app.js         # 应用入口
 ├── html_caches/           # 项目 HTML 文件存储
 │   └── {project_id}/      # 按项目 ID 分目录
+│       └── __design__/    # 设计图存放目录
+├── tools/
+│   └── html-snapshot/     # HTML 截图工具（独立 Node 项目）
 └── data.db                # SQLite 数据库
 ```
 
