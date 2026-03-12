@@ -204,7 +204,6 @@ const UI = {
         <div class="file-tags">
           <span class="dev-status-badge ${devStatus}">${devStatusLabels[devStatus]}</span>
           <span class="file-source-tag">${sourceLabel}</span>
-          ${file.stateName ? `<span class="file-state-tag">${file.stateName}</span>` : ''}
         </div>
       </div>
     `;

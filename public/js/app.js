@@ -170,16 +170,6 @@ function setStatusFilter(status) {
 }
 
 function selectFile(path, multiSelect = false) {
-  if (multiSelect || event?.shiftKey || event?.metaKey) {
-    State.toggleSelectedFile(path);
-    UI.updateSelectionToolbar();
-    UI.renderFileList();
-    return;
-  }
-
-  State.clearSelection();
-  UI.updateSelectionToolbar();
-
   if (State.setCurrentFile(path)) {
     UI.previewFile(State.currentFile);
     UI.loadFileToPanel();
@@ -225,9 +215,7 @@ async function downloadSelectedDesigns() {
     return;
   }
 
-  const selectedPaths = State.selectedFiles.size > 0
-    ? Array.from(State.selectedFiles)
-    : (State.currentFile ? [State.currentFile.path] : []);
+  const selectedPaths = Array.from(State.selectedFiles);
 
   if (selectedPaths.length === 0) {
     showToast('请先选择文件');
