@@ -2201,7 +2201,7 @@ function generateIrPromptTemplate() {
   const imagePath = State.currentFile.imagePath || State.currentFile.path;
   const pageName = State.currentFile.stateName || State.currentFile.name || '页面';
 
-  const prompt = `你是UI解析器。请根据设计图生成UI IR(JSON)，用于后续生成Flutter/React Native/UniApp代码。\n\n输入设计图:\n- 路径: ${imagePath}\n- 页面名: ${pageName}\n- 设备尺寸: ${deviceWidth}x${deviceHeight} (px)\n\n输出要求:\n1. 只输出严格JSON，不要解释文字。\n2. 使用像素单位，bbox为 {x,y,width,height}。\n3. 尽量识别布局层级、容器、文本、图片、按钮、列表、Tabbar等。\n4. 对不确定元素标注confidence(0~1)并在notes说明。\n5. 颜色使用HEX，字体给出size/weight/lineHeight/alignment。\n\nJSON Schema 参考:\n{\n  \"meta\": {\"pageName\":\"\",\"device\":{\"width\":0,\"height\":0}},\n  \"nodes\": [\n    {\n      \"id\":\"node_1\",\n      \"type\":\"container|text|image|icon|button|list|tabbar|input|divider\",\n      \"bbox\":{\"x\":0,\"y\":0,\"width\":0,\"height\":0},\n      \"style\":{\"bg\":\"#FFFFFF\",\"radius\":0,\"shadow\":\"\",\"padding\":[0,0,0,0],\"margin\":[0,0,0,0],\"alignment\":\"left|center|right\"},\n      \"text\":{\"content\":\"\",\"size\":14,\"weight\":400,\"color\":\"#111111\",\"lineHeight\":20,\"align\":\"left\"},\n      \"children\":[\"node_2\"],\n      \"confidence\":0.8,\n      \"notes\":\"\"\n    }\n  ]\n}`;
+  const prompt = `你是UI解析器。请根据设计图生成UI IR(JSON)，用于后续生成Flutter/React Native/UniApp代码。\n\n必须遵循项目根目录中的 UI-IR-AGENT.md 规范。\n\n输入设计图:\n- 路径: ${imagePath}\n- 页面名: ${pageName}\n- 设备尺寸: ${deviceWidth}x${deviceHeight} (px)\n\n输出要求:\n1. 只输出严格JSON，不要解释文字。\n2. 坐标与尺寸使用px，基于设备内容区。\n3. 包含层级结构、布局、样式、文本、图片、列表/Tabbar等。\n4. 对不确定元素标注 confidence 与 notes。`;
 
   const textarea = document.getElementById('irPrompt');
   if (textarea) {
@@ -2256,6 +2256,7 @@ async function generatePrompt() {
       statusFilters: currentOnly ? null : (statusFilters.length > 0 ? statusFilters : null)
     });
     document.getElementById('promptPreview').textContent = data.prompt;
+    showToast('提示词已生成');
   } catch (e) {
     showToast('生成失败');
   }

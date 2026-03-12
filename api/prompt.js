@@ -122,6 +122,9 @@ ${JSON.stringify(designSystem, null, 2)}
 2. 以 UI IR 为准实现页面布局与样式，必要时补全缺失信息
 3. 如与设计图有偏差，优先修正布局、尺寸与对齐
 
+## UI-IR-AGENT 规范
+请将 \`UI-IR-AGENT.md\` 放在项目根目录，并在生成 UI IR 时作为严格规则引用。
+
 `;
   }
 
