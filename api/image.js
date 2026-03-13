@@ -16,6 +16,14 @@ function ensureProjectImageDir(projectId) {
   return dir;
 }
 
+function ensureProjectAssetsDir(projectId) {
+  const dir = path.join(HTML_CACHES_DIR, String(projectId), '__assets__');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
 // 上传设计图（单张或多张）
 router.post('/upload-image', imageUpload.array('images', 20), (req, res) => {
   const projectId = parseInt(req.query.projectId, 10);
@@ -64,6 +72,36 @@ router.get('/list-images', (req, res) => {
     .map(name => ({ name, path: `__design__/${name}` }));
 
   res.json({ files });
+});
+
+// 上传图片资源（用于切图标记）
+router.post('/upload-asset', imageUpload.single('asset'), (req, res) => {
+  const projectId = parseInt(req.query.projectId, 10);
+  if (!projectId) {
+    res.status(400).json({ error: '缺少项目 ID' });
+    return;
+  }
+  if (!req.file) {
+    res.status(400).json({ error: '未选择图片文件' });
+    return;
+  }
+
+  const targetDir = ensureProjectAssetsDir(projectId);
+  const ext = path.extname(req.file.originalname || '.png') || '.png';
+  const baseName = path.basename(req.file.originalname || `asset_${Date.now()}`, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const nonce = Math.random().toString(36).slice(2, 6);
+  const fileName = `${baseName}_${Date.now()}_${nonce}${ext}`;
+  const targetPath = path.join(targetDir, fileName);
+  fs.writeFileSync(targetPath, req.file.buffer);
+
+  res.json({
+    file: {
+      name: fileName,
+      path: `__assets__/${fileName}`,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    }
+  });
 });
 
 module.exports = router;

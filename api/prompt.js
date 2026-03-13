@@ -277,12 +277,13 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
           }
         }
 
-        // 显示图片替换
+        // 显示切图标记
         if (file.imageReplacements && file.imageReplacements.length > 0) {
-          prompt += `  - 图片替换:\n`;
+          prompt += `  - 切图标记:\n`;
           for (const img of file.imageReplacements) {
             const desc = img.description ? ` (${img.description})` : '';
-            prompt += `    - \`${img.selector}\` → 替换为图片 \`${img.imagePath || '待指定'}\`${desc}\n`;
+            const regionText = formatRegion(img.region);
+            prompt += `    - \`${img.selector}\`${regionText} → 切图 \`${img.imagePath || '待指定'}\`${desc}\n`;
           }
         }
 
@@ -341,10 +342,11 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
         }
       }
       if (file.imageReplacements && file.imageReplacements.length > 0) {
-        prompt += `- 图片替换:\n`;
+        prompt += `- 切图标记:\n`;
         for (const img of file.imageReplacements) {
           const desc = img.description ? ` (${img.description})` : '';
-          prompt += `  - \`${img.selector}\` → 替换为图片 \`${img.imagePath || '待指定'}\`${desc}\n`;
+          const regionText = formatRegion(img.region);
+          prompt += `  - \`${img.selector}\`${regionText} → 切图 \`${img.imagePath || '待指定'}\`${desc}\n`;
         }
       }
       if (file.functionDescriptions && file.functionDescriptions.length > 0) {
@@ -382,7 +384,7 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
 3. **状态切换**：同一页面的不同状态使用条件渲染实现
 4. **交互实现**：根据交互描述实现点击、滑动等事件处理
 5. **图片资源**：自动检测并复制图片到 \`${guide.assetsDir}\`，使用正确的引用方式
-6. **图片替换**：对于标记了"图片替换"的元素，不要还原 HTML 中的内容，直接使用指定的图片替换该区域
+6. **切图标记**：对于标记了"切图标记"的元素，不要还原 HTML 中的内容，直接使用指定的切图替换该区域
 7. **功能描述**：标记了"功能描述"的元素并非静态展示，需要根据描述实现对应的功能（如摄像头拍摄、扫码、地图显示等原生功能）
 8. **数据加载**：根据数据加载配置实现 HTTP API 调用，注意触发时机（页面初始化、下拉刷新、上拉加载更多等）
 9. **响应式**：考虑不同屏幕尺寸的适配

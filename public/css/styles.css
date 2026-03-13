@@ -763,6 +763,37 @@ input[type="range"]::-moz-range-thumb {
   color: var(--text-muted);
 }
 
+.asset-dropzone {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.asset-dropzone.is-dragover {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.asset-placeholder {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.asset-preview {
+  max-width: 100%;
+  max-height: 120px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  object-fit: contain;
+}
+
 /* ==================== Ungrouped Files ==================== */
 .ungrouped-section {
   margin-top: 12px;
@@ -1048,6 +1079,15 @@ input[type="range"]::-moz-range-thumb {
 
 .image-region-box.function:hover {
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
+}
+
+.image-region-box.image {
+  border-color: rgba(139, 92, 246, 0.9);
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.image-region-box.image:hover {
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
 }
 
 .image-region-handle {

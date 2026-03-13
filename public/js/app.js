@@ -409,7 +409,7 @@ function showPickerActionMenu(e, selector, eventType) {
     </div>
     <div class="picker-menu-item" onclick="handlePickerAction('image', '${selector}', '${eventType}')">
       <span>${UI.icon('image', 'sm')}</span>
-      <span>替换为图片</span>
+      <span>切图标记</span>
     </div>
     <div class="picker-menu-item" onclick="handlePickerAction('function', '${selector}', '${eventType}')">
       <span>${UI.icon('info', 'sm')}</span>
@@ -656,6 +656,10 @@ function showImageRegionMenu(clientX, clientY) {
       <span>${UI.icon('target', 'sm')}</span>
       <span>添加交互</span>
     </div>
+    <div class="picker-menu-item" onclick="handleImageRegionAction('image')">
+      <span>${UI.icon('image', 'sm')}</span>
+      <span>切图标记</span>
+    </div>
     <div class="picker-menu-item" onclick="handleImageRegionAction('function')">
       <span>${UI.icon('info', 'sm')}</span>
       <span>功能描述</span>
@@ -673,6 +677,8 @@ function handleImageRegionAction(action) {
   if (!pendingImageRegion) return;
   if (action === 'interaction') {
     addInteractionFromRegion(pendingImageRegion);
+  } else if (action === 'image') {
+    addImageReplacementFromRegion(pendingImageRegion);
   } else if (action === 'function') {
     addFunctionDescriptionFromRegion(pendingImageRegion);
   }
@@ -720,6 +726,10 @@ function getImageRegions() {
   const functions = State.currentFile?.functionDescriptions || [];
   functions.forEach((item, index) => {
     if (item.region) regions.push({ type: 'function', index, region: item.region });
+  });
+  const images = State.currentFile?.imageReplacements || [];
+  images.forEach((item, index) => {
+    if (item.region) regions.push({ type: 'image', index, region: item.region });
   });
   return regions;
 }
@@ -871,7 +881,7 @@ function handleRegionDragEnd() {
 }
 
 /**
- * 从元素添加图片替换
+ * 从元素添加切图标记
  */
 function addImageReplacementFromElement(selector) {
   if (!State.currentFile) {
@@ -886,7 +896,23 @@ function addImageReplacementFromElement(selector) {
   });
 
   UI.renderImageReplacementList();
-  showToast(`已添加图片替换: ${selector}`);
+  showToast(`已添加切图标记: ${selector}`);
+}
+
+function addImageReplacementFromRegion(region) {
+  if (!State.currentFile) {
+    showToast('请先选择文件');
+    return;
+  }
+  if (!region) return;
+  State.addImageReplacement({
+    selector: '区域',
+    imagePath: '',
+    description: '',
+    region: region
+  });
+  UI.renderImageReplacementList();
+  showToast('已添加切图标记区域');
 }
 
 function updateImageReplacement(index, field, value) {
@@ -896,6 +922,51 @@ function updateImageReplacement(index, field, value) {
 function removeImageReplacement(index) {
   State.removeImageReplacement(index);
   UI.renderImageReplacementList();
+}
+
+async function uploadAssetForReplacement(index, file) {
+  if (!file) return;
+  try {
+    showToast('正在上传...');
+    const res = await API.uploadAsset(file);
+    if (res.error) throw new Error(res.error);
+    const assetPath = res.file?.path || '';
+    State.updateImageReplacement(index, 'imagePath', assetPath);
+    UI.renderImageReplacementList();
+    showToast('图片已上传');
+  } catch (e) {
+    showToast('上传失败: ' + e.message);
+  }
+}
+
+function triggerAssetPicker(index) {
+  const input = document.getElementById(`assetInput_${index}`);
+  if (input) input.click();
+}
+
+function handleAssetSelect(index, input) {
+  const file = input?.files?.[0];
+  if (input) input.value = '';
+  uploadAssetForReplacement(index, file);
+}
+
+function handleAssetDrop(e, index) {
+  e.preventDefault();
+  const dropzone = document.getElementById(`assetDrop_${index}`);
+  if (dropzone) dropzone.classList.remove('is-dragover');
+  const file = Array.from(e.dataTransfer?.files || []).find(f => f.type.startsWith('image/'));
+  uploadAssetForReplacement(index, file);
+}
+
+function handleAssetDragOver(e, index) {
+  e.preventDefault();
+  const dropzone = document.getElementById(`assetDrop_${index}`);
+  if (dropzone) dropzone.classList.add('is-dragover');
+}
+
+function handleAssetDragLeave(index) {
+  const dropzone = document.getElementById(`assetDrop_${index}`);
+  if (dropzone) dropzone.classList.remove('is-dragover');
 }
 
 // ==================== 功能描述 ====================
@@ -1078,6 +1149,16 @@ function highlightImageRegion(region) {
   screen.appendChild(highlight);
 
   setTimeout(() => highlight.remove(), 3000);
+}
+
+function highlightImageReplacement(index) {
+  const item = State.currentFile?.imageReplacements?.[index];
+  if (!item) return;
+  if (item.region) {
+    highlightImageRegion(item.region);
+  } else {
+    highlightElement(item.selector);
+  }
 }
 
 /**
@@ -2192,10 +2273,17 @@ function closeImageUploadModal() {
   UI.closeModal('imageUploadModal');
   const dropzone = document.getElementById('imageDropzone');
   if (dropzone) dropzone.classList.remove('is-dragover');
+  const htmlDropzone = document.getElementById('htmlZipDropzone');
+  if (htmlDropzone) htmlDropzone.classList.remove('is-dragover');
 }
 
 function triggerImagePicker() {
   const input = document.getElementById('designImageInput');
+  if (input) input.click();
+}
+
+function triggerHtmlZipPicker() {
+  const input = document.getElementById('htmlZipInput');
   if (input) input.click();
 }
 
@@ -2227,6 +2315,36 @@ function handleImageDrop(e) {
   if (dropzone) dropzone.classList.remove('is-dragover');
   const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
   handleDesignImageFiles(files);
+}
+
+async function handleHtmlZipFiles(file) {
+  if (!file) return;
+  try {
+    showToast('正在上传...');
+    const res = await API.uploadHtmlZip(file);
+    if (res.error) {
+      throw new Error(res.error);
+    }
+    showToast('HTML 已上传');
+    await scanHtmlFiles();
+    closeImageUploadModal();
+  } catch (e) {
+    showToast('上传失败: ' + e.message);
+  }
+}
+
+async function handleHtmlZipSelect(input) {
+  const file = input.files?.[0];
+  input.value = '';
+  await handleHtmlZipFiles(file);
+}
+
+function handleHtmlZipDrop(e) {
+  e.preventDefault();
+  const dropzone = document.getElementById('htmlZipDropzone');
+  if (dropzone) dropzone.classList.remove('is-dragover');
+  const file = Array.from(e.dataTransfer?.files || []).find(f => f.name.toLowerCase().endsWith('.zip'));
+  handleHtmlZipFiles(file);
 }
 
 // ==================== 提示词生成 ====================
@@ -2408,6 +2526,16 @@ function initEventListeners() {
     });
     dropzone.addEventListener('dragleave', () => dropzone.classList.remove('is-dragover'));
     dropzone.addEventListener('drop', handleImageDrop);
+  }
+
+  const htmlDropzone = document.getElementById('htmlZipDropzone');
+  if (htmlDropzone) {
+    htmlDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      htmlDropzone.classList.add('is-dragover');
+    });
+    htmlDropzone.addEventListener('dragleave', () => htmlDropzone.classList.remove('is-dragover'));
+    htmlDropzone.addEventListener('drop', handleHtmlZipDrop);
   }
 
   document.addEventListener('paste', (e) => {

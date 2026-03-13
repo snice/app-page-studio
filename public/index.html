@@ -245,7 +245,7 @@
         </div>
 
         <div class="panel-section">
-          <div class="panel-section-title">图片替换</div>
+          <div class="panel-section-title">切图标记</div>
           <div id="imageReplacementList"></div>
         </div>
 
@@ -323,10 +323,19 @@
           <div class="upload-dropzone-icon">
             <icon-component name="upload" size="lg"></icon-component>
           </div>
-          <div class="upload-dropzone-title">点击选择图片</div>
-          <div class="upload-dropzone-sub">或拖拽图片到此处，支持粘贴（Ctrl/Cmd + V）</div>
+          <div class="upload-dropzone-title">上传设计图</div>
+          <div class="upload-dropzone-sub">点击选择图片 / 拖拽 / 粘贴（Ctrl/Cmd + V）</div>
         </div>
         <input type="file" id="designImageInput" accept="image/*" multiple style="display:none;" onchange="handleImageSelect(this)">
+
+        <div class="upload-dropzone" id="htmlZipDropzone" onclick="triggerHtmlZipPicker()" style="margin-top:12px;">
+          <div class="upload-dropzone-icon">
+            <icon-component name="package" size="lg"></icon-component>
+          </div>
+          <div class="upload-dropzone-title">上传 HTML ZIP</div>
+          <div class="upload-dropzone-sub">点击选择 ZIP / 拖拽 ZIP 到此处</div>
+        </div>
+        <input type="file" id="htmlZipInput" accept=".zip" style="display:none;" onchange="handleHtmlZipSelect(this)">
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeImageUploadModal()">关闭</button>

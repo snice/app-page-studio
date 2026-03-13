@@ -8,7 +8,28 @@ const fs = require('fs');
 const cheerio = require('cheerio');
 const AdmZip = require('adm-zip');
 const router = express.Router();
-const { getHtmlDir } = require('./utils');
+const { getHtmlDir, upload, extractZipToDir, HTML_CACHES_DIR } = require('./utils');
+
+// 上传 HTML ZIP（合并到项目目录）
+router.post('/upload-html', upload.single('htmlZip'), (req, res) => {
+  const projectId = parseInt(req.query.projectId);
+  if (!projectId) {
+    res.status(400).json({ error: '缺少项目 ID' });
+    return;
+  }
+  if (!req.file) {
+    res.status(400).json({ error: '请上传 ZIP 文件' });
+    return;
+  }
+
+  try {
+    const projectDir = path.join(HTML_CACHES_DIR, String(projectId));
+    extractZipToDir(req.file.buffer, projectDir);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // 扫描 HTML 文件
 router.get('/scan-html', (req, res) => {

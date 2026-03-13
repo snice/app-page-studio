@@ -107,6 +107,44 @@ const API = {
   },
 
   /**
+   * 上传图片资源（用于切图标记）
+   * @param {File} file
+   * @returns {Promise<Object>}
+   */
+  async uploadAsset(file) {
+    const projectId = this._getProjectId();
+    if (!projectId) {
+      return { error: '请先选择项目' };
+    }
+    const formData = new FormData();
+    formData.append('asset', file);
+    const res = await fetch(`/api/upload-asset?projectId=${projectId}`, {
+      method: 'POST',
+      body: formData
+    });
+    return res.json();
+  },
+
+  /**
+   * 上传 HTML ZIP（合并到当前项目）
+   * @param {File} zipFile
+   * @returns {Promise<Object>}
+   */
+  async uploadHtmlZip(zipFile) {
+    const projectId = this._getProjectId();
+    if (!projectId) {
+      return { error: '请先选择项目' };
+    }
+    const formData = new FormData();
+    formData.append('htmlZip', zipFile);
+    const res = await fetch(`/api/upload-html?projectId=${projectId}`, {
+      method: 'POST',
+      body: formData
+    });
+    return res.json();
+  },
+
+  /**
    * 分析 HTML 文件
    * @param {string} path - 文件路径
    * @returns {Promise<Object>}
