@@ -158,6 +158,7 @@ router.get('/analyze-html', (req, res) => {
 router.post('/download-design-zip', (req, res) => {
   const projectId = parseInt(req.body.projectId);
   const files = Array.isArray(req.body.files) ? req.body.files : [];
+  const assetPaths = Array.isArray(req.body.assetPaths) ? req.body.assetPaths : [];
 
   if (!projectId || files.length === 0) {
     res.status(400).json({ error: '缺少 projectId 或 files' });
@@ -174,6 +175,7 @@ router.post('/download-design-zip', (req, res) => {
 
   const zip = new AdmZip();
   let addedCount = 0;
+  const addedPaths = new Set();
 
   const toPosix = (p) => p.replace(/\\/g, '/');
   const stripLeading = (p) => p.replace(/^[/\\]+/, '');
@@ -204,8 +206,30 @@ router.post('/download-design-zip', (req, res) => {
       targetPath = `html/${targetPath}`;
     }
 
-    zip.addFile(targetPath, fs.readFileSync(absPath));
-    addedCount += 1;
+    if (!addedPaths.has(targetPath)) {
+      zip.addFile(targetPath, fs.readFileSync(absPath));
+      addedPaths.add(targetPath);
+      addedCount += 1;
+    }
+  }
+
+  // 仅打包选中页面相关的 __assets__ 资源
+  if (assetPaths.length > 0) {
+    const assetsRoot = path.resolve(path.join(htmlDir, '__assets__'));
+    for (const asset of assetPaths) {
+      if (!asset) continue;
+      const rel = stripLeading(String(asset));
+      const posixRel = toPosix(rel);
+      const targetPath = posixRel.startsWith('__assets__/') ? posixRel : `__assets__/${posixRel}`;
+      const absPath = path.resolve(htmlDir, targetPath);
+      if (absPath !== assetsRoot && !absPath.startsWith(assetsRoot + path.sep)) continue;
+      if (!fs.existsSync(absPath) || fs.statSync(absPath).isDirectory()) continue;
+      if (!addedPaths.has(targetPath)) {
+        zip.addFile(targetPath, fs.readFileSync(absPath));
+        addedPaths.add(targetPath);
+        addedCount += 1;
+      }
+    }
   }
 
   if (addedCount === 0) {

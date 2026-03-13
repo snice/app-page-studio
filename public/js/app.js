@@ -222,13 +222,14 @@ async function downloadSelectedDesigns() {
     return;
   }
 
-  const selected = selectedPaths
+  const selectedFiles = selectedPaths
     .map(path => State.pagesConfig.htmlFiles.find(f => f.path === path))
-    .filter(Boolean)
-    .map(f => ({
-      path: f.path,
-      sourceType: f.sourceType || (f.imagePath ? 'image' : 'html')
-    }));
+    .filter(Boolean);
+
+  const selected = selectedFiles.map(f => ({
+    path: f.path,
+    sourceType: f.sourceType || (f.imagePath ? 'image' : 'html')
+  }));
 
   if (selected.length === 0) {
     showToast('未找到可下载的文件');
@@ -236,9 +237,16 @@ async function downloadSelectedDesigns() {
   }
 
   try {
+    const assetPaths = Array.from(new Set(
+      selectedFiles.flatMap(f => (f.imageReplacements || [])
+        .map(r => r.imagePath)
+        .filter(Boolean))
+    ));
+
     const blob = await API.downloadDesignZip({
       projectId,
-      files: selected
+      files: selected,
+      assetPaths
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2352,7 +2360,10 @@ function handleHtmlZipDrop(e) {
 function showPromptModal() {
   UI.showModal('promptModal');
   syncPromptFilterUI();
-  generatePrompt();
+  const preview = document.getElementById('promptPreview');
+  if (preview) {
+    preview.textContent = '点击"生成"按钮生成提示词';
+  }
 }
 
 function closePromptModal() {
