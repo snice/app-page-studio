@@ -55,7 +55,8 @@ npm start
 > 提示词使用指南：
 > - `html/` 存放 HTML 设计稿
 > - `__design__/` 存放图片设计稿
-> - 使用提示词前，需将 `tools/` 目录拷贝到项目根目录
+> - `__assets__` 存放截图资源
+> - 使用提示词前，需将 `tools/`、`UI-IR-AGENT.md` 目录拷贝到uniapp/flutter/react native项目根目录
 
 ### 2. 扫描 HTML / 设计图文件
 - 点击"刷新"按钮扫描 HTML / 设计图文件
