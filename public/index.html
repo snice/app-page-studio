@@ -101,9 +101,17 @@
 
       <!-- Selection toolbar -->
       <div class="selection-toolbar" id="selectionToolbar">
-        <span>已选择 <span class="selection-count" id="selectionCount">0</span> 个文件</span>
-        <button class="btn btn-sm" style="background:#000;color:#fff" onclick="groupSelected()">创建分组</button>
-        <button class="btn btn-sm btn-secondary" onclick="cancelSelection()">取消</button>
+        <div class="selection-toolbar-top">
+          已选择 <span class="selection-count" id="selectionCount">0</span> 个文件
+        </div>
+        <div class="selection-toolbar-actions">
+          <button class="btn btn-sm" style="background:#000;color:#fff" onclick="groupSelected()">创建分组</button>
+          <button class="btn btn-sm btn-secondary" onclick="deleteSelectedFiles()">
+            <icon-component name="trash" size="sm"></icon-component>
+            删除
+          </button>
+          <button class="btn btn-sm btn-secondary" onclick="cancelSelection()">取消</button>
+        </div>
       </div>
 
       <div class="sidebar-content" id="fileList">
@@ -390,6 +398,26 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeGroupModal()">取消</button>
         <button class="btn btn-primary" onclick="confirmGroup()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Files Modal -->
+  <div class="modal-overlay" id="deleteFilesModal">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">删除页面</span>
+        <button class="modal-close" onclick="closeDeleteFilesModal()">
+          <icon-component name="x"></icon-component>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="margin:0 0 8px 0;">确定删除选中的 <b id="deleteFilesCount">0</b> 个页面吗？</p>
+        <p style="margin:0;color:var(--text-muted);font-size:12px;">将同时删除磁盘文件，操作不可撤销。</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeDeleteFilesModal()">取消</button>
+        <button class="btn btn-primary" onclick="confirmDeleteSelectedFiles()">删除</button>
       </div>
     </div>
   </div>

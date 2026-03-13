@@ -42,9 +42,8 @@ router.post('/upload-image', imageUpload.array('images', 20), (req, res) => {
 
   for (const file of req.files) {
     const ext = path.extname(file.originalname || '.png') || '.png';
-    const baseName = path.basename(file.originalname || `design_${Date.now()}`, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const nonce = Math.random().toString(36).slice(2, 6);
-    const fileName = `${baseName}_${Date.now()}_${nonce}${ext}`;
+    const nonce = Math.random().toString(36).slice(2, 8);
+    const fileName = `${Date.now()}_${nonce}${ext}`;
     const targetPath = path.join(targetDir, fileName);
     fs.writeFileSync(targetPath, file.buffer);
     saved.push({

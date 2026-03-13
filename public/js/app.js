@@ -1989,6 +1989,64 @@ function groupSelected() {
   createGroup();
 }
 
+function deleteSelectedFiles() {
+  if (State.selectedFiles.size === 0) return;
+  const count = State.selectedFiles.size;
+  const countEl = document.getElementById('deleteFilesCount');
+  if (countEl) countEl.textContent = String(count);
+  UI.showModal('deleteFilesModal');
+}
+
+function closeDeleteFilesModal() {
+  UI.closeModal('deleteFilesModal');
+}
+
+async function confirmDeleteSelectedFiles() {
+  const projectId = State.getCurrentProjectId();
+  if (!projectId) {
+    showToast('请先选择项目');
+    return;
+  }
+  const selectedPaths = Array.from(State.selectedFiles);
+  if (selectedPaths.length === 0) return;
+
+  const files = selectedPaths
+    .map(path => State.pagesConfig.htmlFiles.find(f => f.path === path))
+    .filter(Boolean)
+    .map(f => ({ path: f.path, sourceType: f.sourceType || (f.imagePath ? 'image' : 'html') }));
+
+  try {
+    const res = await API.deleteFiles({ projectId, files });
+    if (res.error) throw new Error(res.error);
+  } catch (e) {
+    showToast('删除失败: ' + e.message);
+    return;
+  }
+
+  const selectedSet = new Set(selectedPaths);
+  State.pagesConfig.htmlFiles = (State.pagesConfig.htmlFiles || []).filter(f => !selectedSet.has(f.path));
+
+  if (State.currentFile && selectedSet.has(State.currentFile.path)) {
+    State.currentFile = null;
+    const screen = document.getElementById('phoneScreen');
+    if (screen) {
+      screen.innerHTML = `<div class="empty-preview">
+        <div class="empty-preview-icon">
+          <icon-component name="fileEmpty" size="xl"></icon-component>
+        </div>
+        <p>选择文件预览</p>
+      </div>`;
+    }
+  }
+
+  State.clearSelection();
+  UI.updateSelectionToolbar();
+  UI.renderFileList();
+  UI.renderDataSourceList();
+  closeDeleteFilesModal();
+  showToast('已删除选中页面');
+}
+
 function selectGroupColor(el) {
   document.querySelectorAll('#groupColorPicker .color-option').forEach(e => e.classList.remove('selected'));
   el.classList.add('selected');

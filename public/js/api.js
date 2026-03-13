@@ -187,6 +187,20 @@ const API = {
     return res.blob();
   },
 
+  /**
+   * 删除指定页面文件（同时删除磁盘文件）
+   * @param {Object} payload
+   * @returns {Promise<Object>}
+   */
+  async deleteFiles(payload) {
+    const res = await fetch('/api/delete-files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  },
+
   // ==================== 项目管理 API ====================
 
   /**

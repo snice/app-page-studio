@@ -31,6 +31,52 @@ router.post('/upload-html', upload.single('htmlZip'), (req, res) => {
   }
 });
 
+// 删除指定页面（同时删除磁盘文件）
+router.post('/delete-files', (req, res) => {
+  const projectId = parseInt(req.body.projectId);
+  const files = Array.isArray(req.body.files) ? req.body.files : [];
+
+  if (!projectId || files.length === 0) {
+    res.status(400).json({ error: '缺少 projectId 或 files' });
+    return;
+  }
+
+  const htmlDir = getHtmlDir(projectId);
+  if (!fs.existsSync(htmlDir)) {
+    res.status(404).json({ error: '项目目录不存在' });
+    return;
+  }
+
+  const htmlRoot = path.resolve(htmlDir);
+  let deletedCount = 0;
+
+  for (const item of files) {
+    if (!item || !item.path) continue;
+    const relPath = String(item.path).replace(/^[/\\]+/, '');
+    const absPath = path.resolve(htmlDir, relPath);
+    if (absPath !== htmlRoot && !absPath.startsWith(htmlRoot + path.sep)) continue;
+    if (!fs.existsSync(absPath) || fs.statSync(absPath).isDirectory()) continue;
+    try {
+      const relPosix = relPath.replace(/\\/g, '/');
+      const isDesignOrAssets = relPosix.startsWith('__design__/') || relPosix.startsWith('__assets__/');
+      if (isDesignOrAssets) {
+        fs.unlinkSync(absPath);
+      } else {
+        const parentDir = path.dirname(absPath);
+        const relParent = path.relative(htmlDir, parentDir);
+        if (relParent && relParent !== '.' && relParent !== '..') {
+          fs.rmSync(parentDir, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(absPath);
+        }
+      }
+      deletedCount += 1;
+    } catch {}
+  }
+
+  res.json({ success: true, deletedCount });
+});
+
 // 扫描 HTML 文件
 router.get('/scan-html', (req, res) => {
   const projectId = parseInt(req.query.projectId);
