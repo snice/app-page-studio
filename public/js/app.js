@@ -2655,9 +2655,8 @@ function setZoom(value) {
   }
   if (image && screen) {
     const deviceWidth = parseInt(screen.style.width) || 375;
-    const deviceHeight = parseInt(screen.style.height) || 812;
     image.style.width = deviceWidth + 'px';
-    image.style.height = deviceHeight + 'px';
+    image.style.height = 'auto';
     image.style.transform = `scale(${currentZoom})`;
     image.style.transformOrigin = 'top left';
   }

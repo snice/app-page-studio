@@ -463,6 +463,7 @@ const UI = {
       screen.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">请先选择项目</div>';
       return;
     }
+    screen.classList.remove('image-mode');
     if (typeof ImageColorPicker !== 'undefined') {
       ImageColorPicker.disable();
     }
@@ -497,6 +498,7 @@ const UI = {
     if (iframe) {
       ColorPicker.disable(iframe);
     }
+    screen.classList.add('image-mode');
     screen.innerHTML = `<img class="design-image" src="/html/${projectId}/${path}" alt="设计图">`;
     document.getElementById('previewInfo').textContent = path;
     setZoom(currentZoom);

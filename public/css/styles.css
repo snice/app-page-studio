@@ -1028,11 +1028,14 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .phone-screen iframe { width: 100%; height: 100%; border: none; }
+.phone-screen.image-mode {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
 .design-image {
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: contain;
+  height: auto;
   background: white;
   transform-origin: top left;
 }
