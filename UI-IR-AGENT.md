@@ -17,11 +17,12 @@
 2. **将 UI IR 保存为 HTML 文件**  
    - 文件名需与设计图一致：`__design__/xxx.png` → `__design__/xxx.html`。  
    - 若文件已存在，则在充分比对后**更新**该 HTML，而不是重新发明结构。
-3. **HTML 像素级检测（Playwright 截图 + 对比 + 至少 3 轮修正）**  
-   - 使用 `tools/html-snapshot` 或等价方式，对 `xxx.html` 截图到 `__html_snapshot/xxx-html.png`。  
+3. **HTML 像素级检测（Playwright MCP 截图 + 对比 + 至少 3 轮修正）**  
+   - 使用 **Playwright MCP**（Cursor MCP 服务名：`user-playwright`）对 `xxx.html` 截图到 `__html_snapshot/xxx-html.png`。  
+   - MCP **不支持 `file://`**，须先在项目根启动本地 HTTP 服务，再通过 `http://127.0.0.1:<端口>/__design__/xxx.html` 打开页面（详见「像素级检测」章节）。  
    - 将截图与设计图对比，**至少 3 轮**修改 HTML 与样式，直到边框、背景、圆角、阴影、间距、字体等足够接近。  
    - 完成后在 root 节点的 `data-notes` 中写明：`已与设计图比对，已进行像素级检测，共 N 轮`。  
-   - 若当前对话环境无法直接执行 Playwright，则视为**由调用方在本地执行该步骤**，但从规范角度仍视为必须流程，不得跳过。
+   - 若当前对话环境未启用 Playwright MCP，则视为**由调用方启用 MCP 后补跑该步骤**，但从规范角度仍视为必须流程，不得跳过。
 4. **仅在上述步骤完成后，才允许生成/更新目标平台代码**  
    - 平台代码（如 React Native + Expo Router 页面）必须以**最终收敛后的 HTML IR** 为唯一视觉真源。  
    - 若平台代码与 HTML 存在差异，应先回到 HTML 调整，再同步到平台实现，而不是直接“凭感觉改 UI”。
@@ -44,7 +45,7 @@
 9. **【关键】必须依据设计图生成**：UI IR 必须**仅**根据提供的设计图生成，不得在未查看或无法查看设计图时编造占位结构（如随意写“空状态”“我的贷款”等）。若设计图不可用，须在根元素 `data-notes` 中明确标注「设计图不可用，未生成」，并只输出最小 HTML 骨架或要求提供设计图后再生成。
 10. **【关键】输出顺序**：**直接输出 UI IR（HTML）**；像素级检测时**用 HTML 截图与设计图对比**。
 11. **【关键】HTML 输出后与设计图比对**：输出 UI IR（HTML）后，与设计图做**逐项比对**（结构、文案、列表等）并修正 HTML 后再交付。比对项至少包括：页面类型、根下区块数量与顺序、标题/正文文案及语言、列表条数与 item 模板、图标/图片是否需 assets。修正后在根元素 `data-notes` 注明「已与设计图比对」。
-12. **【关键】像素级检测**：用 **Playwright 对 HTML 截图**，截图存放于项目根目录 **`__html_snapshot`** 下；将**截图与设计图**对比（边框、背景、阴影等），**至少 3 轮**修正与复测直至样式一致。详见本文档「像素级检测」章节。
+12. **【关键】像素级检测**：用 **Playwright MCP** 对 HTML 截图，截图存放于项目根目录 **`__html_snapshot`** 下；将**截图与设计图**对比（边框、背景、阴影等），**至少 3 轮**修正与复测直至样式一致。详见本文档「像素级检测」章节。
 
 ## 结构设计（推荐 HTML 约定）
 输出为**单一 HTML**，可用 `data-*` 属性承载 IR 元信息与推断信息，示例结构如下：
@@ -157,14 +158,69 @@
 - 直接输出与设计图**同名**的 HTML 文件（如设计图为 `__design__/xxx.png`，则生成 `__design__/xxx.html`）。
 - 视口与设备尺寸一致（如 `width=375, height=812`），布局、字号、颜色、圆角、内边距等按设计图实现。
 
-### 2. Playwright 截图
+### 2. Playwright MCP 截图
 
-- 使用 **Playwright** 无头打开该 HTML，视口与设计图设备尺寸一致（如 375×812），`deviceScaleFactor: 1`。
-- 对页面进行截图，保存到**当前项目根目录**下的 **`__html_snapshot`** 目录，文件名与设计图对应（如设计图 `xxx.png` 则截图 `xxx-html.png`），便于与设计图并排或叠图对比。
-  - 本项目提供独立截图工具：`tools/html-snapshot`（独立 Node 项目）。
-  - 安装依赖：`cd tools/html-snapshot && npm i && npm run installchromium`
-  - 如果installchromium失败，可以让playwright使用本机的chrome浏览器
-  - 运行截图（示例）：`node tools/html-snapshot/index.js __design__/xxx.html __html_snapshot/xxx-html.png 375x812`
+像素级检测**统一使用 Playwright MCP**，不再维护独立 Node 截图脚本。AI 代理通过 Cursor MCP 调用 `user-playwright` 服务完成截图。
+
+**前置条件**
+- Cursor 已启用 MCP 服务 **`user-playwright`**（Playwright MCP）。
+- HTML 文件已保存至项目内，例如：`<项目根>/__design__/xxx.html`。
+- 视口尺寸与设计图设备尺寸一致（如 `375×812`），`deviceScaleFactor: 1`。
+- 项目根目录下已存在 **`__html_snapshot/`** 目录（截图保存前需确保目录存在）。
+
+**⚠️ 不可使用 `file://` 协议**
+
+Playwright MCP **无法直接访问** `file://` 本地路径（会报错：`Access to "file:" protocol is blocked`）。  
+必须通过 **本地 HTTP 服务** 提供 HTML 及静态资源（如 `static/images/`），再用 `http://` 地址打开页面。
+
+**启动本地 HTTP 服务**（在项目根目录执行，截图期间保持运行）：
+
+```bash
+cd <项目根>
+python3 -m http.server 8765
+```
+
+**标准调用顺序**（每轮修正后重复）
+
+0. **启动 HTTP 服务**：在项目根目录运行上述命令（若尚未启动）。
+
+1. **`browser_resize`**：设置浏览器窗口尺寸  
+   - `width`: 375（示例）  
+   - `height`: 812（示例）
+
+2. **`browser_navigate`**：通过 HTTP 打开 HTML IR  
+   - `url`: `http://127.0.0.1:<端口>/__design__/xxx.html`  
+   - 示例：`http://127.0.0.1:8765/__design__/1%E7%99%BB%E5%BD%95.html`  
+   - 中文文件名须 **URL 编码**（如 `1登录.html` → `1%E7%99%BB%E5%BD%95.html`）  
+   - HTML 内资源引用须使用相对路径（如 `../static/images/xxx.png`），以便 HTTP 服务正常加载
+
+3. **`browser_take_screenshot`**：保存整页截图  
+   - `type`: `png`  
+   - `fullPage`: `true`  
+   - `filename`: `__html_snapshot/xxx-html.png`（与设计图 `xxx.png` 对应）
+
+4. **（可选）`browser_run_code_unsafe`**：若需等待资源加载完成，可执行 Playwright 代码，例如：  
+   ```js
+   async (page) => {
+     await page.setViewportSize({ width: 375, height: 812 });
+     await page.waitForLoadState('networkidle');
+     return page.url();
+   }
+   ```
+
+**HTTP 服务说明**
+- 服务根目录必须为 **项目根**，确保 `__design__/`、`static/` 等路径可访问。
+- 端口可自定（如 `8765`），避免与已有服务冲突即可。
+- 像素级检测完成后可停止 HTTP 服务。
+
+**截图输出约定**
+- 保存到**项目根目录**下的 **`__html_snapshot/`**。
+- 命名规则：设计图为 `__design__/xxx.png` → 截图为 `__html_snapshot/xxx-html.png`。
+- 截图完成后，使用 **Read 工具**分别读取设计图与 HTML 截图，进行视觉对比。
+
+**MCP 不可用时的处理**
+- 在根元素 `data-notes` 中说明：`像素级检测需启用 Playwright MCP（user-playwright）后补跑`。
+- 提醒调用方启用 MCP 并补跑上述流程后，再将最终 HTML 作为平台代码实现依据。
 
 ### 3. 截图与设计图对比
 
@@ -190,7 +246,7 @@
 - **通过**：HTML 截图与设计图在边框、背景、阴影、圆角、间距、字体样式上无明显差异，可视为像素级一致。
 - 在交付说明或 `meta.notes` 中注明「已进行像素级检测，共 N 轮，HTML 截图与设计图样式一致」。
 
-若当前代理/环境无法直接执行 Playwright（如无 Node/无浏览器），应在 `meta.notes` 中说明「像素级检测需由调用方在本地执行」，并**明确提醒调用方必须在可运行环境中补跑上述流程后，再将最终 HTML 作为平台代码实现依据**。
+若当前代理/环境未启用 Playwright MCP，应在根元素 `data-notes` 中说明「像素级检测需启用 Playwright MCP（user-playwright）后补跑」，并**明确提醒调用方必须在 MCP 可用环境中补跑上述流程后，再将最终 HTML 作为平台代码实现依据**。
 
 ## 输出示例（仅格式示意）
 输出必须是 HTML，字段与结构可按需要裁剪，但必须保持结构一致与可解析。
