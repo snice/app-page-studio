@@ -10,7 +10,7 @@ const AdmZip = require('adm-zip');
 const router = express.Router();
 const { getHtmlDir, upload, extractZipToDir, HTML_CACHES_DIR } = require('./utils');
 
-// 上传 HTML ZIP（合并到项目目录）
+// 上传 HTML ZIP（合并到项目目录，根目录图片自动移入 __design__）
 router.post('/upload-html', upload.single('htmlZip'), (req, res) => {
   const projectId = parseInt(req.query.projectId);
   if (!projectId) {
@@ -22,10 +22,31 @@ router.post('/upload-html', upload.single('htmlZip'), (req, res) => {
     return;
   }
 
+  const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+
   try {
     const projectDir = path.join(HTML_CACHES_DIR, String(projectId));
     extractZipToDir(req.file.buffer, projectDir);
-    res.json({ success: true });
+
+    // 将根目录下的图片移到 __design__
+    const items = fs.readdirSync(projectDir);
+    let movedCount = 0;
+    for (const item of items) {
+      const ext = path.extname(item).toLowerCase();
+      if (!IMAGE_EXTS.has(ext)) continue;
+      const fullPath = path.join(projectDir, item);
+      if (!fs.statSync(fullPath).isFile()) continue;
+      const designDir = path.join(projectDir, '__design__');
+      if (!fs.existsSync(designDir)) fs.mkdirSync(designDir, { recursive: true });
+
+      const nonce = Math.random().toString(36).slice(2, 8);
+      const fileName = `${Date.now()}_${nonce}${ext}`;
+      const targetPath = path.join(designDir, fileName);
+      fs.renameSync(fullPath, targetPath);
+      movedCount++;
+    }
+
+    res.json({ success: true, movedImages: movedCount });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -71,7 +92,7 @@ router.post('/delete-files', (req, res) => {
         }
       }
       deletedCount += 1;
-    } catch {}
+    } catch { }
   }
 
   res.json({ success: true, deletedCount });
@@ -111,9 +132,9 @@ router.get('/scan-html', (req, res) => {
               modified: stat.mtime
             });
           }
-        } catch {}
+        } catch { }
       }
-    } catch {}
+    } catch { }
     return files;
   };
 
