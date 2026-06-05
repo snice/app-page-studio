@@ -64,6 +64,7 @@ npm start
 > 提示词使用指南：
 >
 > - `html/` 存放 HTML 设计稿
+> - `__psd__` 存放psd设计稿
 > - `__design__/` 存放图片设计稿
 > - `__assets__/` 存放切图资源
 > - 使用提示词前，将 `UI-IR-AGENT.md` 放在 Flutter / React Native / UniApp

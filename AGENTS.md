@@ -81,19 +81,37 @@ SQLite database module using `better-sqlite3`:
 Project HTML files are stored in `html_caches/{project_id}/` directory, uploaded as ZIP files.
 
 ### Frontend Structure
+
+> **Note**: `public/` 下的纯 HTML/CSS/JS 版本已废弃，不再更新。当前前端为 Vite + React 实现。
+
 ```
-public/
-├── index.html          # HTML structure only
-├── css/
-│   └── styles.css      # All styles (including theme variables)
-└── js/
-    ├── icons.js        # SVG icon Web Component (loaded first in <head>)
-    ├── theme.js        # Theme switching (loaded in <head> to prevent flash)
-    ├── state.js        # Global state management
-    ├── api.js          # API request wrappers
-    ├── picker.js       # Element picker for iframe
-    ├── ui.js           # UI rendering and interactions
-    └── app.js          # Main entry point and event bindings
+frontend/
+├── index.html                  # Vite 入口 HTML
+├── src/
+│   ├── main.jsx                # React 入口
+│   ├── App.jsx                 # 主应用组件（Picker/ColorPicker 逻辑、动作菜单）
+│   ├── components/
+│   │   ├── common/
+│   │   │   ├── Icon.jsx        # SVG 图标组件（基于 icons.js 数据）
+│   │   │   └── Toast.jsx       # Toast 提示组件
+│   │   ├── layout/
+│   │   │   ├── Header.jsx      # 顶部工具栏
+│   │   │   ├── Sidebar.jsx     # 左侧文件列表（含搜索、分组、筛选）
+│   │   │   ├── PreviewPanel.jsx# 中间预览面板（iframe + 缩放控制）
+│   │   │   └── ConfigPanel.jsx # 右侧配置面板（页面配置、交互/切图/功能描述列表、TabBar）
+│   │   ├── modals/
+│   │   │   └── Modals.jsx      # 弹窗集合（项目、提示词生成等）
+│   │   └── picker/
+│   │       └── ElementStylesPanel.jsx # 元素样式编辑面板
+│   ├── hooks/
+│   │   ├── useTheme.js         # 主题切换 Hook
+│   │   └── useWebSocket.js     # WebSocket 热更新 Hook
+│   ├── lib/
+│   │   ├── api.js              # API 请求封装
+│   │   ├── picker.js           # Picker/ColorPicker（直接操作 iframe.contentDocument）
+│   │   └── state.js            # Zustand 全局状态管理
+│   └── styles/
+│       └── app.css             # 全局样式（含主题变量）
 ```
 
 ### Key Data Structures
