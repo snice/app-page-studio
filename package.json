@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js --dev"
+    "dev": "node server.js --dev",
+    "dev:frontend": "cd frontend && npx vite",
+    "build:frontend": "cd frontend && npx vite build",
+    "dev:all": "npm run build:frontend && npm run dev"
   },
   "keywords": [
     "app",

@@ -1,0 +1,403 @@
+import React, { useState, useRef } from 'react';
+import { Icon } from '../common/Icon';
+import { useAppStore } from '../../lib/state';
+import { highlightElement } from '../../lib/picker';
+import { api } from '../../lib/api';
+
+/** 格式化区域标签 */
+function formatRegionLabel(item) {
+  if (item.selector) return item.selector;
+  if (item.region) {
+    const { x, y, width, height } = item.region;
+    return `区域 ${x},${y},${width},${height}`;
+  }
+  return '(未选择)';
+}
+
+/** 交互列表渲染 */
+function InteractionList({ iframeRef }) {
+  const currentFile = useAppStore((s) => s.currentFile);
+  const removeInteraction = useAppStore((s) => s.removeInteraction);
+  const updateInteraction = useAppStore((s) => s.updateInteraction);
+  const interactions = currentFile?.interactions || [];
+
+  const handleHighlight = (item) => {
+    if (item.selector) highlightElement(iframeRef?.current, item.selector);
+  };
+
+  if (interactions.length === 0) {
+    return <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 24, background: 'var(--bg)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>暂无交互，使用"添加交互"按钮在预览中选择元素</div>;
+  }
+
+  return interactions.map((item, idx) => (
+    <div className="interaction-item" key={idx}>
+      <div className="interaction-header">
+        <span
+          className={`interaction-selector ${item.selector || item.region ? 'clickable' : ''}`}
+          title={item.selector ? `点击定位: ${item.selector}` : '未指定'}
+          onClick={() => handleHighlight(item)}
+        >
+          {formatRegionLabel(item)}
+        </span>
+        <span className="interaction-type">{item.eventType || 'tap'}</span>
+        <button className="delete-btn" onClick={() => removeInteraction(idx)}>
+          <Icon name="trash" size="sm" />
+        </button>
+      </div>
+      <input
+        className="form-input"
+        placeholder="动作描述"
+        value={item.action || ''}
+        onChange={(e) => updateInteraction(idx, 'action', e.target.value)}
+        style={{ marginTop: 8 }}
+      />
+    </div>
+  ));
+}
+
+/** 切图标记列表 */
+function ImageReplacementList({ iframeRef }) {
+  const currentFile = useAppStore((s) => s.currentFile);
+  const removeImageReplacement = useAppStore((s) => s.removeImageReplacement);
+  const updateImageReplacement = useAppStore((s) => s.updateImageReplacement);
+  const items = currentFile?.imageReplacements || [];
+  const projectId = useAppStore.getState().getCurrentProjectId();
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const fileInputRefs = useRef({});
+
+  const handleUpload = async (index, file) => {
+    if (!file) return;
+    try {
+      const res = await api.uploadAsset(file);
+      if (res.error) throw new Error(res.error);
+      const assetPath = res.file?.path || '';
+      updateImageReplacement(index, 'imagePath', assetPath);
+    } catch (e) {
+      console.error('上传失败:', e);
+    }
+  };
+
+  const handleDrop = (e, idx) => {
+    e.preventDefault();
+    setDragOverIdx(null);
+    const file = Array.from(e.dataTransfer?.files || []).find(f => f.type.startsWith('image/'));
+    handleUpload(idx, file);
+  };
+
+  const handleFileSelect = (idx, e) => {
+    const file = e.target?.files?.[0];
+    if (e.target) e.target.value = '';
+    handleUpload(idx, file);
+  };
+
+  if (items.length === 0) {
+    return <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 24, background: 'var(--bg)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>暂无切图标记</div>;
+  }
+
+  return items.map((item, idx) => (
+    <div className="interaction-item" key={idx}>
+      <div className="interaction-header">
+        <span
+          className={`interaction-selector ${item.selector ? 'clickable' : ''}`}
+          title={item.selector ? `点击定位: ${item.selector}` : '未指定'}
+          onClick={() => item.selector && highlightElement(iframeRef?.current, item.selector)}
+        >
+          {formatRegionLabel(item)}
+        </span>
+        <span className="interaction-type" style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)' }}>切图</span>
+        <button className="delete-btn" onClick={() => removeImageReplacement(idx)}>
+          <Icon name="x" size="sm" />
+        </button>
+      </div>
+      <div className="asset-upload-row" style={{ marginTop: 8 }}>
+        <div
+          className={`asset-dropzone ${dragOverIdx === idx ? 'is-dragover' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
+          onDragLeave={() => setDragOverIdx(null)}
+          onDrop={(e) => handleDrop(e, idx)}
+          onClick={() => fileInputRefs.current[idx]?.click()}
+        >
+          {item.imagePath
+            ? <img className="asset-preview" src={`/html/${projectId}/${item.imagePath}`} alt="asset" />
+            : <div className="asset-placeholder">拖拽/点击上传切图</div>
+          }
+        </div>
+        <input
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          ref={(el) => (fileInputRefs.current[idx] = el)}
+          onChange={(e) => handleFileSelect(idx, e)}
+        />
+      </div>
+      <input
+        className="form-input"
+        value={item.imagePath || ''}
+        placeholder="切图路径（自动填充）"
+        readOnly
+        style={{ marginTop: 6 }}
+      />
+      <input
+        className="form-input"
+        value={item.description || ''}
+        placeholder="切图描述（可选）"
+        onChange={(e) => updateImageReplacement(idx, 'description', e.target.value)}
+        style={{ marginTop: 6 }}
+      />
+    </div>
+  ));
+}
+
+/** 功能描述列表 */
+function FunctionDescriptionList({ iframeRef }) {
+  const currentFile = useAppStore((s) => s.currentFile);
+  const removeFunctionDescription = useAppStore((s) => s.removeFunctionDescription);
+  const updateFunctionDescription = useAppStore((s) => s.updateFunctionDescription);
+  const items = currentFile?.functionDescriptions || [];
+
+  if (items.length === 0) {
+    return <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 24, background: 'var(--bg)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>暂无功能描述</div>;
+  }
+
+  return items.map((item, idx) => (
+    <div className="interaction-item" key={idx}>
+      <div className="interaction-header">
+        <span
+          className={`interaction-selector ${item.selector ? 'clickable' : ''}`}
+          title={item.selector ? `点击定位: ${item.selector}` : '未指定'}
+          onClick={() => item.selector && highlightElement(iframeRef?.current, item.selector)}
+        >
+          {formatRegionLabel(item)}
+        </span>
+        <span className="interaction-type" style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}>功能</span>
+        <button className="delete-btn" onClick={() => removeFunctionDescription(idx)}>
+          <Icon name="x" size="sm" />
+        </button>
+      </div>
+      <textarea
+        className="form-input"
+        style={{ marginTop: 8, minHeight: 60, resize: 'vertical' }}
+        placeholder="功能描述（如：点击打开摄像头拍摄、扫码识别二维码等）"
+        value={item.description || ''}
+        onChange={(e) => updateFunctionDescription(idx, 'description', e.target.value)}
+      />
+    </div>
+  ));
+}
+
+/** TabBar 配置 */
+function TabBarConfig() {
+  const currentFile = useAppStore((s) => s.currentFile);
+  const updateCurrentFile = useAppStore((s) => s.updateCurrentFile);
+  const isTabbar = currentFile?.isTabbarPage || false;
+
+  const handleToggle = (checked) => {
+    updateCurrentFile({
+      isTabbarPage: checked,
+      tabIndex: checked ? (currentFile?.tabIndex || null) : null,
+      tabName: checked ? (currentFile?.tabName || null) : null,
+      tabIconDefault: checked ? (currentFile?.tabIconDefault || null) : null,
+      tabIconSelected: checked ? (currentFile?.tabIconSelected || null) : null,
+    });
+  };
+
+  const handleFieldChange = (field, value) => {
+    updateCurrentFile({ [field]: value });
+  };
+
+  return (
+    <div className="panel-section">
+      <div className="panel-section-title">Tabbar 配置</div>
+      <div className="form-group">
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={isTabbar}
+            onChange={(e) => handleToggle(e.target.checked)}
+          />
+          <span>这是 Tabbar 页面</span>
+        </label>
+      </div>
+      {isTabbar && (
+        <>
+          <div className="form-group">
+            <label className="form-label">Tab 序号（从1开始）</label>
+            <input type="number" className="form-input" min="1" max="10" placeholder="如：1"
+              value={currentFile?.tabIndex || ''}
+              onChange={(e) => handleFieldChange('tabIndex', e.target.value ? parseInt(e.target.value) : null)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Tab 名称</label>
+            <input type="text" className="form-input" placeholder="如：首页"
+              value={currentFile?.tabName || ''}
+              onChange={(e) => handleFieldChange('tabName', e.target.value || null)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">默认图标路径</label>
+            <input type="text" className="form-input" placeholder="如：assets/tab_home.png"
+              value={currentFile?.tabIconDefault || ''}
+              onChange={(e) => handleFieldChange('tabIconDefault', e.target.value || null)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">选中图标路径</label>
+            <input type="text" className="form-input" placeholder="如：assets/tab_home_selected.png"
+              value={currentFile?.tabIconSelected || ''}
+              onChange={(e) => handleFieldChange('tabIconSelected', e.target.value || null)} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** 数据源列表 */
+function DataSourceList() {
+  const currentFile = useAppStore((s) => s.currentFile);
+  const addDataSource = useAppStore((s) => s.addDataSource);
+  const updateDataSource = useAppStore((s) => s.updateDataSource);
+  const removeDataSource = useAppStore((s) => s.removeDataSource);
+  const items = currentFile?.dataSources || [];
+
+  return (
+    <>
+      {items.map((item, idx) => (
+        <div className="data-source-item" key={idx}>
+          <div className="data-source-header">
+            <span className="data-source-name">{item.name || `数据源 ${idx + 1}`}</span>
+            <button className="delete-btn" onClick={() => removeDataSource(idx)}>
+              <Icon name="trash" size="sm" />
+            </button>
+          </div>
+          <div className="form-group">
+            <label className="form-label">名称</label>
+            <input className="form-input" value={item.name || ''} onChange={(e) => updateDataSource(idx, 'name', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">类型</label>
+            <select className="form-select" value={item.type || 'api'} onChange={(e) => updateDataSource(idx, 'type', e.target.value)}>
+              <option value="api">API 请求</option>
+              <option value="local">本地数据</option>
+              <option value="websocket">WebSocket</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">URL / 路径</label>
+            <input className="form-input" value={item.url || ''} onChange={(e) => updateDataSource(idx, 'url', e.target.value)} />
+          </div>
+        </div>
+      ))}
+      {items.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>暂无数据源</div>}
+    </>
+  );
+}
+
+export function ConfigPanel({ iframeRef }) {
+  const currentFile = useAppStore((s) => s.currentFile);
+  const pagesConfig = useAppStore((s) => s.pagesConfig);
+  const activePanelTab = useAppStore((s) => s.activePanelTab);
+  const setActivePanelTab = useAppStore((s) => s.setActivePanelTab);
+  const updateCurrentFile = useAppStore((s) => s.updateCurrentFile);
+  const addDataSource = useAppStore((s) => s.addDataSource);
+
+  const groups = pagesConfig.pageGroups || [];
+
+  const handleFileFieldChange = (field, value) => {
+    updateCurrentFile({ [field]: value });
+  };
+
+  return (
+    <aside className="panel">
+      <div className="panel-tabs">
+        <div className={`panel-tab ${activePanelTab === 'file' ? 'active' : ''}`} onClick={() => setActivePanelTab('file')}>页面配置</div>
+        <div className={`panel-tab ${activePanelTab === 'analysis' ? 'active' : ''}`} onClick={() => setActivePanelTab('analysis')}>数据管理</div>
+      </div>
+
+      {activePanelTab === 'file' && (
+        <div className="panel-content">
+          <div className="panel-section">
+            <div className="panel-section-title">基本信息</div>
+            <div className="form-group">
+              <label className="form-label">状态名称</label>
+              <input type="text" className="form-input" placeholder="如：默认状态、加载中、空数据"
+                value={currentFile?.stateName || ''}
+                onChange={(e) => handleFileFieldChange('stateName', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">状态描述</label>
+              <textarea className="form-textarea" placeholder="描述此状态的显示场景"
+                value={currentFile?.description || ''}
+                onChange={(e) => handleFileFieldChange('description', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">开发状态</label>
+              <div className="dev-status-radio-group">
+                {['pending', 'developing', 'completed'].map((status) => (
+                  <label className="radio-label" key={status}>
+                    <input type="radio" name="devStatus" value={status}
+                      checked={currentFile?.devStatus === status}
+                      onChange={(e) => handleFileFieldChange('devStatus', e.target.value)} />
+                    <span className={`dev-status-badge ${status}`}>
+                      {status === 'pending' ? '待开发' : status === 'developing' ? '开发中' : '已完成'}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {currentFile?.sourceType === 'image' && (
+            <div className="panel-section">
+              <div className="panel-section-title">设计图模式</div>
+              <div className="form-group">
+                <label className="form-label">设计图路径</label>
+                <input type="text" className="form-input" readOnly value={currentFile?.imagePath || ''} />
+              </div>
+            </div>
+          )}
+
+          <div className="panel-section">
+            <div className="panel-section-title">所属页面分组</div>
+            <select className="form-select" value={currentFile?.groupId || ''}
+              onChange={(e) => handleFileFieldChange('groupId', e.target.value || null)}>
+              <option value="">未分组</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <TabBarConfig />
+
+          <div className="panel-section">
+            <div className="panel-section-title">交互行为</div>
+            <InteractionList iframeRef={iframeRef} />
+          </div>
+
+          <div className="panel-section">
+            <div className="panel-section-title">切图标记</div>
+            <ImageReplacementList iframeRef={iframeRef} />
+          </div>
+
+          <div className="panel-section">
+            <div className="panel-section-title">功能描述</div>
+            <FunctionDescriptionList iframeRef={iframeRef} />
+          </div>
+        </div>
+      )}
+
+      {activePanelTab === 'analysis' && (
+        <div className="panel-content">
+          <div className="panel-section">
+            <div className="panel-section-title">
+              数据加载配置
+              <button className="btn-icon" onClick={() => addDataSource({ name: '', type: 'api', url: '' })} title="添加数据源">
+                <Icon name="plus" size="sm" />
+              </button>
+            </div>
+            <DataSourceList />
+          </div>
+        </div>
+      )}
+    </aside>
+  );
+}
