@@ -343,22 +343,46 @@ export function DeleteConfirmModal({ isOpen, onClose, count, onConfirm }) {
 // ==================== Prompt Modal ====================
 export function PromptModal({ isOpen, onClose }) {
   const pagesConfig = useAppStore((s) => s.pagesConfig);
+  const currentFile = useAppStore((s) => s.currentFile);
   const showToast = useAppStore((s) => s.showToast);
   const [platform, setPlatform] = useState('flutter');
   const [filterMode, setFilterMode] = useState('status');
   const [statusFilters, setStatusFilters] = useState({ pending: false, developing: true, completed: false });
   const [promptText, setPromptText] = useState('点击"生成"按钮生成提示词');
 
+  React.useEffect(() => {
+    if (isOpen) setPromptText('点击"生成"按钮生成提示词');
+  }, [isOpen]);
+
   const generate = async () => {
-    const options = {
+    const currentOnly = filterMode === 'current';
+
+    if (currentOnly && !currentFile) {
+      showToast('请先选择当前页面');
+      return;
+    }
+
+    const pagesForPrompt = currentOnly
+      ? {
+          ...pagesConfig,
+          htmlFiles: (pagesConfig.htmlFiles || []).filter(f => f.path === currentFile.path)
+        }
+      : pagesConfig;
+
+    const project = useAppStore.getState().getCurrentProject();
+    const designSystem = project?.designSystem || null;
+
+    const activeFilters = Object.entries(statusFilters).filter(([_, v]) => v).map(([k]) => k);
+
+    const res = await api.generatePrompt({
+      pages: pagesForPrompt,
       targetPlatform: platform,
-      filterMode,
-      statusFilters: Object.entries(statusFilters).filter(([_, v]) => v).map(([k]) => k),
-      pagesConfig,
-    };
-    const res = await api.generatePrompt(options);
+      designSystem,
+      statusFilters: currentOnly ? null : (activeFilters.length > 0 ? activeFilters : null),
+    });
     if (res.error) { showToast(res.error); return; }
     setPromptText(res.prompt || '生成失败');
+    showToast('提示词已生成');
   };
 
   const copy = async () => {
@@ -367,12 +391,14 @@ export function PromptModal({ isOpen, onClose }) {
   };
 
   const download = () => {
-    const blob = new Blob([promptText], { type: 'text/plain' });
+    const blob = new Blob([promptText], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'prompt.txt'; a.click();
+    a.href = url; a.download = 'pages-prompt.md'; a.click();
     URL.revokeObjectURL(url);
   };
+
+  const isCurrentMode = filterMode === 'current';
 
   return (
     <ModalOverlay isOpen={isOpen} onClose={onClose}>
@@ -403,12 +429,12 @@ export function PromptModal({ isOpen, onClose }) {
               </label>
             </div>
           </div>
-          <div className="form-group">
+          <div className={`form-group${isCurrentMode ? ' is-disabled' : ''}`}>
             <label className="form-label">开发状态筛选</label>
             <div className="dev-status-filter">
               {['pending', 'developing', 'completed'].map((s) => (
                 <label className="checkbox-label" key={s}>
-                  <input type="checkbox" checked={statusFilters[s]}
+                  <input type="checkbox" checked={statusFilters[s]} disabled={isCurrentMode}
                     onChange={(e) => setStatusFilters({ ...statusFilters, [s]: e.target.checked })} />
                   <span className={`dev-status-badge ${s}`}>
                     {s === 'pending' ? '待开发' : s === 'developing' ? '开发中' : '已完成'}

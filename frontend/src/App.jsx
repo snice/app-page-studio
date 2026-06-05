@@ -10,9 +10,10 @@ import { useAppStore } from './lib/state';
 import { api } from './lib/api';
 import { Picker, ColorPickerModule } from './lib/picker';
 import { useWebSocket } from './hooks/useWebSocket';
+import { ElementStylesPanel } from './components/picker/ElementStylesPanel';
 
 // ==================== 选择器动作菜单 ====================
-function PickerActionMenu({ menu, onAction, onClose }) {
+function PickerActionMenu({ menu, isHtml, onAction, onClose }) {
   useEffect(() => {
     if (!menu) return;
     const handler = () => onClose();
@@ -21,6 +22,14 @@ function PickerActionMenu({ menu, onAction, onClose }) {
   }, [menu, onClose]);
 
   if (!menu) return null;
+
+  const items = [
+    { key: 'interaction', icon: 'target', label: '添加交互' },
+    { key: 'image', icon: 'image', label: '切图标记' },
+    { key: 'function', icon: 'info', label: '功能描述' },
+    ...(isHtml ? [{ key: 'styles', icon: 'code', label: '查看样式' }] : []),
+  ];
+
   return (
     <div
       className="picker-action-menu"
@@ -32,11 +41,7 @@ function PickerActionMenu({ menu, onAction, onClose }) {
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {[
-        { key: 'interaction', icon: 'target', label: '添加交互' },
-        { key: 'image', icon: 'image', label: '切图标记' },
-        { key: 'function', icon: 'info', label: '功能描述' },
-      ].map(({ key, icon, label }) => (
+      {items.map(({ key, icon, label }) => (
         <div
           key={key}
           className="picker-menu-item"
@@ -87,6 +92,11 @@ export default function App() {
 
   // Picker action menu state
   const [pickerMenu, setPickerMenu] = useState(null); // { x, y, selector, eventType }
+
+  // Element styles panel state
+  const [stylesPanelSelector, setStylesPanelSelector] = useState(null);
+
+  const currentFile = useAppStore((s) => s.currentFile);
 
   // ==================== 初始化 ====================
   const loadConfig = useCallback(async () => {
@@ -234,6 +244,8 @@ export default function App() {
     } else if (action === 'function') {
       addFunctionDescription({ selector: selector, description: '' });
       showToast(`已添加功能描述: ${selector}`);
+    } else if (action === 'styles') {
+      setStylesPanelSelector(selector);
     }
   }, []);
 
@@ -357,7 +369,14 @@ export default function App() {
 
       <Toast />
 
-      <PickerActionMenu menu={pickerMenu} onAction={handlePickerAction} onClose={() => setPickerMenu(null)} />
+      <PickerActionMenu menu={pickerMenu} isHtml={currentFile?.sourceType === 'html'} onAction={handlePickerAction} onClose={() => setPickerMenu(null)} />
+      {stylesPanelSelector && (
+        <ElementStylesPanel
+          selector={stylesPanelSelector}
+          iframeRef={iframeRef}
+          onClose={() => setStylesPanelSelector(null)}
+        />
+      )}
 
       <ProjectModal isOpen={projectModalOpen} onClose={() => setProjectModalOpen(false)} onProjectSelected={handleProjectSelected} />
       <ImageUploadModal isOpen={imageUploadOpen} onClose={() => setImageUploadOpen(false)} />

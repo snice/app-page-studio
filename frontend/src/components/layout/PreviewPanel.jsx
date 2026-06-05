@@ -17,6 +17,8 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
 
   const [device, setDevice] = useState(DEVICES[0]);
 
+  const zoomScale = zoom / 100;
+
   const adjustZoom = (delta) => {
     setZoom(zoom + Math.round(delta * 100));
   };
@@ -36,6 +38,9 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
 
   const isImageMode = currentFile?.sourceType === 'image';
 
+  const iframeWidth = device.width / zoomScale;
+  const iframeHeight = device.height / zoomScale;
+
   return (
     <main className="preview-container">
       <div className="preview-toolbar">
@@ -53,7 +58,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
         <span className="preview-info">{previewInfo}</span>
         <div className="preview-actions">
           <div className="zoom-control">
-            <button className="zoom-btn" onClick={() => adjustZoom(-5)} title="缩小">
+            <button className="zoom-btn" onClick={() => adjustZoom(-0.05)} title="缩小">
               <Icon name="minus" size="sm" />
             </button>
             <input
@@ -65,7 +70,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
               value={zoom}
               onChange={(e) => setZoom(Number(e.target.value))}
             />
-            <button className="zoom-btn" onClick={() => adjustZoom(5)} title="放大">
+            <button className="zoom-btn" onClick={() => adjustZoom(0.05)} title="放大">
               <Icon name="plus" size="sm" />
             </button>
             <span className="zoom-value">{zoom}%</span>
@@ -90,21 +95,35 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
         </div>
       </div>
       <div className="preview-frame-wrapper">
-        <div
-          className="phone-frame"
-          style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center center' }}
-        >
+        <div className="phone-frame">
           <div
             className={`phone-screen ${isImageMode ? 'image-mode' : ''}`}
             style={{ width: device.width, height: device.height }}
           >
             {iframeSrc ? (
-              <iframe ref={iframeRef} src={iframeSrc} title="preview" onLoad={onIframeLoad} />
+              <iframe
+                ref={iframeRef}
+                src={iframeSrc}
+                title="preview"
+                onLoad={onIframeLoad}
+                style={{
+                  width: iframeWidth,
+                  height: iframeHeight,
+                  transform: `scale(${zoomScale})`,
+                  transformOrigin: 'top left',
+                }}
+              />
             ) : isImageMode && currentFile ? (
               <img
                 className="design-image"
                 src={`/html/${useAppStore.getState().getCurrentProjectId()}/${currentFile.imagePath || currentFile.path}`}
                 alt="design"
+                style={{
+                  width: device.width,
+                  height: 'auto',
+                  transform: `scale(${zoomScale})`,
+                  transformOrigin: 'top left',
+                }}
               />
             ) : (
               <div className="empty-preview">
