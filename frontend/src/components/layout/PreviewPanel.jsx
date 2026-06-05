@@ -10,6 +10,7 @@ const DEVICES = [
 
 export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, onIframeLoad }) {
   const currentFile = useAppStore((s) => s.currentFile);
+  const currentProjectId = useAppStore((s) => s.config.currentProject ?? s.getCurrentProjectId());
   const isPickerActive = useAppStore((s) => s.isPickerActive);
   const isColorPickerActive = useAppStore((s) => s.isColorPickerActive);
   const zoom = useAppStore((s) => s.zoom);
@@ -33,7 +34,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
   const iframeSrc = currentFile
     ? currentFile.sourceType === 'image'
       ? null
-      : `/html/${useAppStore.getState().getCurrentProjectId()}/${currentFile.path}`
+      : `/html/${currentProjectId}/${currentFile.path}`
     : null;
 
   const isImageMode = currentFile?.sourceType === 'image';
@@ -58,7 +59,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
         <span className="preview-info">{previewInfo}</span>
         <div className="preview-actions">
           <div className="zoom-control">
-            <button className="zoom-btn" onClick={() => adjustZoom(-0.05)} title="缩小">
+            <button className="zoom-btn" onClick={() => adjustZoom(-0.02)} title="缩小">
               <Icon name="minus" size="sm" />
             </button>
             <input
@@ -70,7 +71,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
               value={zoom}
               onChange={(e) => setZoom(Number(e.target.value))}
             />
-            <button className="zoom-btn" onClick={() => adjustZoom(0.05)} title="放大">
+            <button className="zoom-btn" onClick={() => adjustZoom(0.02)} title="放大">
               <Icon name="plus" size="sm" />
             </button>
             <span className="zoom-value">{zoom}%</span>
@@ -116,7 +117,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
             ) : isImageMode && currentFile ? (
               <img
                 className="design-image"
-                src={`/html/${useAppStore.getState().getCurrentProjectId()}/${currentFile.imagePath || currentFile.path}`}
+                src={`/html/${currentProjectId}/${currentFile.imagePath || currentFile.path}`}
                 alt="design"
                 style={{
                   width: device.width,

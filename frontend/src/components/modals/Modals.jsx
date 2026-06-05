@@ -16,18 +16,19 @@ function ModalOverlay({ isOpen, onClose, children }) {
 }
 
 // ==================== Project Modal ====================
-export function ProjectModal({ isOpen, onClose, onProjectSelected }) {
+export function ProjectModal({ isOpen, onClose, onProjectSelected, onOpenDesignSystem }) {
   const [projects, setProjects] = useState([]);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newDesignSystem, setNewDesignSystem] = useState('');
   const zipRef = useRef(null);
+  const replaceZipRef = useRef(null);
   const [zipFileName, setZipFileName] = useState('未选择文件');
   const [editingId, setEditingId] = useState(null);
   const showToast = useAppStore((s) => s.showToast);
   const setConfig = useAppStore((s) => s.setConfig);
   const setCurrentProjectId = useAppStore((s) => s.setCurrentProjectId);
-  const config = useAppStore((s) => s.config);
+  const getCurrentProjectId = useAppStore((s) => s.getCurrentProjectId);
 
   const loadProjects = async () => {
     const res = await api.getProjects();
@@ -36,8 +37,17 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected }) {
   };
 
   React.useEffect(() => {
-    if (isOpen) loadProjects();
+    if (isOpen) {
+      loadProjects();
+      resetForm();
+    }
   }, [isOpen]);
+
+  const resetForm = () => {
+    setNewName(''); setNewDesc(''); setNewDesignSystem(''); setZipFileName('未选择文件');
+    setEditingId(null);
+    if (zipRef.current) zipRef.current.value = '';
+  };
 
   const handleCreateOrUpdate = async () => {
     if (!newName.trim()) { showToast('请输入项目名称'); return; }
@@ -48,16 +58,28 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected }) {
     }
     const zipFile = zipRef.current?.files?.[0];
 
-    if (editingId) {
-      await api.updateProject(editingId, newName, newDesc, designSystem);
-      showToast('项目已更新');
-    } else {
-      await api.createProject(newName, newDesc, zipFile);
-      showToast('项目已创建');
+    try {
+      if (editingId) {
+        await api.updateProject(editingId, newName, newDesc, designSystem);
+        showToast('项目已更新');
+      } else {
+        if (!zipFile) { showToast('请选择 HTML/PNG ZIP 文件'); return; }
+        const result = await api.createProject(newName, newDesc, zipFile);
+        if (result.project?.id) {
+          setCurrentProjectId(result.project.id);
+          if (designSystem) {
+            await api.updateProject(result.project.id, newName, newDesc, designSystem);
+          }
+        }
+        showToast('项目创建成功');
+        onProjectSelected?.();
+        onClose();
+      }
+      resetForm();
+      loadProjects();
+    } catch (e) {
+      showToast('操作失败: ' + e.message);
     }
-    setNewName(''); setNewDesc(''); setNewDesignSystem(''); setZipFileName('未选择文件');
-    setEditingId(null);
-    loadProjects();
   };
 
   const switchToProject = (project) => {
@@ -67,17 +89,62 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected }) {
     onClose();
   };
 
+  const handleEdit = (e, p) => {
+    e.stopPropagation();
+    setEditingId(p.id);
+    setNewName(p.name);
+    setNewDesc(p.description || '');
+    setNewDesignSystem(p.designSystem ? JSON.stringify(p.designSystem, null, 2) : '');
+    setZipFileName('无需重新上传');
+  };
+
+  const handleReplaceHtml = (e, projectId) => {
+    e.stopPropagation();
+    replaceZipRef.current?.setAttribute('data-project-id', projectId);
+    replaceZipRef.current?.click();
+  };
+
+  const handleReplaceZipChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const projectId = parseInt(e.target.getAttribute('data-project-id'));
+    e.target.value = '';
+    try {
+      showToast('正在上传...');
+      await api.replaceProjectHtml(projectId, file);
+      showToast('HTML 已替换');
+      if (projectId === getCurrentProjectId()) {
+        onProjectSelected?.();
+      }
+    } catch (err) {
+      showToast('替换失败: ' + err.message);
+    }
+  };
+
+  const handleOpenDesignSystem = (e, p) => {
+    e.stopPropagation();
+    onOpenDesignSystem?.(p.id);
+  };
+
   const handleDelete = async (e, id) => {
     e.stopPropagation();
-    if (!confirm('确定删除此项目？')) return;
-    await api.deleteProject(id);
-    showToast('项目已删除');
-    loadProjects();
+    if (!confirm('确定删除此项目？所有相关数据将被删除。')) return;
+    try {
+      const currentId = getCurrentProjectId();
+      await api.deleteProject(id);
+      if (currentId === id) setCurrentProjectId(null);
+      showToast('项目已删除');
+      loadProjects();
+    } catch (err) {
+      showToast('删除失败: ' + err.message);
+    }
   };
+
+  const currentProjectId = getCurrentProjectId();
 
   return (
     <ModalOverlay isOpen={isOpen} onClose={onClose}>
-      <div className="modal">
+      <div className="modal wide">
         <div className="modal-header">
           <span className="modal-title">项目管理</span>
           <button className="modal-close" onClick={onClose}><Icon name="x" /></button>
@@ -86,18 +153,26 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected }) {
           <div className="form-group">
             <label className="form-label">项目列表</label>
             <div className="browser-list" style={{ maxHeight: 280, marginBottom: 16 }}>
-              {projects.map((p) => (
-                <div className="browser-item" key={p.id} onClick={() => switchToProject(p)}>
+              {projects.length === 0 ? (
+                <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>暂无项目，请创建新项目</div>
+              ) : projects.map((p) => (
+                <div className={`browser-item ${p.id === currentProjectId ? 'selected' : ''}`} key={p.id} onClick={() => switchToProject(p)}>
                   <span className="browser-icon"><Icon name="folder" size="lg" /></span>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="browser-name">{p.name}</div>
-                    {p.description && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.description}</div>}
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{p.description || '无描述'}</div>
                   </div>
-                  <div className="project-actions">
-                    <button className="btn btn-sm btn-icon btn-secondary" onClick={(e) => { e.stopPropagation(); setEditingId(p.id); setNewName(p.name); setNewDesc(p.description || ''); }}>
+                  <div className="project-actions" style={{ display: 'flex', gap: 4 }}>
+                    <button className="btn btn-icon btn-sm" title="设计系统" onClick={(e) => handleOpenDesignSystem(e, p)}>
+                      <Icon name="palette" size="sm" />
+                    </button>
+                    <button className="btn btn-icon btn-sm" title="编辑" onClick={(e) => handleEdit(e, p)}>
                       <Icon name="edit" size="sm" />
                     </button>
-                    <button className="btn btn-sm btn-icon btn-secondary" onClick={(e) => handleDelete(e, p.id)}>
+                    <button className="btn btn-icon btn-sm" title="替换 HTML" onClick={(e) => handleReplaceHtml(e, p.id)}>
+                      <Icon name="upload" size="sm" />
+                    </button>
+                    <button className="btn btn-icon btn-sm" title="删除" onClick={(e) => handleDelete(e, p.id)}>
                       <Icon name="trash" size="sm" />
                     </button>
                   </div>
@@ -105,6 +180,7 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected }) {
               ))}
             </div>
           </div>
+          <input type="file" ref={replaceZipRef} accept=".zip" style={{ display: 'none' }} onChange={handleReplaceZipChange} />
           <div className="form-group" style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
             <label className="form-label">{editingId ? '编辑项目' : '创建新项目'}</label>
             <input type="text" className="form-input" placeholder="项目名称" style={{ marginBottom: 8 }}
@@ -128,7 +204,7 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>关闭</button>
-          <button className="btn btn-primary" onClick={handleCreateOrUpdate}>{editingId ? '更新' : '创建'}</button>
+          <button className="btn btn-primary" onClick={handleCreateOrUpdate}>{editingId ? '保存' : '创建'}</button>
         </div>
       </div>
     </ModalOverlay>
@@ -136,7 +212,7 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected }) {
 }
 
 // ==================== Image Upload Modal ====================
-export function ImageUploadModal({ isOpen, onClose }) {
+export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
   const imgRef = useRef(null);
   const zipRef = useRef(null);
   const showToast = useAppStore((s) => s.showToast);
@@ -147,6 +223,7 @@ export function ImageUploadModal({ isOpen, onClose }) {
     const res = await api.uploadDesignImages(Array.from(files));
     if (res.error) { showToast(res.error); return; }
     showToast(`已上传 ${res.count || files.length} 张设计图`);
+    onSuccess?.();
     onClose();
   };
 
@@ -155,6 +232,7 @@ export function ImageUploadModal({ isOpen, onClose }) {
     const res = await api.uploadHtmlZip(file);
     if (res.error) { showToast(res.error); return; }
     showToast('HTML ZIP 已上传');
+    onSuccess?.();
     onClose();
   };
 

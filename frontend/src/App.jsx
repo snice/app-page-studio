@@ -79,6 +79,7 @@ export default function App() {
   const addImageReplacement = useAppStore((s) => s.addImageReplacement);
   const addFunctionDescription = useAppStore((s) => s.addFunctionDescription);
   const setPickedColors = useAppStore((s) => s.setPickedColors);
+  const setZoom = useAppStore((s) => s.setZoom);
 
   const iframeRef = useRef(null);
 
@@ -97,6 +98,7 @@ export default function App() {
   const [stylesPanelSelector, setStylesPanelSelector] = useState(null);
 
   const currentFile = useAppStore((s) => s.currentFile);
+  const selectedFilesCount = useAppStore((s) => s.selectedFiles.size);
 
   // ==================== 初始化 ====================
   const loadConfig = useCallback(async () => {
@@ -287,6 +289,8 @@ export default function App() {
   };
 
   const handleProjectSelected = async () => {
+    setCurrentFile(null);
+    setZoom(100);
     await loadPages();
     await scanHtmlFiles();
     await registerSession();
@@ -294,6 +298,39 @@ export default function App() {
 
   const handleFileSelected = (path) => {
     setCurrentFile(path);
+  };
+
+  const handleDeleteFiles = async () => {
+    const state = useAppStore.getState();
+    const projectId = state.getCurrentProjectId();
+    if (!projectId) { showToast('请先选择项目'); return; }
+    const selectedPaths = Array.from(state.selectedFiles);
+    if (selectedPaths.length === 0) return;
+
+    const files = selectedPaths
+      .map(path => state.pagesConfig.htmlFiles.find(f => f.path === path))
+      .filter(Boolean)
+      .map(f => ({ path: f.path, sourceType: f.sourceType || (f.imagePath ? 'image' : 'html') }));
+
+    try {
+      const res = await api.deleteFiles({ projectId, files });
+      if (res.error) throw new Error(res.error);
+    } catch (e) {
+      showToast('删除失败: ' + e.message);
+      return;
+    }
+
+    const selectedSet = new Set(selectedPaths);
+    const newHtmlFiles = (state.pagesConfig.htmlFiles || []).filter(f => !selectedSet.has(f.path));
+    setPagesConfig({ ...state.pagesConfig, htmlFiles: newHtmlFiles });
+    setHtmlFiles(newHtmlFiles);
+
+    if (state.currentFile && selectedSet.has(state.currentFile.path)) {
+      setCurrentFile(null);
+    }
+
+    state.clearSelection();
+    showToast('已删除选中页面');
   };
 
   // ==================== Picker 切换 ====================
@@ -357,6 +394,7 @@ export default function App() {
         <Sidebar
           onCreateGroup={() => setGroupModalOpen(true)}
           onFileSelected={handleFileSelected}
+          onDeleteFiles={() => setDeleteModalOpen(true)}
         />
         <PreviewPanel
           onTogglePicker={handleTogglePicker}
@@ -378,10 +416,10 @@ export default function App() {
         />
       )}
 
-      <ProjectModal isOpen={projectModalOpen} onClose={() => setProjectModalOpen(false)} onProjectSelected={handleProjectSelected} />
-      <ImageUploadModal isOpen={imageUploadOpen} onClose={() => setImageUploadOpen(false)} />
+      <ProjectModal isOpen={projectModalOpen} onClose={() => setProjectModalOpen(false)} onProjectSelected={handleProjectSelected} onOpenDesignSystem={(projectId) => { const p = useAppStore.getState().config.projects?.find(pr => pr.id === projectId); setEditingDesignSystem(p?.designSystem || { colors: [], spacing: {}, radius: {} }); setEditingDesignProjectId(projectId); setDesignDrawerOpen(true); }} />
+      <ImageUploadModal isOpen={imageUploadOpen} onClose={() => setImageUploadOpen(false)} onSuccess={scanHtmlFiles} />
       <GroupModal isOpen={groupModalOpen} onClose={() => setGroupModalOpen(false)} />
-      <DeleteConfirmModal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} count={0} onConfirm={() => {}} />
+      <DeleteConfirmModal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} count={selectedFilesCount} onConfirm={handleDeleteFiles} />
       <PromptModal isOpen={promptModalOpen} onClose={() => setPromptModalOpen(false)} />
       <DesignSystemDrawer isOpen={designDrawerOpen} onClose={() => setDesignDrawerOpen(false)} />
     </>

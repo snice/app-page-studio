@@ -52,7 +52,7 @@ function FileItem({ file, isActive, isSelected, search, onSelect, onToggleSelect
   );
 }
 
-export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected }) {
+export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onDeleteFiles }) {
   const pagesConfig = useAppStore((s) => s.pagesConfig);
   const currentFile = useAppStore((s) => s.currentFile);
   const selectedFiles = useAppStore((s) => s.selectedFiles);
@@ -158,7 +158,7 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected }) {
           </div>
           <div className="selection-toolbar-actions">
             <button className="btn btn-sm" style={{ background: '#000', color: '#fff' }} onClick={onCreateGroup}>创建分组</button>
-            <button className="btn btn-sm btn-secondary" onClick={() => useAppStore.getState().showToast('删除功能待实现')}>
+            <button className="btn btn-sm btn-secondary" onClick={onDeleteFiles}>
               <Icon name="trash" size="sm" /> 删除
             </button>
             <button className="btn btn-sm btn-secondary" onClick={clearSelection}>取消</button>

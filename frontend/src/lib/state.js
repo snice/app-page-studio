@@ -137,6 +137,7 @@ export const useAppStore = create((set, get) => ({
   },
 
   setCurrentFile(path) {
+    if (!path) { set({ currentFile: null }); return; }
     set((s) => {
       const file = s.pagesConfig.htmlFiles.find((f) => f.path === path);
       return file ? { currentFile: file } : {};
