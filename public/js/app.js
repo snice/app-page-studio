@@ -143,7 +143,8 @@ async function scanHtmlFiles() {
   ]);
   const htmlFiles = (htmlData.files || []).map(f => ({ ...f, sourceType: 'html' }));
   const imageFiles = (imageData.files || []).map(f => ({ ...f, sourceType: 'image' }));
-  State.htmlFiles = [...htmlFiles, ...imageFiles];
+  const psdFiles = (htmlData.psdFiles || []).map(f => ({ ...f, sourceType: 'psd' }));
+  State.htmlFiles = [...htmlFiles, ...imageFiles, ...psdFiles];
   State.syncFilesToConfig();
   UI.renderFileList();
 }
@@ -2339,6 +2340,8 @@ function closeImageUploadModal() {
   UI.closeModal('imageUploadModal');
   const dropzone = document.getElementById('imageDropzone');
   if (dropzone) dropzone.classList.remove('is-dragover');
+  const psdDropzone = document.getElementById('psdDropzone');
+  if (psdDropzone) psdDropzone.classList.remove('is-dragover');
   const htmlDropzone = document.getElementById('htmlZipDropzone');
   if (htmlDropzone) htmlDropzone.classList.remove('is-dragover');
 }
@@ -2411,6 +2414,45 @@ function handleHtmlZipDrop(e) {
   if (dropzone) dropzone.classList.remove('is-dragover');
   const file = Array.from(e.dataTransfer?.files || []).find(f => f.name.toLowerCase().endsWith('.zip'));
   handleHtmlZipFiles(file);
+}
+
+// ==================== PSD 上传 ====================
+
+function triggerPsdPicker() {
+  const input = document.getElementById('psdInput');
+  if (input) input.click();
+}
+
+async function handlePsdFiles(files) {
+  if (!files || files.length === 0) return;
+  try {
+    showToast('正在上传 PSD...');
+    const res = await API.uploadPsd(files);
+    if (res.error) {
+      throw new Error(res.error);
+    }
+    showToast('PSD 已上传');
+    await scanHtmlFiles();
+    closeImageUploadModal();
+  } catch (e) {
+    showToast('上传失败: ' + e.message);
+  }
+}
+
+async function handlePsdSelect(input) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  await handlePsdFiles(files);
+}
+
+function handlePsdDrop(e) {
+  e.preventDefault();
+  const dropzone = document.getElementById('psdDropzone');
+  if (dropzone) dropzone.classList.remove('is-dragover');
+  const files = Array.from(e.dataTransfer?.files || []).filter(f =>
+    f.name.toLowerCase().endsWith('.psd') || f.name.toLowerCase().endsWith('.zip')
+  );
+  handlePsdFiles(files);
 }
 
 // ==================== 提示词生成 ====================
@@ -2595,6 +2637,16 @@ function initEventListeners() {
     });
     dropzone.addEventListener('dragleave', () => dropzone.classList.remove('is-dragover'));
     dropzone.addEventListener('drop', handleImageDrop);
+  }
+
+  const psdDropzone = document.getElementById('psdDropzone');
+  if (psdDropzone) {
+    psdDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      psdDropzone.classList.add('is-dragover');
+    });
+    psdDropzone.addEventListener('dragleave', () => psdDropzone.classList.remove('is-dragover'));
+    psdDropzone.addEventListener('drop', handlePsdDrop);
   }
 
   const htmlDropzone = document.getElementById('htmlZipDropzone');

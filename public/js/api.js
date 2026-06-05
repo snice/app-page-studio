@@ -201,6 +201,40 @@ const API = {
     return res.json();
   },
 
+  /**
+   * 上传 PSD 文件
+   * @param {File[]} files - PSD 文件或包含 PSD 的 ZIP
+   * @returns {Promise<Object>}
+   */
+  async uploadPsd(files) {
+    const projectId = this._getProjectId();
+    if (!projectId) {
+      return { error: '请先选择项目' };
+    }
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('psdFiles', file);
+    }
+    const res = await fetch(`/api/upload-psd?projectId=${projectId}`, {
+      method: 'POST',
+      body: formData
+    });
+    return res.json();
+  },
+
+  /**
+   * 获取 PSD 列表
+   * @returns {Promise<Object>}
+   */
+  async listPsdFiles() {
+    const projectId = this._getProjectId();
+    if (!projectId) {
+      return { files: [] };
+    }
+    const res = await fetch(`/api/list-psd?projectId=${projectId}`);
+    return res.json();
+  },
+
   // ==================== 项目管理 API ====================
 
   /**

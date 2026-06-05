@@ -159,6 +159,9 @@ const State = {
         if (file.sourceType === 'image' && !existing.imagePath) {
           existing.imagePath = file.path;
         }
+        if (file.sourceType === 'psd' && file.previewPath) {
+          existing.previewPath = file.previewPath;
+        }
         updatedFiles.push(existing);
       } else {
         updatedFiles.push({
@@ -166,6 +169,7 @@ const State = {
           name: file.name,
           sourceType: file.sourceType || 'html',
           imagePath: file.sourceType === 'image' ? file.path : null,
+          previewPath: file.previewPath || null,
           stateName: '',
           description: '',
           groupId: null,

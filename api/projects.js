@@ -29,6 +29,7 @@ function inspectZipContents(zipBuffer) {
 
   let hasHtml = false;
   let hasImages = false;
+  let hasPsd = false;
 
   for (const entry of entries) {
     if (entry.isDirectory) continue;
@@ -40,10 +41,12 @@ function inspectZipContents(zipBuffer) {
     if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) {
       hasImages = true;
     }
-    if (hasHtml && hasImages) break;
+    if (lower.endsWith('.psd')) {
+      hasPsd = true;
+    }
   }
 
-  return { hasHtml, hasImages };
+  return { hasHtml, hasImages, hasPsd };
 }
 
 // 获取配置（返回项目列表）
@@ -107,15 +110,18 @@ router.post('/projects', upload.single('htmlZip'), (req, res) => {
     // 如果有上传 ZIP 文件，解压到项目目录
     if (req.file) {
       const projectDir = path.join(HTML_CACHES_DIR, String(projectId));
-      const { hasHtml, hasImages } = inspectZipContents(req.file.buffer);
+      const { hasHtml, hasImages, hasPsd } = inspectZipContents(req.file.buffer);
 
       if (hasHtml) {
         extractZipToDir(req.file.buffer, projectDir);
       } else if (hasImages) {
         const designDir = path.join(projectDir, '__design__');
         extractZipToDir(req.file.buffer, designDir);
+      } else if (hasPsd) {
+        const psdDir = path.join(projectDir, 'psd');
+        extractZipToDir(req.file.buffer, psdDir);
       } else {
-        return res.status(400).json({ error: 'ZIP 未包含 HTML 或图片文件' });
+        return res.status(400).json({ error: 'ZIP 未包含 HTML、图片或 PSD 文件' });
       }
     }
 

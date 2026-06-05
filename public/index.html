@@ -336,6 +336,15 @@
         </div>
         <input type="file" id="designImageInput" accept="image/*" multiple style="display:none;" onchange="handleImageSelect(this)">
 
+        <div class="upload-dropzone" id="psdDropzone" onclick="triggerPsdPicker()" style="margin-top:12px;">
+          <div class="upload-dropzone-icon">
+            <icon-component name="layers" size="lg"></icon-component>
+          </div>
+          <div class="upload-dropzone-title">上传 PSD 设计稿</div>
+          <div class="upload-dropzone-sub">点击选择 PSD / 拖拽 PSD 或包含 PSD 的 ZIP</div>
+        </div>
+        <input type="file" id="psdInput" accept=".psd,.zip" multiple style="display:none;" onchange="handlePsdSelect(this)">
+
         <div class="upload-dropzone" id="htmlZipDropzone" onclick="triggerHtmlZipPicker()" style="margin-top:12px;">
           <div class="upload-dropzone-icon">
             <icon-component name="package" size="lg"></icon-component>

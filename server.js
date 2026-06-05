@@ -15,6 +15,7 @@ const pagesRouter = require('./api/pages');
 const htmlRouter = require('./api/html');
 const promptRouter = require('./api/prompt');
 const imageRouter = require('./api/image');
+const psdRouter = require('./api/psd');
 const sessionsRouter = require('./api/sessions');
 const { HTML_CACHES_DIR } = require('./api/utils');
 
@@ -49,6 +50,7 @@ app.use('/api', pagesRouter);
 app.use('/api', htmlRouter);
 app.use('/api', promptRouter);
 app.use('/api', imageRouter);
+app.use('/api', psdRouter);
 app.use('/api', sessionsRouter);
 
 // // SPA fallback：非 API / 非 html 路由返回前端 index.html
@@ -91,7 +93,7 @@ function setupWatcher() {
 
   watcher = chokidar.watch(HTML_CACHES_DIR, { ignoreInitial: true });
   watcher.on('all', (event, filePath) => {
-    if (filePath.endsWith('.html') || filePath.endsWith('.htm')) {
+    if (filePath.endsWith('.html') || filePath.endsWith('.htm') || filePath.endsWith('.psd')) {
       console.log(`📄 ${event}: ${path.basename(filePath)}`);
       clients.forEach(client => {
         if (client.readyState === 1) {

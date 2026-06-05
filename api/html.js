@@ -138,7 +138,32 @@ router.get('/scan-html', (req, res) => {
     return files;
   };
 
-  res.json({ files: scanDir(htmlDir), htmlPath: htmlDir });
+  const psdDir = path.join(htmlDir, '__psd__');
+  const psdFiles = [];
+  if (fs.existsSync(psdDir)) {
+    try {
+      const items = fs.readdirSync(psdDir);
+      for (const item of items) {
+        if (!/\.psd$/i.test(item)) continue;
+        const fullPath = path.join(psdDir, item);
+        try {
+          const stat = fs.statSync(fullPath);
+          const previewName = item.replace(/\.psd$/i, '.png');
+          const hasPreview = fs.existsSync(path.join(psdDir, previewName));
+          psdFiles.push({
+            name: item,
+            path: `__psd__/${item}`,
+            size: stat.size,
+            modified: stat.mtime,
+            sourceType: 'psd',
+            previewPath: hasPreview ? `__psd__/${previewName}` : null
+          });
+        } catch { }
+      }
+    } catch { }
+  }
+
+  res.json({ files: scanDir(htmlDir), psdFiles, htmlPath: htmlDir });
 });
 
 // 读取 HTML 内容（用于元素选择器）

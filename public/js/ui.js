@@ -178,9 +178,11 @@ const UI = {
     const isSelected = State.selectedFiles.has(file.path);
     const devStatus = file.devStatus || 'pending';
     const devStatusLabels = { pending: '待开发', developing: '开发中', completed: '已完成' };
-    const sourceType = file.sourceType === 'image' ? 'image' : 'html';
-    const sourceLabel = sourceType === 'image' ? '设计图' : 'HTML';
-    const fileIcon = sourceType === 'image' ? this.icon('image') : this.icon('file');
+    const sourceType = file.sourceType || 'html';
+    const sourceLabels = { html: 'HTML', image: '设计图', psd: 'PSD' };
+    const sourceLabel = sourceLabels[sourceType] || 'HTML';
+    const sourceIcons = { html: 'file', image: 'image', psd: 'layers' };
+    const fileIcon = this.icon(sourceIcons[sourceType] || 'file');
 
     // 获取搜索关键字并高亮
     const searchText = State.fileFilter.searchText;
@@ -519,9 +521,60 @@ const UI = {
    * 预览文件（HTML 或 设计图）
    * @param {Object} file - 文件对象
    */
+  previewPsd(file) {
+    const screen = document.getElementById('phoneScreen');
+    const projectId = State.getCurrentProjectId();
+    if (!projectId) {
+      screen.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">请先选择项目</div>';
+      return;
+    }
+    const iframe = document.getElementById('previewFrame');
+    if (iframe) {
+      ColorPicker.disable(iframe);
+    }
+    screen.classList.add('image-mode');
+
+    const previewPath = file.previewPath;
+    if (previewPath) {
+      screen.innerHTML = `<img class="design-image" src="/html/${projectId}/${previewPath}" alt="PSD 预览">`;
+    } else {
+      screen.innerHTML = `<div style="padding:40px 20px;text-align:center;">
+        <div style="margin-bottom:16px;opacity:0.4;">${this.icon('layers', 'xl')}</div>
+        <p style="color:var(--text-muted);font-size:13px;">PSD 预览生成中...</p>
+      </div>`;
+      fetch(`/api/psd-preview?projectId=${projectId}&path=${encodeURIComponent(file.path)}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.previewPath) {
+            file.previewPath = data.previewPath;
+            screen.innerHTML = `<img class="design-image" src="/html/${projectId}/${data.previewPath}" alt="PSD 预览">`;
+            setZoom(currentZoom);
+            const img = document.querySelector('.design-image');
+            if (img && typeof setupImageRegionPicker !== 'undefined') {
+              setupImageRegionPicker(img);
+            }
+          } else {
+            screen.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--text-muted);">PSD 预览生成失败</div>`;
+          }
+        })
+        .catch(() => {
+          screen.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--text-muted);">PSD 预览生成失败</div>`;
+        });
+      return;
+    }
+    document.getElementById('previewInfo').textContent = file.path;
+    setZoom(currentZoom);
+    const img = document.querySelector('.design-image');
+    if (img && typeof setupImageRegionPicker !== 'undefined') {
+      setupImageRegionPicker(img);
+    }
+  },
+
   previewFile(file) {
     if (!file) return;
-    if (file.sourceType === 'image') {
+    if (file.sourceType === 'psd') {
+      this.previewPsd(file);
+    } else if (file.sourceType === 'image') {
       this.previewImage(file.path);
     } else {
       this.previewHtml(file.path);
