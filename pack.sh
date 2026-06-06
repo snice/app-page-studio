@@ -42,9 +42,15 @@ mkdir -p "${DIST_DIR}"
 
 # 后端文件
 echo "  复制后端文件..."
-cp package.json server.js db.js "${DIST_DIR}/"
+cp server.js db.js "${DIST_DIR}/"
 cp package-lock.json "${DIST_DIR}/" 2>/dev/null || true
 cp pnpm-lock.yaml "${DIST_DIR}/" 2>/dev/null || true
+# 精简 package.json：只保留 start 脚本
+node -e "
+  const pkg = require('./package.json');
+  pkg.scripts = { start: pkg.scripts.start, postinstall: pkg.scripts.postinstall };
+  require('fs').writeFileSync('${DIST_DIR}/package.json', JSON.stringify(pkg, null, 2) + '\n');
+"
 cp -r api "${DIST_DIR}/api"
 cp -r schemas "${DIST_DIR}/schemas" 2>/dev/null || true
 
