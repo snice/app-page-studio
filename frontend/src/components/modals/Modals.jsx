@@ -63,7 +63,6 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected, onOpenDesignS
         await api.updateProject(editingId, newName, newDesc, designSystem);
         showToast('项目已更新');
       } else {
-        if (!zipFile) { showToast('请选择 HTML/PNG ZIP 文件'); return; }
         const result = await api.createProject(newName, newDesc, zipFile);
         if (result.project?.id) {
           setCurrentProjectId(result.project.id);
@@ -195,11 +194,6 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected, onOpenDesignS
             </div>
             <input type="file" ref={zipRef} accept=".zip" style={{ display: 'none' }}
               onChange={(e) => setZipFileName(e.target.files?.[0]?.name || '未选择文件')} />
-            <button className="btn btn-secondary" style={{ width: '100%' }}
-              onClick={() => zipRef.current?.click()}>
-              <Icon name="upload" /> 选择 HTML/PNG ZIP 文件
-            </button>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, textAlign: 'center' }}>{zipFileName}</div>
           </div>
         </div>
         <div className="modal-footer">
@@ -580,8 +574,12 @@ export function DesignSystemDrawer({ isOpen, onClose }) {
 
   React.useEffect(() => {
     if (isOpen && editingDesignSystem) {
+      const rawColors = editingDesignSystem.colors || [];
+      const colors = Array.isArray(rawColors)
+        ? rawColors
+        : Object.entries(rawColors).map(([name, value]) => ({ name, value }));
       setDs({
-        colors: editingDesignSystem.colors || [],
+        colors,
         spacing: editingDesignSystem.spacing || {},
         radius: editingDesignSystem.radius || {},
       });
