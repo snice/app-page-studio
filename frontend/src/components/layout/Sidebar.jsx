@@ -52,7 +52,7 @@ function FileItem({ file, isActive, isSelected, search, onSelect, onToggleSelect
   );
 }
 
-export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onDeleteFiles }) {
+export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected }) {
   const pagesConfig = useAppStore((s) => s.pagesConfig);
   const currentFile = useAppStore((s) => s.currentFile);
   const selectedFiles = useAppStore((s) => s.selectedFiles);
@@ -60,7 +60,6 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onDele
   const setFileFilter = useAppStore((s) => s.setFileFilter);
   const setCurrentFile = useAppStore((s) => s.setCurrentFile);
   const toggleSelectedFile = useAppStore((s) => s.toggleSelectedFile);
-  const clearSelection = useAppStore((s) => s.clearSelection);
   const deleteGroup = useAppStore((s) => s.deleteGroup);
   const setEditingGroupId = useAppStore((s) => s.setEditingGroupId);
 
@@ -115,8 +114,6 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onDele
     setFileFilter({ devStatus: status });
   };
 
-  const selectionCount = selectedFiles.size;
-
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -150,21 +147,6 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onDele
           ))}
         </div>
       </div>
-
-      {selectionCount > 0 && (
-        <div className="selection-toolbar active">
-          <div className="selection-toolbar-top">
-            已选择 <span className="selection-count">{selectionCount}</span> 个文件
-          </div>
-          <div className="selection-toolbar-actions">
-            <button className="btn btn-sm" style={{ background: '#000', color: '#fff' }} onClick={onCreateGroup}>创建分组</button>
-            <button className="btn btn-sm btn-secondary" onClick={onDeleteFiles}>
-              <Icon name="trash" size="sm" /> 删除
-            </button>
-            <button className="btn btn-sm btn-secondary" onClick={clearSelection}>取消</button>
-          </div>
-        </div>
-      )}
 
       <div className="sidebar-content">
         {groupedFiles.filter(g => g.files.length > 0).map((group) => (

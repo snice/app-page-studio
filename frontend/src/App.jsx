@@ -106,6 +106,7 @@ export default function App() {
 
   const currentFile = useAppStore((s) => s.currentFile);
   const selectedFilesCount = useAppStore((s) => s.selectedFiles.size);
+  const clearSelection = useAppStore((s) => s.clearSelection);
 
   // ==================== 初始化 ====================
   const loadConfig = useCallback(async () => {
@@ -675,8 +676,21 @@ export default function App() {
         <Sidebar
           onCreateGroup={() => setGroupModalOpen(true)}
           onFileSelected={handleFileSelected}
-          onDeleteFiles={() => setDeleteModalOpen(true)}
         />
+        {selectedFilesCount > 0 && (
+          <div className="selection-toolbar-float">
+            <div className="selection-toolbar-top">
+              已选择 <span className="selection-count">{selectedFilesCount}</span> 个文件
+            </div>
+            <div className="selection-toolbar-actions">
+              <button className="btn btn-sm" style={{ background: '#000', color: '#fff' }} onClick={() => setGroupModalOpen(true)}>创建分组</button>
+              <button className="btn btn-sm btn-secondary" onClick={() => setDeleteModalOpen(true)}>
+                <Icon name="trash" size="sm" /> 删除
+              </button>
+              <button className="btn btn-sm btn-secondary" onClick={clearSelection}>取消</button>
+            </div>
+          </div>
+        )}
         <PreviewPanel
           onTogglePicker={handleTogglePicker}
           onToggleColorPicker={handleToggleColorPicker}
