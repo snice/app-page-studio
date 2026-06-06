@@ -24,14 +24,18 @@ const PORT = 3000;
 
 // 中间件
 app.use(express.json({ limit: '50mb' }));
-// // 前端构建产物静态服务（生产模式）
-// const frontendDist = path.join(__dirname, 'frontend', 'dist');
-// if (fs.existsSync(frontendDist)) {
-//   app.use(express.static(frontendDist));
-// }
 
-// 旧的 public 目录（开发兼容）
-app.use(express.static(path.join(__dirname, 'public')));
+// 前端静态服务：优先使用构建产物，回退到 public 目录
+const frontendDist = [
+  path.join(__dirname, 'frontend_dist'),
+  path.join(__dirname, 'frontend', 'dist'),
+].find(d => fs.existsSync(d));
+
+if (frontendDist) {
+  app.use(express.static(frontendDist));
+} else {
+  app.use(express.static(path.join(__dirname, 'public')));
+}
 
 // 动态 HTML 静态服务（根据 URL 中的项目 ID 提供文件）
 app.use('/html/:projectId', (req, res, next) => {
@@ -53,15 +57,17 @@ app.use('/api', imageRouter);
 app.use('/api', psdRouter);
 app.use('/api', sessionsRouter);
 
-// // SPA fallback：非 API / 非 html 路由返回前端 index.html
-// app.get('*', (req, res, next) => {
-//   if (req.path.startsWith('/api/') || req.path.startsWith('/html/')) return next();
-//   const indexPath = path.join(frontendDist, 'index.html');
-//   if (fs.existsSync(indexPath)) {
-//     return res.sendFile(indexPath);
-//   }
-//   next();
-// });
+// SPA fallback：非 API / 非 html 路由返回前端 index.html
+if (frontendDist) {
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/html/')) return next();
+    const indexPath = path.join(frontendDist, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      return res.sendFile(indexPath);
+    }
+    next();
+  });
+}
 
 // 启动服务器
 const server = app.listen(PORT, () => {
