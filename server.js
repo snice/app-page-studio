@@ -23,7 +23,7 @@ const app = express();
 const PORT = 3000;
 
 // 中间件
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 // // 前端构建产物静态服务（生产模式）
 // const frontendDist = path.join(__dirname, 'frontend', 'dist');
 // if (fs.existsSync(frontendDist)) {

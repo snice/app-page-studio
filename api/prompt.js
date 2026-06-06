@@ -100,6 +100,7 @@ function generateAIPrompt(pagesConfig, platform, designSystem, statusFilters = n
 2. 将图片文件复制到项目的 \`${guide.assetsDir}\` 目录
 3. 图片文件重命名规则：保持原文件名，如有冲突则添加序号后缀
 4. 在代码中使用正确的资源引用方式: \`${guide.imageAsset}\`
+5. **PSD 切图**：若提供了 PSD 切图，将切图文件一并复制到 \`${guide.assetsDir}\`，并在代码中使用切图替代对应区域的 HTML/CSS 还原
 
 ${guide.routingGuide}
 
@@ -272,11 +273,14 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
 
         // PSD 切图信息
         if (isPsd && file.psdSlices && file.psdSlices.length > 0) {
+          const psdBaseName = file.path.split('/').pop().replace(/\.psd$/i, '');
+          const slicesDir = `__psd__/${psdBaseName}_slices`;
           prompt += `  - PSD 切图（共 ${file.psdSlices.length} 个，导出后可直接作为资源使用）:\n`;
           for (const slice of file.psdSlices) {
             const sourceType = slice.source === 'crop' ? '框选裁剪' : '图层合成';
             const layers = slice.layerNames && slice.layerNames.length > 0 ? ` (图层: ${slice.layerNames.join(', ')})` : '';
-            prompt += `    - **${slice.name}** [${slice.width}×${slice.height}, 位置: ${slice.left},${slice.top}] 格式: ${slice.exportAs || 'png'} | 来源: ${sourceType}${layers}\n`;
+            const slicePath = `${slicesDir}/${slice.name}.${slice.exportAs || 'png'}`;
+            prompt += `    - **${slice.name}** [${slice.width}×${slice.height}, 位置: ${slice.left},${slice.top}] 格式: ${slice.exportAs || 'png'} | 来源: ${sourceType} | 路径: \`${slicePath}\`${layers}\n`;
           }
         }
 
@@ -350,11 +354,14 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
       }
       // PSD 切图信息
       if (isPsd && file.psdSlices && file.psdSlices.length > 0) {
+        const psdBaseName = file.path.split('/').pop().replace(/\.psd$/i, '');
+        const slicesDir = `__psd__/${psdBaseName}_slices`;
         prompt += `- PSD 切图（共 ${file.psdSlices.length} 个，导出后可直接作为资源使用）:\n`;
         for (const slice of file.psdSlices) {
           const sourceType = slice.source === 'crop' ? '框选裁剪' : '图层合成';
           const layers = slice.layerNames && slice.layerNames.length > 0 ? ` (图层: ${slice.layerNames.join(', ')})` : '';
-          prompt += `  - **${slice.name}** [${slice.width}×${slice.height}, 位置: ${slice.left},${slice.top}] 格式: ${slice.exportAs || 'png'} | 来源: ${sourceType}${layers}\n`;
+          const slicePath = `${slicesDir}/${slice.name}.${slice.exportAs || 'png'}`;
+          prompt += `  - **${slice.name}** [${slice.width}×${slice.height}, 位置: ${slice.left},${slice.top}] 格式: ${slice.exportAs || 'png'} | 来源: ${sourceType} | 路径: \`${slicePath}\`${layers}\n`;
         }
       }
       if (file.interactions && file.interactions.length > 0) {
@@ -407,11 +414,12 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
 3. **状态切换**：同一页面的不同状态使用条件渲染实现
 4. **交互实现**：根据交互描述实现点击、滑动等事件处理
 5. **图片资源**：自动检测并复制图片到 \`${guide.assetsDir}\`，使用正确的引用方式
-6. **切图标记**：对于标记了"切图标记"的元素，不要还原 HTML 中的内容，直接使用指定的切图替换该区域
-7. **功能描述**：标记了"功能描述"的元素并非静态展示，需要根据描述实现对应的功能（如摄像头拍摄、扫码、地图显示等原生功能）
-8. **数据加载**：根据数据加载配置实现 HTTP API 调用，注意触发时机（页面初始化、下拉刷新、上拉加载更多等）
-9. **响应式**：考虑不同屏幕尺寸的适配
-10. **路由创建**：如果源码路径不存在，使用 \`${guide.createPageCmd}\` 创建
+6. **切图标记**：对于标记了“切图标记”的元素，不要还原 HTML 中的内容，直接使用指定的切图替换该区域
+7. **PSD 切图**：若提供了 PSD 切图列表，必须使用切图文件作为图片资源，不要尝试用代码还原切图对应区域的内容，切图路径参考页面列表中给出的路径
+8. **功能描述**：标记了“功能描述”的元素并非静态展示，需要根据描述实现对应的功能（如摄像头拍摄、扫码、地图显示等原生功能）
+9. **数据加载**：根据数据加载配置实现 HTTP API 调用，注意触发时机（页面初始化、下拉刷新、上拉加载更多等）
+10. **响应式**：考虑不同屏幕尺寸的适配
+11. **路由创建**：如果源码路径不存在，使用 \`${guide.createPageCmd}\` 创建
 
 ## 使用说明
 

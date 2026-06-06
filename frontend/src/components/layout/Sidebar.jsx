@@ -167,7 +167,7 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onDele
       )}
 
       <div className="sidebar-content">
-        {groupedFiles.map((group) => (
+        {groupedFiles.filter(g => g.files.length > 0).map((group) => (
           <div className="file-group" key={group.id}>
             <div className="file-group-header" onClick={() => toggleGroup(group.id)}>
               <span className="group-color" style={{ color: group.color, background: group.color }} />

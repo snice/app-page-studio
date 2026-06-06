@@ -246,11 +246,11 @@ router.get('/analyze-html', (req, res) => {
   });
 });
 
-// 打包下载设计稿（HTML + 设计图）
+// 打包下载设计稿（HTML + 设计图 + PSD + 切图）
 router.post('/download-design-zip', (req, res) => {
   const projectId = parseInt(req.body.projectId);
   const files = Array.isArray(req.body.files) ? req.body.files : [];
-  const assetPaths = Array.isArray(req.body.assetPaths) ? req.body.assetPaths : [];
+  const psdSliceExports = req.body.psdSliceExports || {}; // { psdPath: [{name, ext, data(base64)}] }
 
   if (!projectId || files.length === 0) {
     res.status(400).json({ error: '缺少 projectId 或 files' });
@@ -264,62 +264,84 @@ router.post('/download-design-zip', (req, res) => {
   }
 
   const htmlRoot = path.resolve(htmlDir);
-
   const zip = new AdmZip();
   let addedCount = 0;
   const addedPaths = new Set();
 
   const toPosix = (p) => p.replace(/\\/g, '/');
   const stripLeading = (p) => p.replace(/^[/\\]+/, '');
-  const isImageFile = (name) => {
-    const ext = path.extname(name).toLowerCase();
-    return ['.png', '.jpg', '.jpeg', '.webp'].includes(ext);
+
+  // 递归添加目录下所有文件
+  const addDirRecursive = (dirAbsPath, zipPrefix) => {
+    if (!fs.existsSync(dirAbsPath) || !fs.statSync(dirAbsPath).isDirectory()) return;
+    const entries = fs.readdirSync(dirAbsPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const entryAbsPath = path.join(dirAbsPath, entry.name);
+      const zipPath = zipPrefix ? `${zipPrefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        addDirRecursive(entryAbsPath, zipPath);
+      } else if (entry.isFile()) {
+        if (!addedPaths.has(zipPath)) {
+          zip.addFile(zipPath, fs.readFileSync(entryAbsPath));
+          addedPaths.add(zipPath);
+          addedCount += 1;
+        }
+      }
+    }
   };
 
   for (const item of files) {
     if (!item || !item.path) continue;
     const relPath = stripLeading(String(item.path));
     const absPath = path.resolve(htmlDir, relPath);
+    // 安全检查：必须在项目目录内
     if (absPath !== htmlRoot && !absPath.startsWith(htmlRoot + path.sep)) continue;
-    if (!fs.existsSync(absPath) || fs.statSync(absPath).isDirectory()) continue;
+    if (!fs.existsSync(absPath)) continue;
 
     const posixPath = toPosix(relPath);
-    const isImage = item.sourceType === 'image' || isImageFile(posixPath);
-    let targetPath = posixPath;
-    if (isImage) {
-      if (targetPath.startsWith('__design__/')) {
-        targetPath = targetPath.slice('__design__/'.length);
-      }
-      targetPath = `__design__/${targetPath}`;
+    const isPsd = item.sourceType === 'psd' || posixPath.endsWith('.psd');
+    const isHtml = !isPsd && item.sourceType !== 'image' && !posixPath.match(/\.(png|jpe?g|webp|gif)$/i);
+
+    if (isHtml) {
+      // HTML 文件：打包其所在目录下的所有关联资源（CSS、JS、图片等）
+      const parentDir = path.dirname(absPath);
+      const parentRel = path.dirname(relPath);
+      const zipPrefix = toPosix(parentRel);
+      addDirRecursive(parentDir, zipPrefix);
     } else {
-      if (targetPath.startsWith('html/')) {
-        targetPath = targetPath.slice('html/'.length);
-      }
-      targetPath = `html/${targetPath}`;
-    }
-
-    if (!addedPaths.has(targetPath)) {
-      zip.addFile(targetPath, fs.readFileSync(absPath));
-      addedPaths.add(targetPath);
-      addedCount += 1;
-    }
-  }
-
-  // 仅打包选中页面相关的 __assets__ 资源
-  if (assetPaths.length > 0) {
-    const assetsRoot = path.resolve(path.join(htmlDir, '__assets__'));
-    for (const asset of assetPaths) {
-      if (!asset) continue;
-      const rel = stripLeading(String(asset));
-      const posixRel = toPosix(rel);
-      const targetPath = posixRel.startsWith('__assets__/') ? posixRel : `__assets__/${posixRel}`;
-      const absPath = path.resolve(htmlDir, targetPath);
-      if (absPath !== assetsRoot && !absPath.startsWith(assetsRoot + path.sep)) continue;
-      if (!fs.existsSync(absPath) || fs.statSync(absPath).isDirectory()) continue;
-      if (!addedPaths.has(targetPath)) {
-        zip.addFile(targetPath, fs.readFileSync(absPath));
-        addedPaths.add(targetPath);
+      // 图片或 PSD：直接添加文件，保持原始路径
+      if (!addedPaths.has(posixPath)) {
+        zip.addFile(posixPath, fs.readFileSync(absPath));
+        addedPaths.add(posixPath);
         addedCount += 1;
+      }
+      // PSD 文件自动包含对应的预览 PNG
+      if (isPsd) {
+        const previewPng = posixPath.replace(/\.psd$/i, '.png');
+        const previewAbsPath = path.resolve(htmlDir, previewPng);
+        if (fs.existsSync(previewAbsPath) && !addedPaths.has(previewPng)) {
+          zip.addFile(previewPng, fs.readFileSync(previewAbsPath));
+          addedPaths.add(previewPng);
+          addedCount += 1;
+        }
+
+        // 添加导出的切图文件
+        const slices = psdSliceExports[posixPath];
+        if (slices && slices.length > 0) {
+          const psdBaseName = path.basename(posixPath, path.extname(posixPath));
+          const slicesPrefix = `__psd__/${psdBaseName}_slices`;
+          for (const slice of slices) {
+            if (!slice.data) continue;
+            const sliceFileName = `${slice.name}.${slice.ext || 'png'}`;
+            const sliceZipPath = `${slicesPrefix}/${sliceFileName}`;
+            if (!addedPaths.has(sliceZipPath)) {
+              const buffer = Buffer.from(slice.data, 'base64');
+              zip.addFile(sliceZipPath, buffer);
+              addedPaths.add(sliceZipPath);
+              addedCount += 1;
+            }
+          }
+        }
       }
     }
   }

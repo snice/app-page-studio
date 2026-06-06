@@ -11,7 +11,7 @@ import { api } from './lib/api';
 import { Picker, ColorPickerModule } from './lib/picker';
 import { useWebSocket } from './hooks/useWebSocket';
 import { ElementStylesPanel } from './components/picker/ElementStylesPanel';
-import { flattenLayers, unionBBox, layerMarkTargets, collectDrawableLayers, nextSliceColor, exportSlice } from './lib/psdUtils';
+import { flattenLayers, unionBBox, layerMarkTargets, collectDrawableLayers, nextSliceColor, exportSlice, parsePSD } from './lib/psdUtils';
 import JSZip from 'jszip';
 
 // ==================== 选择器动作菜单 ====================
@@ -426,12 +426,79 @@ export default function App() {
 
   const handleDownloadDesigns = async () => {
     try {
-      const blob = await api.downloadDesignZip({ pagesConfig });
+      const state = useAppStore.getState();
+      const projectId = state.getCurrentProjectId();
+      if (!projectId) { showToast('请先选择项目'); return; }
+      const selectedPaths = Array.from(state.selectedFiles);
+      if (selectedPaths.length === 0) { showToast('请先在左侧选中要下载的页面'); return; }
+      const pc = state.pagesConfig;
+      const files = selectedPaths.map(p => {
+        const f = (pc.htmlFiles || []).find(hf => hf.path === p);
+        return { path: p, sourceType: f?.sourceType || (f?.imagePath ? 'image' : 'html'), previewPath: f?.previewPath || null };
+      });
+
+      // 导出 PSD 切图（base64）
+      const psdSliceExports = {};
+      for (const file of files) {
+        if (file.sourceType !== 'psd') continue;
+        const fileConfig = (pc.htmlFiles || []).find(hf => hf.path === file.path);
+        const slices = fileConfig?.psdSlices;
+        if (!slices || slices.length === 0) continue;
+
+        // 获取 PSD 数据：优先用已加载的，否则加载
+        let psdData = null;
+        if (state.psdData && state.currentFile?.path === file.path) {
+          psdData = state.psdData;
+        } else {
+          try {
+            const psdUrl = `/html/${projectId}/${file.path}`;
+            const resp = await fetch(psdUrl);
+            if (resp.ok) {
+              const buffer = await resp.arrayBuffer();
+              psdData = await parsePSD(buffer);
+              // 加载预览 PNG 作为裁剪源
+              if (file.previewPath) {
+                const previewUrl = `/html/${projectId}/${file.previewPath}`;
+                const img = await new Promise((resolve, reject) => {
+                  const i = new Image(); i.crossOrigin = 'anonymous';
+                  i.onload = () => resolve(i); i.onerror = reject; i.src = previewUrl;
+                });
+                const c = document.createElement('canvas');
+                c.width = img.naturalWidth; c.height = img.naturalHeight;
+                c.getContext('2d').drawImage(img, 0, 0);
+                psdData.previewCanvas = c;
+              }
+            }
+          } catch (e) {
+            console.warn('加载 PSD 失败:', file.path, e);
+          }
+        }
+        if (!psdData) continue;
+
+        // 导出每个切图
+        const exported = [];
+        for (const slice of slices) {
+          try {
+            const { dataUrl, ext } = exportSlice(psdData, slice);
+            const base64 = dataUrl.split(',')[1];
+            if (base64) {
+              exported.push({ name: slice.name, ext, data: base64 });
+            }
+          } catch (e) {
+            console.warn('导出切图失败:', slice.name, e);
+          }
+        }
+        if (exported.length > 0) {
+          psdSliceExports[file.path] = exported;
+        }
+      }
+
+      const blob = await api.downloadDesignZip({ projectId, files, psdSliceExports });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = 'design.zip'; a.click();
       URL.revokeObjectURL(url);
-      showToast('设计稿已下载');
+      showToast(`已下载 ${files.length} 个设计稿`);
     } catch (e) {
       showToast(e.message || '下载失败');
     }
