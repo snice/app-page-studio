@@ -14,6 +14,7 @@ export const ICONS = {
   folder: `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>`,
   folderOpen: `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M2 10h20"/>`,
   chevronDown: `<polyline points="6 9 12 15 18 9"/>`,
+  chevronRight: `<polyline points="9 18 15 12 9 6"/>`,
   chevronUp: `<polyline points="18 15 12 9 6 15"/>`,
   arrowUp: `<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>`,
   search: `<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>`,

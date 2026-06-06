@@ -79,9 +79,14 @@ router.post('/delete-files', (req, res) => {
     if (!fs.existsSync(absPath) || fs.statSync(absPath).isDirectory()) continue;
     try {
       const relPosix = relPath.replace(/\\/g, '/');
-      const isDesignOrAssets = relPosix.startsWith('__design__/') || relPosix.startsWith('__assets__/');
-      if (isDesignOrAssets) {
+      const isSpecialDir = relPosix.startsWith('__design__/') || relPosix.startsWith('__assets__/') || relPosix.startsWith('__psd__/');
+      if (isSpecialDir) {
         fs.unlinkSync(absPath);
+        // PSD 删除时同步删除同名预览 PNG
+        if (relPosix.startsWith('__psd__/') && /\.psd$/i.test(absPath)) {
+          const previewPng = absPath.replace(/\.psd$/i, '.png');
+          if (fs.existsSync(previewPng)) fs.unlinkSync(previewPng);
+        }
       } else {
         const parentDir = path.dirname(absPath);
         const relParent = path.relative(htmlDir, parentDir);

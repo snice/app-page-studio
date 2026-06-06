@@ -480,7 +480,7 @@ export default function App() {
         const exported = [];
         for (const slice of slices) {
           try {
-            const { dataUrl, ext } = exportSlice(psdData, slice);
+            const { dataUrl, ext } = exportSlice(psdData, slice, 'png');
             const base64 = dataUrl.split(',')[1];
             if (base64) {
               exported.push({ name: slice.name, ext, data: base64 });

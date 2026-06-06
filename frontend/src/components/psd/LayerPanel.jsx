@@ -71,15 +71,15 @@ function LayerItem({
 
         {/* Expand toggle */}
         <span
-          className="psd-layer-expand"
+          className={`psd-layer-expand ${hasChildren ? 'has-children' : ''}`}
           onClick={(e) => { e.stopPropagation(); if (hasChildren) setExpanded(v => !v); }}
         >
-          {hasChildren ? (expanded ? '▾' : '▸') : ''}
+          {hasChildren && <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size="sm" />}
         </span>
 
         {/* Type icon */}
         <span className="psd-layer-icon" style={{ color: icon.color }}>
-          <Icon name={icon.name} size="sm" />
+          <Icon name={icon.name} size="md" />
         </span>
 
         {/* Name */}
@@ -96,7 +96,7 @@ function LayerItem({
           onClick={(e) => { e.stopPropagation(); onToggleVisibility(layer.id); }}
           title={isHidden ? '显示图层' : '隐藏图层'}
         >
-          <Icon name={isHidden ? 'eyeOff' : 'eye'} size="sm" />
+          <Icon name={isHidden ? 'eyeOff' : 'eye'} size="md" />
         </span>
 
         {/* Mark single button (on hover) */}

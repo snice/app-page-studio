@@ -279,8 +279,8 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
           for (const slice of file.psdSlices) {
             const sourceType = slice.source === 'crop' ? '框选裁剪' : '图层合成';
             const layers = slice.layerNames && slice.layerNames.length > 0 ? ` (图层: ${slice.layerNames.join(', ')})` : '';
-            const slicePath = `${slicesDir}/${slice.name}.${slice.exportAs || 'png'}`;
-            prompt += `    - **${slice.name}** [${slice.width}×${slice.height}, 位置: ${slice.left},${slice.top}] 格式: ${slice.exportAs || 'png'} | 来源: ${sourceType} | 路径: \`${slicePath}\`${layers}\n`;
+            const slicePath = `${slicesDir}/${slice.name}.png`;
+            prompt += `    - **${slice.name}** [${slice.width}×${slice.height}, 位置: ${slice.left},${slice.top}] 格式: png | 来源: ${sourceType} | 路径: \`${slicePath}\`${layers}\n`;
           }
         }
 
@@ -360,8 +360,8 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
         for (const slice of file.psdSlices) {
           const sourceType = slice.source === 'crop' ? '框选裁剪' : '图层合成';
           const layers = slice.layerNames && slice.layerNames.length > 0 ? ` (图层: ${slice.layerNames.join(', ')})` : '';
-          const slicePath = `${slicesDir}/${slice.name}.${slice.exportAs || 'png'}`;
-          prompt += `  - **${slice.name}** [${slice.width}×${slice.height}, 位置: ${slice.left},${slice.top}] 格式: ${slice.exportAs || 'png'} | 来源: ${sourceType} | 路径: \`${slicePath}\`${layers}\n`;
+          const slicePath = `${slicesDir}/${slice.name}.png`;
+          prompt += `  - **${slice.name}** [${slice.width}×${slice.height}, 位置: ${slice.left},${slice.top}] 格式: png | 来源: ${sourceType} | 路径: \`${slicePath}\`${layers}\n`;
         }
       }
       if (file.interactions && file.interactions.length > 0) {

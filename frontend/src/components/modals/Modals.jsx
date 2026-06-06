@@ -214,6 +214,7 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected, onOpenDesignS
 // ==================== Image Upload Modal ====================
 export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
   const imgRef = useRef(null);
+  const psdRef = useRef(null);
   const zipRef = useRef(null);
   const showToast = useAppStore((s) => s.showToast);
   const [dragover, setDragover] = useState('');
@@ -236,11 +237,27 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
     onClose();
   };
 
+  const handlePsd = async (files) => {
+    if (!files?.length) return;
+    showToast('正在上传 PSD...');
+    const res = await api.uploadPsd(Array.from(files));
+    if (res.error) { showToast(res.error); return; }
+    showToast('PSD 已上传');
+    onSuccess?.();
+    onClose();
+  };
+
   const handleDrop = (type, e) => {
     e.preventDefault(); setDragover('');
     const files = e.dataTransfer?.files;
     if (type === 'image') handleImages(files);
-    else handleZip(files?.[0]);
+    else if (type === 'zip') handleZip(files?.[0]);
+    else if (type === 'psd') {
+      const psdFiles = Array.from(files || []).filter(f =>
+        f.name.toLowerCase().endsWith('.psd') || f.name.toLowerCase().endsWith('.zip')
+      );
+      handlePsd(psdFiles);
+    }
   };
 
   return (
@@ -263,6 +280,19 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
           <input type="file" ref={imgRef} accept="image/*" multiple style={{ display: 'none' }}
             onChange={(e) => handleImages(e.target.files)} />
 
+          <div className={`upload-dropzone ${dragover === 'psd' ? 'is-dragover' : ''}`}
+            style={{ marginTop: 12 }}
+            onClick={() => psdRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragover('psd'); }}
+            onDragLeave={() => setDragover('')}
+            onDrop={(e) => handleDrop('psd', e)}>
+            <div className="upload-dropzone-icon"><Icon name="layers" size="lg" /></div>
+            <div className="upload-dropzone-title">上传 PSD 文件</div>
+            <div className="upload-dropzone-sub">点击选择 .psd 文件 / 拖拽 .psd 或包含 PSD 的 ZIP 到此处</div>
+          </div>
+          <input type="file" ref={psdRef} accept=".psd,.zip" multiple style={{ display: 'none' }}
+            onChange={(e) => handlePsd(e.target.files)} />
+
           <div className={`upload-dropzone ${dragover === 'zip' ? 'is-dragover' : ''}`}
             style={{ marginTop: 12 }}
             onClick={() => zipRef.current?.click()}
@@ -275,6 +305,7 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
           </div>
           <input type="file" ref={zipRef} accept=".zip" style={{ display: 'none' }}
             onChange={(e) => handleZip(e.target.files?.[0])} />
+
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>关闭</button>
@@ -442,9 +473,9 @@ export function PromptModal({ isOpen, onClose }) {
 
     const pagesForPrompt = currentOnly
       ? {
-          ...pagesConfig,
-          htmlFiles: (pagesConfig.htmlFiles || []).filter(f => f.path === currentFile.path)
-        }
+        ...pagesConfig,
+        htmlFiles: (pagesConfig.htmlFiles || []).filter(f => f.path === currentFile.path)
+      }
       : pagesConfig;
 
     const project = useAppStore.getState().getCurrentProject();

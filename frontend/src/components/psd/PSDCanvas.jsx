@@ -209,11 +209,18 @@ export function PSDCanvas({
     ctx.restore();
   }, [psdData, selectedLayer, slices, selectedSlice, showSlices, hiddenLayerIds, scale, offset, cropRect]);
 
-  // 滚轮缩放
+  // 滚轮缩放（必须用原生 addEventListener 设置 passive: false）
   const onWheel = useCallback((e) => {
     e.preventDefault();
     setScale(s => Math.min(Math.max(s * (e.deltaY < 0 ? 1.1 : 0.9), 0.05), 8));
   }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, [onWheel]);
 
   const onMouseDown = (e) => {
     if (cropMode) {
@@ -285,7 +292,6 @@ export function PSDCanvas({
       <canvas
         ref={canvasRef}
         className={`psd-canvas ${cropMode ? 'is-crop-mode' : ''}`}
-        onWheel={onWheel}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}

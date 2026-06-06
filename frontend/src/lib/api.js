@@ -74,6 +74,15 @@ export const api = {
     return res.json();
   },
 
+  async uploadPsd(files) {
+    const projectId = getProjectId();
+    if (!projectId) return { error: '请先选择项目' };
+    const formData = new FormData();
+    for (const file of files) formData.append('psdFiles', file);
+    const res = await fetch(`/api/upload-psd?projectId=${projectId}`, { method: 'POST', body: formData });
+    return res.json();
+  },
+
   async analyzeHtml(path) {
     const projectId = getProjectId();
     const res = await fetch(`/api/analyze-html?projectId=${projectId}&path=${encodeURIComponent(path)}`);

@@ -252,9 +252,10 @@ export function compositeSliceLayers(psdData, layerIds, slice) {
  * 导出切图为 dataURL
  * @param {PSDData} psdData
  * @param {{source:string,layerIds:string[],left:number,top:number,width:number,height:number,exportAs:string}} slice
+ * @param {string} [forceFormat] - 强制输出格式（忽略 slice.exportAs），如 'png'/'jpg'
  * @returns {{dataUrl:string, ext:string}}
  */
-export function exportSlice(psdData, slice) {
+export function exportSlice(psdData, slice, forceFormat) {
   let composited;
   if (slice.source === 'crop' || slice.layerIds.length === 0) {
     // crop 时优先使用 previewPng（PNG 预览图）
@@ -271,7 +272,8 @@ export function exportSlice(psdData, slice) {
     composited = compositeSliceLayers(psdData, slice.layerIds, slice);
   }
 
-  const isJpg = slice.exportAs === 'jpg';
+  const format = forceFormat || slice.exportAs || 'png';
+  const isJpg = format === 'jpg';
   if (isJpg) {
     const tmp = document.createElement('canvas');
     tmp.width = composited.width;
@@ -281,6 +283,13 @@ export function exportSlice(psdData, slice) {
     ctx.fillRect(0, 0, tmp.width, tmp.height);
     ctx.drawImage(composited, 0, 0);
     return { dataUrl: tmp.toDataURL('image/jpeg', 0.92), ext: 'jpg' };
+  }
+  if (format === 'svg') {
+    const pngDataUrl = composited.toDataURL('image/png');
+    const w = composited.width;
+    const h = composited.height;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><image href="${pngDataUrl}" width="${w}" height="${h}"/></svg>`;
+    return { dataUrl: 'data:image/svg+xml;base64,' + btoa(svg), ext: 'svg' };
   }
   return { dataUrl: composited.toDataURL('image/png'), ext: 'png' };
 }
