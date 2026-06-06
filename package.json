@@ -8,7 +8,8 @@
     "dev": "node server.js --dev",
     "dev:frontend": "cd frontend && npx vite",
     "build:frontend": "cd frontend && npx vite build",
-    "dev:all": "npm run build:frontend && npm run dev"
+    "dev:all": "npm run build:frontend && npm run dev",
+    "postinstall": "npm rebuild better-sqlite3"
   },
   "keywords": [
     "app",
