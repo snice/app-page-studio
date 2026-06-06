@@ -115,7 +115,7 @@ ${JSON.stringify(designSystem, null, 2)}
 `;
   }
 
-  const hasImageFiles = (pagesConfig.htmlFiles || []).some(f => f.sourceType === 'image' || f.imagePath);
+  const hasImageFiles = (pagesConfig.htmlFiles || []).some(f => f.sourceType === 'image' || f.sourceType === 'psd' || f.imagePath);
   if (hasImageFiles) {
     prompt += `## 设计图模式流程
 1. 对每个标记为“设计图”的页面，先依据 \`UI-IR-AGENT.md\` 生成 UI IR(HTML)
@@ -256,16 +256,28 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
 `;
 
       for (const file of groupFiles) {
+        const isPsd = file.sourceType === 'psd';
         const isImage = file.sourceType === 'image' || file.imagePath;
-        const refLabel = isImage ? '设计图' : 'HTML参考';
-        const refPath = isImage ? (file.imagePath || file.path) : file.path;
+        const isDesignRef = isPsd || isImage;
+        const refLabel = isPsd ? 'PSD设计图' : (isImage ? '设计图' : 'HTML参考');
+        const refPath = isPsd ? (file.previewPath || file.imagePath || file.path) : (isImage ? (file.imagePath || file.path) : file.path);
         prompt += `- **${file.stateName || file.name}**
   - ${refLabel}: \`${refPath}\`
   - 描述: ${file.description || ''}
 `;
 
-        if (isImage) {
+        if (isDesignRef) {
           prompt += `  - 说明: 先根据设计图生成 UI IR(HTML)，再基于 UI IR 实现代码\n`;
+        }
+
+        // PSD 切图信息
+        if (isPsd && file.psdSlices && file.psdSlices.length > 0) {
+          prompt += `  - PSD 切图（共 ${file.psdSlices.length} 个，导出后可直接作为资源使用）:\n`;
+          for (const slice of file.psdSlices) {
+            const sourceType = slice.source === 'crop' ? '框选裁剪' : '图层合成';
+            const layers = slice.layerNames && slice.layerNames.length > 0 ? ` (图层: ${slice.layerNames.join(', ')})` : '';
+            prompt += `    - **${slice.name}** [${slice.width}×${slice.height}, 位置: ${slice.left},${slice.top}] 格式: ${slice.exportAs || 'png'} | 来源: ${sourceType}${layers}\n`;
+          }
         }
 
         // 显示交互行为
@@ -324,15 +336,26 @@ ${tabbarItems.map(tab => `    { "pagePath": "${tab.route === '待定义' ? '/ind
   if (ungroupedFiles.length > 0) {
     prompt += `## 其他页面（未分组）\n\n`;
     for (const file of ungroupedFiles) {
+      const isPsd = file.sourceType === 'psd';
       const isImage = file.sourceType === 'image' || file.imagePath;
-      const refLabel = isImage ? '设计图' : 'HTML';
-      const refPath = isImage ? (file.imagePath || file.path) : file.path;
+      const isDesignRef = isPsd || isImage;
+      const refLabel = isPsd ? 'PSD设计图' : (isImage ? '设计图' : 'HTML');
+      const refPath = isPsd ? (file.previewPath || file.imagePath || file.path) : (isImage ? (file.imagePath || file.path) : file.path);
       prompt += `### ${file.stateName || file.name}
 - ${refLabel}: \`${refPath}\`
 - 描述: ${file.description || '待补充'}
 `;
-      if (isImage) {
+      if (isDesignRef) {
         prompt += `- 说明: 先根据设计图生成 UI IR(HTML)，再基于 UI IR 实现代码\n`;
+      }
+      // PSD 切图信息
+      if (isPsd && file.psdSlices && file.psdSlices.length > 0) {
+        prompt += `- PSD 切图（共 ${file.psdSlices.length} 个，导出后可直接作为资源使用）:\n`;
+        for (const slice of file.psdSlices) {
+          const sourceType = slice.source === 'crop' ? '框选裁剪' : '图层合成';
+          const layers = slice.layerNames && slice.layerNames.length > 0 ? ` (图层: ${slice.layerNames.join(', ')})` : '';
+          prompt += `  - **${slice.name}** [${slice.width}×${slice.height}, 位置: ${slice.left},${slice.top}] 格式: ${slice.exportAs || 'png'} | 来源: ${sourceType}${layers}\n`;
+        }
       }
       if (file.interactions && file.interactions.length > 0) {
         prompt += `- 交互:\n`;
