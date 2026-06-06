@@ -62,6 +62,17 @@ export const useAppStore = create((set, get) => ({
   // 缩放
   zoom: 100,
 
+  // PSD 模式
+  psdMode: 'preview', // 'preview' | 'layers'
+  psdData: null,
+  psdLoading: false,
+  psdSelectedLayer: null,
+  psdHiddenLayerIds: new Set(),
+  psdCheckedLayerIds: new Set(),
+  psdMarkedSlices: [],
+  psdSelectedSliceId: null,
+  psdShowSlices: true,
+
   // 面板 tab
   activePanelTab: 'file',
 
@@ -377,4 +388,58 @@ export const useAppStore = create((set, get) => ({
   setEditingGroupId(id) { set({ editingGroupId: id }); },
   setEditingProjectId(id) { set({ editingProjectId: id }); },
   setHtmlFiles(files) { set({ htmlFiles: files }); },
+
+  // ==================== PSD Actions ====================
+
+  setPsdMode(mode) { set({ psdMode: mode }); },
+  setPsdData(data) { set({ psdData: data }); },
+  setPsdLoading(v) { set({ psdLoading: v }); },
+  setPsdSelectedLayer(layer) { set({ psdSelectedLayer: layer, psdSelectedSliceId: null }); },
+  setPsdHiddenLayerIds(ids) { set({ psdHiddenLayerIds: ids }); },
+  togglePsdHiddenLayer(id) {
+    set((s) => {
+      const n = new Set(s.psdHiddenLayerIds);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return { psdHiddenLayerIds: n };
+    });
+  },
+  setPsdCheckedLayerIds(ids) { set({ psdCheckedLayerIds: ids }); },
+  togglePsdCheckedLayer(id, checked) {
+    set((s) => {
+      const n = new Set(s.psdCheckedLayerIds);
+      checked ? n.add(id) : n.delete(id);
+      return { psdCheckedLayerIds: n };
+    });
+  },
+  clearPsdCheckedLayers() { set({ psdCheckedLayerIds: new Set() }); },
+  setPsdMarkedSlices(slices) { set({ psdMarkedSlices: slices }); },
+  addPsdMarkedSlice(slice) {
+    set((s) => ({ psdMarkedSlices: [...s.psdMarkedSlices, slice] }));
+  },
+  removePsdMarkedSlice(id) {
+    set((s) => ({
+      psdMarkedSlices: s.psdMarkedSlices.filter(x => x.id !== id),
+      psdSelectedSliceId: s.psdSelectedSliceId === id ? null : s.psdSelectedSliceId,
+    }));
+  },
+  updatePsdMarkedSlice(id, updates) {
+    set((s) => ({
+      psdMarkedSlices: s.psdMarkedSlices.map(x => x.id === id ? { ...x, ...updates } : x),
+    }));
+  },
+  setPsdSelectedSliceId(id) { set({ psdSelectedSliceId: id, psdSelectedLayer: null }); },
+  setPsdShowSlices(v) { set({ psdShowSlices: v }); },
+  resetPsdState() {
+    set({
+      psdMode: 'preview',
+      psdData: null,
+      psdLoading: false,
+      psdSelectedLayer: null,
+      psdHiddenLayerIds: new Set(),
+      psdCheckedLayerIds: new Set(),
+      psdMarkedSlices: [],
+      psdSelectedSliceId: null,
+      psdShowSlices: true,
+    });
+  },
 }));

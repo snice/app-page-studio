@@ -3,6 +3,8 @@ import { Icon } from '../common/Icon';
 import { useAppStore } from '../../lib/state';
 import { highlightElement } from '../../lib/picker';
 import { api } from '../../lib/api';
+import { LayerPanel } from '../psd/LayerPanel';
+import { SlicesPanel } from '../psd/SlicesPanel';
 
 /** 格式化区域标签 - 显示 device 坐标 */
 function formatRegionLabel(item) {
@@ -360,6 +362,27 @@ export function ConfigPanel({ iframeRef }) {
   const updateCurrentFile = useAppStore((s) => s.updateCurrentFile);
   const addDataSource = useAppStore((s) => s.addDataSource);
 
+  // PSD state
+  const psdMode = useAppStore((s) => s.psdMode);
+  const psdData = useAppStore((s) => s.psdData);
+  const psdSelectedLayer = useAppStore((s) => s.psdSelectedLayer);
+  const setPsdSelectedLayer = useAppStore((s) => s.setPsdSelectedLayer);
+  const psdCheckedLayerIds = useAppStore((s) => s.psdCheckedLayerIds);
+  const togglePsdCheckedLayer = useAppStore((s) => s.togglePsdCheckedLayer);
+  const clearPsdCheckedLayers = useAppStore((s) => s.clearPsdCheckedLayers);
+  const psdHiddenLayerIds = useAppStore((s) => s.psdHiddenLayerIds);
+  const togglePsdHiddenLayer = useAppStore((s) => s.togglePsdHiddenLayer);
+  const psdMarkedSlices = useAppStore((s) => s.psdMarkedSlices);
+  const addPsdMarkedSlice = useAppStore((s) => s.addPsdMarkedSlice);
+  const psdSelectedSliceId = useAppStore((s) => s.psdSelectedSliceId);
+  const setPsdSelectedSliceId = useAppStore((s) => s.setPsdSelectedSliceId);
+  const updatePsdMarkedSlice = useAppStore((s) => s.updatePsdMarkedSlice);
+  const removePsdMarkedSlice = useAppStore((s) => s.removePsdMarkedSlice);
+  const psdShowSlices = useAppStore((s) => s.psdShowSlices);
+  const setPsdShowSlices = useAppStore((s) => s.setPsdShowSlices);
+
+  const isPsdFile = currentFile?.sourceType === 'psd';
+  const isPsdLayers = isPsdFile && psdMode === 'layers';
   const groups = pagesConfig.pageGroups || [];
 
   const handleFileFieldChange = (field, value) => {
@@ -369,8 +392,26 @@ export function ConfigPanel({ iframeRef }) {
   return (
     <aside className="panel">
       <div className="panel-tabs">
-        <div className={`panel-tab ${activePanelTab === 'file' ? 'active' : ''}`} onClick={() => setActivePanelTab('file')}>页面配置</div>
-        <div className={`panel-tab ${activePanelTab === 'analysis' ? 'active' : ''}`} onClick={() => setActivePanelTab('analysis')}>数据管理</div>
+        {!isPsdLayers ? (
+          /* 预览模式: 页面配置 + 数据管理 */
+          <>
+            <div className={`panel-tab ${activePanelTab === 'file' ? 'active' : ''}`} onClick={() => setActivePanelTab('file')}>页面配置</div>
+            <div className={`panel-tab ${activePanelTab === 'analysis' ? 'active' : ''}`} onClick={() => setActivePanelTab('analysis')}>数据管理</div>
+          </>
+        ) : (
+          /* 图层模式: 图层 + 切图 */
+          <>
+            <div className={`panel-tab ${activePanelTab === 'layers' ? 'active' : ''}`} onClick={() => setActivePanelTab('layers')}>
+              <Icon name="layers" size="sm" />
+              <span>图层</span>
+            </div>
+            <div className={`panel-tab ${activePanelTab === 'slices' ? 'active' : ''}`} onClick={() => setActivePanelTab('slices')}>
+              <Icon name="scissors" size="sm" />
+              <span>切图</span>
+              {psdMarkedSlices.length > 0 && <span className="panel-tab-badge">{psdMarkedSlices.length}</span>}
+            </div>
+          </>
+        )}
       </div>
 
       {activePanelTab === 'file' && (
@@ -457,6 +498,48 @@ export function ConfigPanel({ iframeRef }) {
             </div>
             <DataSourceList />
           </div>
+        </div>
+      )}
+
+      {activePanelTab === 'layers' && isPsdLayers && psdData && (
+        <div className="panel-content" style={{ padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <LayerPanel
+            layers={psdData.layers}
+            selected={psdSelectedLayer}
+            onSelect={setPsdSelectedLayer}
+            checkedIds={psdCheckedLayerIds}
+            onCheck={togglePsdCheckedLayer}
+            onClearChecked={clearPsdCheckedLayers}
+            hiddenLayerIds={psdHiddenLayerIds}
+            onToggleVisibility={togglePsdHiddenLayer}
+            manualSliceLayerIds={new Set(psdMarkedSlices.flatMap(s => s.layerIds))}
+            onMergeSlice={() => {
+              window.dispatchEvent(new CustomEvent('psd-merge-slice'));
+            }}
+            onMarkSingle={(layer) => {
+              window.dispatchEvent(new CustomEvent('psd-mark-single', { detail: { layer } }));
+            }}
+          />
+        </div>
+      )}
+
+      {activePanelTab === 'slices' && isPsdLayers && (
+        <div className="panel-content" style={{ padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <SlicesPanel
+            slices={psdMarkedSlices}
+            selectedId={psdSelectedSliceId}
+            onSelect={setPsdSelectedSliceId}
+            onUpdate={(id, updates) => updatePsdMarkedSlice(id, updates)}
+            onDelete={removePsdMarkedSlice}
+            onExportOne={(slice) => {
+              window.dispatchEvent(new CustomEvent('psd-export-slice', { detail: { slice } }));
+            }}
+            onExportAll={() => {
+              window.dispatchEvent(new CustomEvent('psd-export-all-slices'));
+            }}
+            showSlices={psdShowSlices}
+            onToggleShow={() => setPsdShowSlices(!psdShowSlices)}
+          />
         </div>
       )}
     </aside>

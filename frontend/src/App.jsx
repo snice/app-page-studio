@@ -11,6 +11,8 @@ import { api } from './lib/api';
 import { Picker, ColorPickerModule } from './lib/picker';
 import { useWebSocket } from './hooks/useWebSocket';
 import { ElementStylesPanel } from './components/picker/ElementStylesPanel';
+import { flattenLayers, unionBBox, layerMarkTargets, collectDrawableLayers, nextSliceColor, exportSlice } from './lib/psdUtils';
+import JSZip from 'jszip';
 
 // ==================== 选择器动作菜单 ====================
 function PickerActionMenu({ menu, isHtml, onAction, onClose }) {
@@ -81,6 +83,10 @@ export default function App() {
   const setPickedColors = useAppStore((s) => s.setPickedColors);
   const setZoom = useAppStore((s) => s.setZoom);
   const setIsImageRegionSelecting = useAppStore((s) => s.setIsImageRegionSelecting);
+  const resetPsdState = useAppStore((s) => s.resetPsdState);
+  const addPsdMarkedSlice = useAppStore((s) => s.addPsdMarkedSlice);
+  const clearPsdCheckedLayers = useAppStore((s) => s.clearPsdCheckedLayers);
+  const setPsdSelectedSliceId = useAppStore((s) => s.setPsdSelectedSliceId);
 
   const iframeRef = useRef(null);
 
@@ -172,6 +178,136 @@ export default function App() {
     };
     init();
   }, []);
+
+  // ==================== PSD 切图事件处理 ====================
+  useEffect(() => {
+    const handleMergeSlice = () => {
+      const state = useAppStore.getState();
+      const { psdData, psdCheckedLayerIds, psdMarkedSlices } = state;
+      if (!psdData || psdCheckedLayerIds.size === 0) return;
+
+      const all = flattenLayers(psdData.layers);
+      const picked = all.filter(l => psdCheckedLayerIds.has(l.id));
+      const bbox = unionBBox(picked);
+      if (bbox.width === 0 || bbox.height === 0) {
+        showToast('所选图层没有有效尺寸');
+        return;
+      }
+      const slice = {
+        id: `slice-${Date.now()}`,
+        name: picked.length === 1 ? picked[0].name : picked.map(l => l.name).join('+').slice(0, 30),
+        layerIds: [...psdCheckedLayerIds],
+        layerNames: picked.map(l => l.name),
+        ...bbox,
+        color: nextSliceColor(),
+        exportAs: 'png',
+        source: 'manual',
+      };
+      addPsdMarkedSlice(slice);
+      clearPsdCheckedLayers();
+      setPsdSelectedSliceId(slice.id);
+      showToast(`已添加切图标记：${slice.name}`);
+    };
+
+    const handleMarkSingle = (e) => {
+      const layer = e.detail?.layer;
+      if (!layer) return;
+      const state = useAppStore.getState();
+      const { psdMarkedSlices } = state;
+
+      const { bbox, layerIds } = layerMarkTargets(layer);
+      const existing = psdMarkedSlices.find(s =>
+        layerIds.every(id => s.layerIds.includes(id)) || s.layerIds.includes(layer.id),
+      );
+      if (existing) {
+        setPsdSelectedSliceId(existing.id);
+        showToast(`“${layer.name}”已标记为切图`);
+        return;
+      }
+      if (bbox.width === 0 || bbox.height === 0) {
+        showToast(`图层“${layer.name}”没有有效尺寸`);
+        return;
+      }
+      const layerNames = layer.children?.length
+        ? collectDrawableLayers(layer).map(l => l.name)
+        : [layer.name];
+      const slice = {
+        id: `slice-${Date.now()}`,
+        name: layer.name,
+        layerIds,
+        layerNames,
+        ...bbox,
+        color: nextSliceColor(),
+        exportAs: 'png',
+        source: 'manual',
+      };
+      addPsdMarkedSlice(slice);
+      clearPsdCheckedLayers();
+      setPsdSelectedSliceId(slice.id);
+      showToast(`已添加切图标记：${slice.name}`);
+    };
+
+    const handleExportSlice = (e) => {
+      const slice = e.detail?.slice;
+      const state = useAppStore.getState();
+      const { psdData } = state;
+      if (!psdData || !slice) return;
+      const { dataUrl, ext } = exportSlice(psdData, slice);
+      const a = document.createElement('a');
+      a.download = `${slice.name}.${ext}`;
+      a.href = dataUrl;
+      a.click();
+    };
+
+    const handleExportAllSlices = async () => {
+      const state = useAppStore.getState();
+      const { psdData, psdMarkedSlices } = state;
+      if (!psdData || psdMarkedSlices.length === 0) return;
+      const zip = new JSZip();
+      const folder = zip.folder('slices');
+      for (const slice of psdMarkedSlices) {
+        const { dataUrl, ext } = exportSlice(psdData, slice);
+        folder.file(`${slice.name}.${ext}`, dataUrl.split(',')[1], { base64: true });
+      }
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.download = `slices-${psdMarkedSlices.length}.zip`;
+      a.href = URL.createObjectURL(blob);
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+    const handleCropDone = (e) => {
+      const rect = e.detail;
+      if (!rect || rect.width < 3 || rect.height < 3) return;
+      const slice = {
+        id: `slice-${Date.now()}`,
+        name: `框选 ${Math.round(rect.width)}×${Math.round(rect.height)}`,
+        layerIds: [],
+        layerNames: [],
+        ...rect,
+        color: nextSliceColor(),
+        exportAs: 'png',
+        source: 'crop',
+      };
+      addPsdMarkedSlice(slice);
+      setPsdSelectedSliceId(slice.id);
+      showToast(`已添加框选切图：${slice.name}`);
+    };
+
+    window.addEventListener('psd-merge-slice', handleMergeSlice);
+    window.addEventListener('psd-mark-single', handleMarkSingle);
+    window.addEventListener('psd-export-slice', handleExportSlice);
+    window.addEventListener('psd-export-all-slices', handleExportAllSlices);
+    window.addEventListener('psd-crop-done', handleCropDone);
+    return () => {
+      window.removeEventListener('psd-merge-slice', handleMergeSlice);
+      window.removeEventListener('psd-mark-single', handleMarkSingle);
+      window.removeEventListener('psd-export-slice', handleExportSlice);
+      window.removeEventListener('psd-export-all-slices', handleExportAllSlices);
+      window.removeEventListener('psd-crop-done', handleCropDone);
+    };
+  }, [addPsdMarkedSlice, clearPsdCheckedLayers, setPsdSelectedSliceId, showToast]);
 
   // iframe load 时重新 setup picker（如果 picker 激活状态）
   const handleIframeLoad = useCallback(() => {
@@ -270,6 +406,11 @@ export default function App() {
 
   // ==================== Header 回调 ====================
   const handleSaveConfig = async () => {
+    // 保存 PSD 切图信息到当前文件配置
+    const state = useAppStore.getState();
+    if (state.currentFile?.sourceType === 'psd') {
+      state.updateCurrentFile({ psdSlices: state.psdMarkedSlices });
+    }
     const res = await api.savePages(pagesConfig);
     if (res.error) { showToast(res.error); return; }
     showToast('配置已保存');
@@ -324,7 +465,14 @@ export default function App() {
     if (state.isImageRegionSelecting) {
       setIsImageRegionSelecting(false);
     }
+    // 切换文件时重置 PSD 状态
+    resetPsdState();
     setCurrentFile(path);
+    // 恢复 PSD 切图标记信息
+    const file = state.pagesConfig.htmlFiles.find(f => f.path === path);
+    if (file?.sourceType === 'psd' && file.psdSlices?.length > 0) {
+      useAppStore.getState().setPsdMarkedSlices(file.psdSlices);
+    }
   };
 
   const handleDeleteFiles = async () => {
@@ -364,7 +512,9 @@ export default function App() {
   const handleTogglePicker = useCallback(() => {
     const state = useAppStore.getState();
     const currentFile = state.currentFile;
-    const isImage = currentFile?.sourceType === 'image' || currentFile?.sourceType === 'psd';
+    // PSD 图层模式下不使用区域框选
+    const isPsdLayers = currentFile?.sourceType === 'psd' && state.psdMode === 'layers';
+    const isImage = (currentFile?.sourceType === 'image' || (currentFile?.sourceType === 'psd' && !isPsdLayers));
 
     // 非 HTML 文件：切换图片区域框选模式
     if (isImage) {
