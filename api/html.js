@@ -309,13 +309,13 @@ router.post('/download-design-zip', (req, res) => {
       const zipPrefix = toPosix(parentRel);
       addDirRecursive(parentDir, zipPrefix);
     } else {
-      // 图片或 PSD：直接添加文件，保持原始路径
-      if (!addedPaths.has(posixPath)) {
+      // 图片：直接添加文件，保持原始路径
+      if (!isPsd && !addedPaths.has(posixPath)) {
         zip.addFile(posixPath, fs.readFileSync(absPath));
         addedPaths.add(posixPath);
         addedCount += 1;
       }
-      // PSD 文件自动包含对应的预览 PNG
+      // PSD 文件：跳过 .psd 源文件（对代码生成无用），只包含预览 PNG 和切图
       if (isPsd) {
         const previewPng = posixPath.replace(/\.psd$/i, '.png');
         const previewAbsPath = path.resolve(htmlDir, previewPng);
