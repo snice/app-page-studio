@@ -182,23 +182,77 @@ function getColorFromImage(img, e) {
   } catch { return null; }
 }
 
+// 当前绑定的目标（iframe 或 { doc, container }）
+let colorBoundTarget = null;
+
+function getColorTargetInfo() {
+  if (!colorBoundTarget) return null;
+  if (colorBoundTarget.iframe) {
+    const iframe = colorBoundTarget.iframe;
+    const iframeRect = iframe.getBoundingClientRect();
+    const zoom = iframeRect.width / iframe.offsetWidth || 1;
+    return { doc: iframe.contentDocument, iframeRect, zoom };
+  }
+  // 主文档模式
+  return { doc: colorBoundTarget.doc, iframeRect: null, zoom: 1 };
+}
+
 export const ColorPickerModule = {
-  enable(iframe, onColorPicked) {
-    const doc = iframe.contentDocument;
+  /**
+   * 启用取色器
+   * @param {HTMLIFrameElement|null} iframe - iframe 元素，传 null 则绑定主文档
+   * @param {Function} onColorPicked - 选中颜色回调
+   * @param {Object} [options] - 额外选项
+   * @param {HTMLElement} [options.container] - 限定取色区域的容器元素（主文档模式下）
+   */
+  enable(iframe, onColorPicked, options = {}) {
+    const doc = iframe ? iframe.contentDocument : document;
     if (!doc) return;
+
+    // 先禁用之前的绑定
+    if (colorBoundTarget) this.disable();
+
     createColorTooltip();
     if (!colorCanvas) { colorCanvas = document.createElement('canvas'); colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true }); }
 
-    doc.body.style.cursor = 'crosshair';
+    colorBoundTarget = iframe ? { iframe } : { doc, container: options.container || null };
+
+    // 只在容器内设置十字光标，而非整个 body
+    if (colorBoundTarget.container) {
+      colorBoundTarget.container.style.cursor = 'crosshair';
+    } else if (doc.body) {
+      doc.body.style.cursor = 'crosshair';
+    }
+
+    // 检查事件是否在容器内（主文档模式）
+    const isInsideContainer = (e) => {
+      const c = colorBoundTarget?.container;
+      if (!c) return true; // iframe 模式或无容器，始终允许
+      const rect = c.getBoundingClientRect();
+      return e.clientX >= rect.left && e.clientX <= rect.right &&
+             e.clientY >= rect.top && e.clientY <= rect.bottom;
+    };
 
     colorMoveHandler = (e) => {
+      // 主文档模式下，检查是否在容器内
+      if (!colorBoundTarget?.iframe && colorBoundTarget?.container) {
+        if (!isInsideContainer(e)) {
+          if (colorTooltip) colorTooltip.style.display = 'none';
+          return;
+        }
+      }
       const el = e.target;
       const color = getColorFromElement(el, e);
       if (!colorTooltip || !color) return;
-      const iframeRect = iframe.getBoundingClientRect();
-      const zoom = iframeRect.width / iframe.offsetWidth || 1;
-      const tooltipX = iframeRect.left + e.clientX * zoom + 20;
-      const tooltipY = iframeRect.top + e.clientY * zoom + 20;
+      const info = getColorTargetInfo();
+      let tooltipX, tooltipY;
+      if (info.iframeRect) {
+        tooltipX = info.iframeRect.left + e.clientX * info.zoom + 20;
+        tooltipY = info.iframeRect.top + e.clientY * info.zoom + 20;
+      } else {
+        tooltipX = e.clientX + 20;
+        tooltipY = e.clientY + 20;
+      }
       const maxX = window.innerWidth - 150, maxY = window.innerHeight - 80;
       colorTooltip.style.display = 'block';
       colorTooltip.style.left = Math.min(tooltipX, maxX) + 'px';
@@ -212,6 +266,10 @@ export const ColorPickerModule = {
     };
 
     colorClickHandler = (e) => {
+      // 主文档模式下，忽略容器外的点击
+      if (!colorBoundTarget?.iframe && colorBoundTarget?.container) {
+        if (!isInsideContainer(e)) return;
+      }
       e.preventDefault();
       e.stopPropagation();
       const color = getColorFromElement(e.target, e);
@@ -231,9 +289,19 @@ export const ColorPickerModule = {
   },
 
   disable(iframe) {
-    const doc = iframe?.contentDocument;
+    let doc;
+    if (colorBoundTarget) {
+      doc = colorBoundTarget.iframe ? colorBoundTarget.iframe.contentDocument : colorBoundTarget.doc;
+    } else if (iframe) {
+      doc = iframe.contentDocument;
+    }
     if (doc) {
-      doc.body.style.cursor = '';
+      // 恢复光标
+      if (colorBoundTarget?.container) {
+        colorBoundTarget.container.style.cursor = '';
+      } else if (doc.body) {
+        doc.body.style.cursor = '';
+      }
       if (colorMoveHandler) doc.removeEventListener('mousemove', colorMoveHandler);
       if (colorClickHandler) doc.removeEventListener('click', colorClickHandler);
       if (colorLeaveHandler) doc.removeEventListener('mouseleave', colorLeaveHandler);
@@ -242,6 +310,12 @@ export const ColorPickerModule = {
     colorMoveHandler = null;
     colorClickHandler = null;
     colorLeaveHandler = null;
+    colorBoundTarget = null;
+  },
+
+  /** 是否绑定在 iframe 上 */
+  get isIframeBound() {
+    return colorBoundTarget?.iframe != null;
   },
 };
 

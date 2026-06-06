@@ -80,6 +80,7 @@ export default function App() {
   const addFunctionDescription = useAppStore((s) => s.addFunctionDescription);
   const setPickedColors = useAppStore((s) => s.setPickedColors);
   const setZoom = useAppStore((s) => s.setZoom);
+  const setIsImageRegionSelecting = useAppStore((s) => s.setIsImageRegionSelecting);
 
   const iframeRef = useRef(null);
 
@@ -126,10 +127,11 @@ export default function App() {
     ]);
     const htmlFiles = (htmlData.files || []).map(f => ({ ...f, sourceType: 'html' }));
     const imageFiles = (imageData.files || []).map(f => ({ ...f, sourceType: 'image' }));
-    const allFiles = [...htmlFiles, ...imageFiles];
+    const psdFiles = (htmlData.psdFiles || []).map(f => ({ ...f, sourceType: 'psd' }));
+    const allFiles = [...htmlFiles, ...imageFiles, ...psdFiles];
     setHtmlFiles(allFiles);
     syncFilesToConfig();
-    showToast(`扫描完成，共 ${allFiles.length} 个文件（${htmlFiles.length} HTML + ${imageFiles.length} 设计图）`);
+    showToast(`扫描完成，共 ${allFiles.length} 个文件`);
   }, []);
 
   const registerSession = useCallback(async () => {
@@ -185,6 +187,8 @@ export default function App() {
     }
     if (state.isColorPickerActive) {
       setTimeout(() => {
+        // 如果之前绑定在主文档，切换到 iframe
+        ColorPickerModule.disable();
         ColorPickerModule.enable(iframe, handleColorPicked);
       }, 100);
     }
@@ -204,7 +208,6 @@ export default function App() {
       }
     }
   }, []));
-
   // ==================== Picker 回调 ====================
 
   /** 在 iframe 中点击元素时，显示动作菜单 */
@@ -248,6 +251,20 @@ export default function App() {
       showToast(`已添加功能描述: ${selector}`);
     } else if (action === 'styles') {
       setStylesPanelSelector(selector);
+    }
+  }, []);
+
+  // ==================== 图片区域动作 ====================
+  const handleRegionAction = useCallback((action, region) => {
+    if (action === 'interaction') {
+      addInteraction({ selector: '区域', eventType: 'tap', action: '', region });
+      showToast('已添加交互区域');
+    } else if (action === 'image') {
+      addImageReplacement({ selector: '区域', imagePath: '', description: '', region });
+      showToast('已添加切图标记区域');
+    } else if (action === 'function') {
+      addFunctionDescription({ selector: '区域', description: '', region });
+      showToast('已添加功能描述区域');
     }
   }, []);
 
@@ -297,6 +314,16 @@ export default function App() {
   };
 
   const handleFileSelected = (path) => {
+    // 切换文件时清理选择器状态
+    const state = useAppStore.getState();
+    if (state.isPickerActive) {
+      state.setIsPickerActive(false);
+      if (iframeRef.current) Picker.disable(iframeRef.current);
+      setPickerMenu(null);
+    }
+    if (state.isImageRegionSelecting) {
+      setIsImageRegionSelecting(false);
+    }
     setCurrentFile(path);
   };
 
@@ -336,6 +363,29 @@ export default function App() {
   // ==================== Picker 切换 ====================
   const handleTogglePicker = useCallback(() => {
     const state = useAppStore.getState();
+    const currentFile = state.currentFile;
+    const isImage = currentFile?.sourceType === 'image' || currentFile?.sourceType === 'psd';
+
+    // 非 HTML 文件：切换图片区域框选模式
+    if (isImage) {
+      const willSelect = !state.isImageRegionSelecting;
+      // 关闭其他模式
+      if (willSelect) {
+        if (state.isColorPickerActive) {
+          state.setIsColorPickerActive(false);
+          ColorPickerModule.disable(iframeRef.current);
+        }
+        if (state.isPickerActive) {
+          state.setIsPickerActive(false);
+          if (iframeRef.current) Picker.disable(iframeRef.current);
+          setPickerMenu(null);
+        }
+      }
+      setIsImageRegionSelecting(willSelect);
+      return;
+    }
+
+    // HTML 文件：元素选择器模式
     const iframe = iframeRef.current;
     const willActivate = !state.isPickerActive;
 
@@ -343,6 +393,10 @@ export default function App() {
     if (willActivate && state.isColorPickerActive) {
       state.setIsColorPickerActive(false);
       if (iframe) ColorPickerModule.disable(iframe);
+    }
+    // 如果图片区域选择激活，先关闭
+    if (willActivate && state.isImageRegionSelecting) {
+      setIsImageRegionSelecting(false);
     }
 
     state.setIsPickerActive(willActivate);
@@ -367,14 +421,24 @@ export default function App() {
       if (iframe) Picker.disable(iframe);
       setPickerMenu(null);
     }
+    // 如果图片区域选择激活，先关闭
+    if (willActivate && state.isImageRegionSelecting) {
+      setIsImageRegionSelecting(false);
+    }
 
     state.setIsColorPickerActive(willActivate);
-    if (iframe) {
-      if (willActivate) {
+    if (willActivate) {
+      // 有 iframe 且已加载时绑定 iframe，否则绑定主文档（图片/psd 模式等）
+      if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
         ColorPickerModule.enable(iframe, handleColorPicked);
       } else {
-        ColorPickerModule.disable(iframe);
+        // 限制取色器仅在预览区域内工作
+        const container = document.querySelector('.phone-screen');
+        ColorPickerModule.enable(null, handleColorPicked, { container });
       }
+    } else {
+      // 禁用时：优先用已绑定的目标，兼容 iframe 和主文档模式
+      ColorPickerModule.disable(iframe);
     }
   }, [handleColorPicked]);
 
@@ -401,6 +465,7 @@ export default function App() {
           onToggleColorPicker={handleToggleColorPicker}
           iframeRef={iframeRef}
           onIframeLoad={handleIframeLoad}
+          onRegionAction={handleRegionAction}
         />
         <ConfigPanel iframeRef={iframeRef} />
       </div>

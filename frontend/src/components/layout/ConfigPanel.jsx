@@ -4,14 +4,75 @@ import { useAppStore } from '../../lib/state';
 import { highlightElement } from '../../lib/picker';
 import { api } from '../../lib/api';
 
-/** 格式化区域标签 */
+/** 格式化区域标签 - 显示 device 坐标 */
 function formatRegionLabel(item) {
-  if (item.selector) return item.selector;
+  if (item.selector && item.selector !== '区域') return item.selector;
   if (item.region) {
-    const { x, y, width, height } = item.region;
-    return `区域 ${x},${y},${width},${height}`;
+    const r = item.region.device || item.region.image || item.region;
+    if (r && r.x !== undefined) return `区域 [${r.x}, ${r.y}, ${r.width}, ${r.height}]`;
   }
   return '(未选择)';
+}
+
+/** 在图片上高亮区域 */
+function highlightImageRegion(region) {
+  const screen = document.querySelector('.phone-screen');
+  const img = document.querySelector('.design-image');
+  if (!screen || !img) return;
+  if (!region || !region.image) return;
+
+  const rect = img.getBoundingClientRect();
+  const imageW = img.naturalWidth || rect.width;
+  const imageH = img.naturalHeight || rect.height;
+  if (!imageW || !imageH) return;
+  const scale = Math.min(rect.width / imageW, rect.height / imageH);
+  const drawW = imageW * scale;
+  const drawH = imageH * scale;
+  const offsetX = (rect.width - drawW) / 2;
+  const offsetY = (rect.height - drawH) / 2;
+
+  const imgR = region.image;
+  const x = imgR.x * scale + offsetX;
+  const y = imgR.y * scale + offsetY;
+  const w = imgR.width * scale;
+  const h = imgR.height * scale;
+
+  // 移除旧的高亮
+  screen.querySelectorAll('.image-region-highlight').forEach(el => el.remove());
+
+  const highlight = document.createElement('div');
+  highlight.className = 'image-region-highlight';
+  highlight.style.left = `${x}px`;
+  highlight.style.top = `${y}px`;
+  highlight.style.width = `${w}px`;
+  highlight.style.height = `${h}px`;
+  screen.appendChild(highlight);
+
+  // 自动滚动到高亮位置（如果不在可视区）
+  const screenRect = screen.getBoundingClientRect();
+  const highlightTop = y;
+  const highlightBottom = y + h;
+  const scrollTop = screen.scrollTop;
+  const screenH = screen.clientHeight;
+
+  if (highlightTop < scrollTop) {
+    // 高亮在可视区上方，滚动到顶部
+    screen.scrollTo({ top: Math.max(0, highlightTop - 20), behavior: 'smooth' });
+  } else if (highlightBottom > scrollTop + screenH) {
+    // 高亮在可视区下方，滚动到底部
+    screen.scrollTo({ top: highlightBottom - screenH + 20, behavior: 'smooth' });
+  }
+
+  setTimeout(() => highlight.remove(), 3000);
+}
+
+/** 高亮交互项（区域或元素） */
+function highlightItem(item, iframeRef) {
+  if (item.region) {
+    highlightImageRegion(item.region);
+  } else if (item.selector && item.selector !== '区域') {
+    highlightElement(iframeRef?.current, item.selector);
+  }
 }
 
 /** 交互列表渲染 */
@@ -22,7 +83,7 @@ function InteractionList({ iframeRef }) {
   const interactions = currentFile?.interactions || [];
 
   const handleHighlight = (item) => {
-    if (item.selector) highlightElement(iframeRef?.current, item.selector);
+    highlightItem(item, iframeRef);
   };
 
   if (interactions.length === 0) {
@@ -33,8 +94,8 @@ function InteractionList({ iframeRef }) {
     <div className="interaction-item" key={idx}>
       <div className="interaction-header">
         <span
-          className={`interaction-selector ${item.selector || item.region ? 'clickable' : ''}`}
-          title={item.selector ? `点击定位: ${item.selector}` : '未指定'}
+          className={`interaction-selector ${(item.selector || item.region) ? 'clickable' : ''}`}
+          title={item.region ? `点击定位: 区域` : item.selector ? `点击定位: ${item.selector}` : '未指定'}
           onClick={() => handleHighlight(item)}
         >
           {formatRegionLabel(item)}
@@ -98,9 +159,9 @@ function ImageReplacementList({ iframeRef }) {
     <div className="interaction-item" key={idx}>
       <div className="interaction-header">
         <span
-          className={`interaction-selector ${item.selector ? 'clickable' : ''}`}
-          title={item.selector ? `点击定位: ${item.selector}` : '未指定'}
-          onClick={() => item.selector && highlightElement(iframeRef?.current, item.selector)}
+          className={`interaction-selector ${(item.selector || item.region) ? 'clickable' : ''}`}
+          title={item.region ? `点击定位: 区域` : item.selector ? `点击定位: ${item.selector}` : '未指定'}
+          onClick={() => highlightItem(item, iframeRef)}
         >
           {formatRegionLabel(item)}
         </span>
@@ -163,9 +224,9 @@ function FunctionDescriptionList({ iframeRef }) {
     <div className="interaction-item" key={idx}>
       <div className="interaction-header">
         <span
-          className={`interaction-selector ${item.selector ? 'clickable' : ''}`}
-          title={item.selector ? `点击定位: ${item.selector}` : '未指定'}
-          onClick={() => item.selector && highlightElement(iframeRef?.current, item.selector)}
+          className={`interaction-selector ${(item.selector || item.region) ? 'clickable' : ''}`}
+          title={item.region ? `点击定位: 区域` : item.selector ? `点击定位: ${item.selector}` : '未指定'}
+          onClick={() => highlightItem(item, iframeRef)}
         >
           {formatRegionLabel(item)}
         </span>

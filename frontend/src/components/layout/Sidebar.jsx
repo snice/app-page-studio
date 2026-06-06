@@ -20,7 +20,7 @@ function HighlightText({ text, highlight }) {
 function FileItem({ file, isActive, isSelected, search, onSelect, onToggleSelect }) {
   const devStatus = file.devStatus || 'pending';
   const devStatusLabels = { pending: '待开发', developing: '开发中', completed: '已完成' };
-  const sourceLabel = file.sourceType === 'image' ? '设计图' : 'HTML';
+  const sourceLabel = file.sourceType === 'html' ? 'HTML' : (file.sourceType === 'psd' ? 'PSD' : '设计图');
 
   return (
     <div

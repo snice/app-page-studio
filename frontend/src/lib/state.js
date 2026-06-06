@@ -127,6 +127,7 @@ export const useAppStore = create((set, get) => ({
             path: file.path, name: file.name,
             sourceType: file.sourceType || 'html',
             imagePath: file.sourceType === 'image' ? file.path : null,
+            previewPath: file.sourceType === 'psd' ? file.previewPath : null,
             stateName: '', description: '', groupId: null,
             devStatus: 'pending', interactions: [],
           });

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Icon } from '../common/Icon';
 import { useAppStore } from '../../lib/state';
+import { ImageRegionSelector } from '../picker/ImageRegionSelector';
 
 const DEVICES = [
   { name: 'iPhone 14', width: 375, height: 812 },
@@ -8,13 +9,16 @@ const DEVICES = [
   { name: 'Android', width: 360, height: 780 },
 ];
 
-export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, onIframeLoad }) {
+export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, onIframeLoad, onRegionAction }) {
   const currentFile = useAppStore((s) => s.currentFile);
   const currentProjectId = useAppStore((s) => s.config.currentProject ?? s.getCurrentProjectId());
   const isPickerActive = useAppStore((s) => s.isPickerActive);
   const isColorPickerActive = useAppStore((s) => s.isColorPickerActive);
+  const isImageRegionSelecting = useAppStore((s) => s.isImageRegionSelecting);
   const zoom = useAppStore((s) => s.zoom);
   const setZoom = useAppStore((s) => s.setZoom);
+
+  const imgRef = useRef(null);
 
   const [device, setDevice] = useState(DEVICES[0]);
 
@@ -32,12 +36,11 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
 
   // iframe src
   const iframeSrc = currentFile
-    ? currentFile.sourceType === 'image'
-      ? null
-      : `/html/${currentProjectId}/${currentFile.path}`
+    ? currentFile.sourceType === 'html'
+      ? `/html/${currentProjectId}/${currentFile.path}` : null
     : null;
 
-  const isImageMode = currentFile?.sourceType === 'image';
+  const isImageMode = currentFile?.sourceType === 'image' || currentFile?.sourceType === 'psd';
 
   const iframeWidth = device.width / zoomScale;
   const iframeHeight = device.height / zoomScale;
@@ -87,19 +90,19 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
             <span>{isColorPickerActive ? '停止取色' : '取色'}</span>
           </button>
           <button
-            className={`picker-btn ${isPickerActive ? 'active' : ''}`}
+            className={`picker-btn ${isPickerActive || isImageRegionSelecting ? 'active' : ''}`}
             onClick={onTogglePicker}
           >
             <Icon name="target" />
-            <span>{isPickerActive ? '取消选择' : '添加交互'}</span>
+            <span>{isPickerActive ? '取消选择' : isImageRegionSelecting ? '拖拽选择' : '添加交互'}</span>
           </button>
         </div>
       </div>
       <div className="preview-frame-wrapper">
         <div className="phone-frame">
           <div
-            className={`phone-screen ${isImageMode ? 'image-mode' : ''}`}
-            style={{ width: device.width, height: device.height }}
+            className={`phone-screen ${isImageMode ? 'image-mode' : ''} ${isImageRegionSelecting ? 'image-selecting' : ''}`}
+            style={{ width: device.width, height: device.height, position: 'relative' }}
           >
             {iframeSrc ? (
               <iframe
@@ -115,17 +118,30 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
                 }}
               />
             ) : isImageMode && currentFile ? (
-              <img
-                className="design-image"
-                src={`/html/${currentProjectId}/${currentFile.imagePath || currentFile.path}`}
-                alt="design"
-                style={{
-                  width: device.width,
-                  height: 'auto',
-                  transform: `scale(${zoomScale})`,
-                  transformOrigin: 'top left',
-                }}
-              />
+              <>
+                <img
+                  ref={imgRef}
+                  className="design-image"
+                  src={`/html/${currentProjectId}/${currentFile.imagePath || currentFile.previewPath || currentFile.path}`}
+                  alt="design"
+                  draggable={false}
+                  style={{
+                    width: device.width,
+                    height: 'auto',
+                    transform: `scale(${zoomScale})`,
+                    transformOrigin: 'top left',
+                  }}
+                />
+                {isImageRegionSelecting && (
+                  <ImageRegionSelector
+                    imgRef={imgRef}
+                    deviceWidth={device.width}
+                    deviceHeight={device.height}
+                    zoomScale={zoomScale}
+                    onRegionAction={onRegionAction}
+                  />
+                )}
+              </>
             ) : (
               <div className="empty-preview">
                 <div className="empty-preview-icon">
