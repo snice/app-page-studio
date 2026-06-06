@@ -26,7 +26,7 @@ function LayerItem({
   layer, depth, selected, onSelect,
   checkedIds, onCheck, anyChecked,
   hiddenLayerIds, onToggleVisibility,
-  manualSliceLayerIds, onMarkSingle,
+  manualSliceLayerIds, slices, onMarkSingle, onUnmarkSlice,
 }) {
   const [expanded, setExpanded] = useState(depth < 2);
   const isSelected = selected?.id === layer.id;
@@ -34,6 +34,9 @@ function LayerItem({
   const isHidden = hiddenLayerIds.has(layer.id);
   const isInManual = isLayerMarked(layer, manualSliceLayerIds);
   const hasChildren = !!layer.children?.length;
+  // Find the slice this layer belongs to (if any)
+  const belongsToSlice = isInManual ? slices.find(s => s.layerIds.includes(layer.id)) : null;
+  const isMergedSlice = belongsToSlice && belongsToSlice.layerIds.length > 1;
   const rowRef = useRef(null);
 
   const hasSelectedDescendant = hasChildren && selected != null && !isSelected
@@ -85,11 +88,6 @@ function LayerItem({
         {/* Name */}
         <span className="psd-layer-name">{layer.name}</span>
 
-        {/* Slice badge */}
-        {isInManual && (
-          <span className="psd-layer-badge" title="已标记切图">✂</span>
-        )}
-
         {/* Visibility toggle */}
         <span
           className={`psd-layer-visibility ${isHidden ? 'is-hidden' : ''}`}
@@ -99,16 +97,22 @@ function LayerItem({
           <Icon name={isHidden ? 'eyeOff' : 'eye'} size="md" />
         </span>
 
-        {/* Mark single button (on hover) */}
-        {!isInManual && (
-          <button
-            className="psd-layer-mark-btn"
-            title="标记切图"
-            onClick={(e) => { e.stopPropagation(); onMarkSingle(layer); }}
-          >
-            ✂
-          </button>
-        )}
+        {/* Slice toggle button */}
+        <button
+          className={`psd-layer-mark-btn ${isInManual ? 'is-marked' : ''} ${isMergedSlice ? 'is-merged' : ''}`}
+          title={isInManual ? (isMergedSlice ? '合并切图（不可单独取消）' : '取消切图') : '标记切图'}
+          disabled={isMergedSlice}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isInManual && !isMergedSlice && belongsToSlice) {
+              onUnmarkSlice(belongsToSlice.id);
+            } else if (!isInManual) {
+              onMarkSingle(layer);
+            }
+          }}
+        >
+          <Icon name="scissors" />
+        </button>
       </div>
 
       {expanded && layer.children?.map(child => (
@@ -124,7 +128,9 @@ function LayerItem({
           hiddenLayerIds={hiddenLayerIds}
           onToggleVisibility={onToggleVisibility}
           manualSliceLayerIds={manualSliceLayerIds}
+          slices={slices}
           onMarkSingle={onMarkSingle}
+          onUnmarkSlice={onUnmarkSlice}
         />
       ))}
     </div>
@@ -144,8 +150,10 @@ export function LayerPanel({
   hiddenLayerIds,
   onToggleVisibility,
   manualSliceLayerIds = new Set(),
+  slices = [],
   onMergeSlice,
   onMarkSingle,
+  onUnmarkSlice,
 }) {
   const anyChecked = checkedIds.size > 0;
   const isSingle = checkedIds.size === 1;
@@ -176,7 +184,9 @@ export function LayerPanel({
             hiddenLayerIds={hiddenLayerIds}
             onToggleVisibility={onToggleVisibility}
             manualSliceLayerIds={manualSliceLayerIds}
+            slices={slices}
             onMarkSingle={onMarkSingle}
+            onUnmarkSlice={onUnmarkSlice}
           />
         ))}
       </div>
@@ -189,7 +199,7 @@ export function LayerPanel({
             <button className="psd-layer-panel-clear" onClick={onClearChecked} title="清除选择">✕</button>
           </div>
           <button className="psd-layer-panel-merge-btn" onClick={onMergeSlice}>
-            ✂ {isSingle ? '标记为切图' : `合并 ${checkedIds.size} 层为切图`}
+            <Icon name="scissors" /> {isSingle ? '标记为切图' : `合并 ${checkedIds.size} 层为切图`}
           </button>
         </div>
       )}

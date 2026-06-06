@@ -407,10 +407,14 @@ export default function App() {
 
   // ==================== Header 回调 ====================
   const handleSaveConfig = async () => {
-    // 保存 PSD 切图信息到当前文件配置
+    // 保存 PSD 切图信息和缩放大小到当前文件配置
     const state = useAppStore.getState();
-    if (state.currentFile?.sourceType === 'psd') {
-      state.updateCurrentFile({ psdSlices: state.psdMarkedSlices });
+    if (state.currentFile) {
+      const updates = { zoom: state.zoom };
+      if (state.currentFile.sourceType === 'psd') {
+        updates.psdSlices = state.psdMarkedSlices;
+      }
+      state.updateCurrentFile(updates);
     }
     const res = await api.savePages(pagesConfig);
     if (res.error) { showToast(res.error); return; }
@@ -536,8 +540,9 @@ export default function App() {
     // 切换文件时重置 PSD 状态
     resetPsdState();
     setCurrentFile(path);
-    // 恢复 PSD 切图标记信息
+    // 恢复文件配置（缩放大小、PSD 切图标记）
     const file = state.pagesConfig.htmlFiles.find(f => f.path === path);
+    useAppStore.getState().setZoom(file?.zoom || 100);
     if (file?.sourceType === 'psd' && file.psdSlices?.length > 0) {
       useAppStore.getState().setPsdMarkedSlices(file.psdSlices);
     }

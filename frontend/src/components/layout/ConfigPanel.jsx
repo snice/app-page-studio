@@ -513,11 +513,15 @@ export function ConfigPanel({ iframeRef }) {
             hiddenLayerIds={psdHiddenLayerIds}
             onToggleVisibility={togglePsdHiddenLayer}
             manualSliceLayerIds={new Set(psdMarkedSlices.flatMap(s => s.layerIds))}
+            slices={psdMarkedSlices}
             onMergeSlice={() => {
               window.dispatchEvent(new CustomEvent('psd-merge-slice'));
             }}
             onMarkSingle={(layer) => {
               window.dispatchEvent(new CustomEvent('psd-mark-single', { detail: { layer } }));
+            }}
+            onUnmarkSlice={(sliceId) => {
+              removePsdMarkedSlice(sliceId);
             }}
           />
         </div>

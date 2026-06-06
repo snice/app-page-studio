@@ -1083,13 +1083,6 @@ input[type="range"]::-moz-range-thumb {
   font-size: 11px;
 }
 
-/* Layer badges */
-.psd-layer-badge {
-  flex-shrink: 0;
-  font-size: 9px;
-  opacity: 0.6;
-}
-
 /* Layer visibility */
 .psd-layer-visibility {
   flex-shrink: 0;
@@ -1112,9 +1105,10 @@ input[type="range"]::-moz-range-thumb {
 /* Layer mark button */
 .psd-layer-mark-btn {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
   background: none;
   border: none;
-  font-size: 10px;
   cursor: pointer;
   opacity: 0;
   transition: opacity var(--transition-fast);
@@ -1127,6 +1121,24 @@ input[type="range"]::-moz-range-thumb {
 .psd-layer-mark-btn:hover {
   opacity: 1 !important;
   color: var(--accent);
+}
+/* Already marked slice - always visible */
+.psd-layer-mark-btn.is-marked {
+  opacity: 0.8;
+  color: var(--accent);
+}
+.psd-layer-mark-btn.is-marked:hover {
+  opacity: 1 !important;
+}
+/* Merged slice - disabled, gray */
+.psd-layer-mark-btn.is-merged {
+  opacity: 0.4;
+  color: var(--text-tertiary);
+  cursor: default;
+}
+.psd-layer-mark-btn.is-merged:hover {
+  opacity: 0.4 !important;
+  color: var(--text-tertiary);
 }
 
 /* Layer panel actions */
