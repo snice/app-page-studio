@@ -8,7 +8,7 @@ const fs = require('fs');
 const cheerio = require('cheerio');
 const AdmZip = require('adm-zip');
 const router = express.Router();
-const { getHtmlDir, upload, extractZipToDir, HTML_CACHES_DIR } = require('./utils');
+const { Projects, getHtmlDir, upload, extractZipToDir, HTML_CACHES_DIR } = require('./utils');
 
 // 上传 HTML ZIP（合并到项目目录，根目录图片自动移入 __design__）
 router.post('/upload-html', upload.single('htmlZip'), (req, res) => {
@@ -268,6 +268,12 @@ router.post('/download-design-zip', (req, res) => {
     return;
   }
 
+  const project = Projects.getById(projectId);
+  let pagesConfig = []
+  if (project) {
+    pagesConfig = Projects.getPagesJson(projectId);
+  }
+
   const htmlRoot = path.resolve(htmlDir);
   const zip = new AdmZip();
   let addedCount = 0;
@@ -348,6 +354,25 @@ router.post('/download-design-zip', (req, res) => {
           }
         }
       }
+    }
+  }
+
+  // 处理imageReplacements字段中可能存在但未被上面流程添加的图片资源
+  for (const item of files) {
+    const configItem = pagesConfig.htmlFiles ? pagesConfig.htmlFiles.find(f => f.path === item.path) : null;
+
+    const replacements = configItem?.imageReplacements || [];
+    for (const rep of replacements) {
+      if (!rep.imagePath) continue;
+      const assetRel = stripLeading(String(rep.imagePath));
+      const assetPosix = toPosix(assetRel);
+      if (addedPaths.has(assetPosix)) continue;
+      const assetAbs = path.resolve(htmlDir, assetRel);
+      if (!assetAbs.startsWith(htmlRoot + path.sep)) continue;
+      if (!fs.existsSync(assetAbs)) continue;
+      zip.addFile(assetPosix, fs.readFileSync(assetAbs));
+      addedPaths.add(assetPosix);
+      addedCount += 1;
     }
   }
 

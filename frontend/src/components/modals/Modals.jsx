@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '../common/Icon';
 import { useAppStore } from '../../lib/state';
 import { api } from '../../lib/api';
@@ -212,6 +212,8 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
   const zipRef = useRef(null);
   const showToast = useAppStore((s) => s.showToast);
   const [dragover, setDragover] = useState('');
+  const dropzoneRef = useRef(null);
+  const psdDropzoneRef = useRef(null);
 
   const handleImages = async (files) => {
     if (!files?.length) return;
@@ -254,6 +256,48 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const imgEl = dropzoneRef.current;
+    const psdEl = psdDropzoneRef.current;
+    const onPasteImage = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const imageFiles = [];
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        handleImages(imageFiles);
+      }
+    };
+    const onPastePsd = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files = [];
+      for (const item of items) {
+        const file = item.getAsFile();
+        if (file && (file.name.toLowerCase().endsWith('.psd') || file.name.toLowerCase().endsWith('.zip'))) {
+          files.push(file);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        handlePsd(files);
+      }
+    };
+    imgEl?.addEventListener('paste', onPasteImage);
+    psdEl?.addEventListener('paste', onPastePsd);
+    return () => {
+      imgEl?.removeEventListener('paste', onPasteImage);
+      psdEl?.removeEventListener('paste', onPastePsd);
+    };
+  }, [isOpen]);
+
   return (
     <ModalOverlay isOpen={isOpen} onClose={onClose}>
       <div className="modal">
@@ -263,26 +307,35 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
         </div>
         <div className="modal-body">
           <div className={`upload-dropzone ${dragover === 'img' ? 'is-dragover' : ''}`}
-            onClick={() => imgRef.current?.click()}
+            ref={dropzoneRef} tabIndex={0}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
             onDragOver={(e) => { e.preventDefault(); setDragover('img'); }}
             onDragLeave={() => setDragover('')}
             onDrop={(e) => handleDrop('image', e)}>
             <div className="upload-dropzone-icon"><Icon name="upload" size="lg" /></div>
             <div className="upload-dropzone-title">上传设计图</div>
-            <div className="upload-dropzone-sub">点击选择图片 / 拖拽 / 粘贴（Ctrl/Cmd + V）</div>
+            <div className="upload-dropzone-sub">拖拽图片到此处 / 点击此区域后粘贴（Ctrl/Cmd + V）</div>
+            <button className="btn btn-sm btn-secondary" style={{ marginTop: 8 }}
+              onClick={(e) => { e.stopPropagation(); imgRef.current?.click(); }}>
+              <Icon name="upload" size="sm" /> 选择图片
+            </button>
           </div>
           <input type="file" ref={imgRef} accept="image/*" multiple style={{ display: 'none' }}
             onChange={(e) => handleImages(e.target.files)} />
 
           <div className={`upload-dropzone ${dragover === 'psd' ? 'is-dragover' : ''}`}
-            style={{ marginTop: 12 }}
-            onClick={() => psdRef.current?.click()}
+            ref={psdDropzoneRef} tabIndex={0}
+            style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center' }}
             onDragOver={(e) => { e.preventDefault(); setDragover('psd'); }}
             onDragLeave={() => setDragover('')}
             onDrop={(e) => handleDrop('psd', e)}>
             <div className="upload-dropzone-icon"><Icon name="layers" size="lg" /></div>
             <div className="upload-dropzone-title">上传 PSD 文件</div>
-            <div className="upload-dropzone-sub">点击选择 .psd 文件 / 拖拽 .psd 或包含 PSD 的 ZIP 到此处</div>
+            <div className="upload-dropzone-sub">拖拽 .psd 或 ZIP 到此处 / 点击此区域后粘贴（Ctrl/Cmd + V）</div>
+            <button className="btn btn-sm btn-secondary" style={{ marginTop: 8 }}
+              onClick={(e) => { e.stopPropagation(); psdRef.current?.click(); }}>
+              <Icon name="upload" size="sm" /> 选择 PSD
+            </button>
           </div>
           <input type="file" ref={psdRef} accept=".psd,.zip" multiple style={{ display: 'none' }}
             onChange={(e) => handlePsd(e.target.files)} />
