@@ -52,7 +52,7 @@ function FileItem({ file, isActive, isSelected, search, onSelect, onToggleSelect
   );
 }
 
-export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected }) {
+export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onToggleMindMap, mindMapOpen }) {
   const pagesConfig = useAppStore((s) => s.pagesConfig);
   const currentFile = useAppStore((s) => s.currentFile);
   const selectedFiles = useAppStore((s) => s.selectedFiles);
@@ -118,10 +118,19 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected }) {
     <aside className="sidebar">
       <div className="sidebar-header">
         <span className="sidebar-title">页面文件</span>
-        <button className="btn btn-sm btn-secondary" onClick={onCreateGroup}>
-          <Icon name="plus" size="sm" />
-          新建页面分组
-        </button>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            className={`btn btn-sm btn-icon ${mindMapOpen ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={onToggleMindMap}
+            title="思维导图视图"
+          >
+            <Icon name="mindmap" size="sm" />
+          </button>
+          <button className="btn btn-sm btn-secondary" onClick={onCreateGroup}>
+            <Icon name="plus" size="sm" />
+            新建页面分组
+          </button>
+        </div>
       </div>
 
       <div className="sidebar-filter">

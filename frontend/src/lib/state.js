@@ -218,6 +218,17 @@ export const useAppStore = create((set, get) => ({
     });
   },
 
+  moveFileToGroup(filePaths, targetGroupId) {
+    set((s) => ({
+      pagesConfig: {
+        ...s.pagesConfig,
+        htmlFiles: s.pagesConfig.htmlFiles.map((f) =>
+          filePaths.includes(f.path) ? { ...f, groupId: targetGroupId } : f
+        ),
+      },
+    }));
+  },
+
   addInteraction(interaction) {
     set((s) => {
       if (!s.currentFile) return {};

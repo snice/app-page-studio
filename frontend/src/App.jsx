@@ -11,6 +11,7 @@ import { api } from './lib/api';
 import { Picker, ColorPickerModule } from './lib/picker';
 import { useWebSocket } from './hooks/useWebSocket';
 import { ElementStylesPanel } from './components/picker/ElementStylesPanel';
+import { MindMapOverlay } from './components/mindmap/MindMapOverlay';
 import { flattenLayers, unionBBox, layerMarkTargets, collectDrawableLayers, nextSliceColor, exportSlice, parsePSD } from './lib/psdUtils';
 import JSZip from 'jszip';
 
@@ -97,6 +98,7 @@ export default function App() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [designDrawerOpen, setDesignDrawerOpen] = useState(false);
+  const [mindMapOpen, setMindMapOpen] = useState(false);
 
   // Picker action menu state
   const [pickerMenu, setPickerMenu] = useState(null); // { x, y, selector, eventType }
@@ -681,6 +683,8 @@ export default function App() {
         <Sidebar
           onCreateGroup={() => setGroupModalOpen(true)}
           onFileSelected={handleFileSelected}
+          onToggleMindMap={() => setMindMapOpen((v) => !v)}
+          mindMapOpen={mindMapOpen}
         />
         {selectedFilesCount > 0 && (
           <div className="selection-toolbar-float">
@@ -723,6 +727,7 @@ export default function App() {
       <DeleteConfirmModal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} count={selectedFilesCount} onConfirm={handleDeleteFiles} />
       <PromptModal isOpen={promptModalOpen} onClose={() => setPromptModalOpen(false)} />
       <DesignSystemDrawer isOpen={designDrawerOpen} onClose={() => setDesignDrawerOpen(false)} />
+      {mindMapOpen && <MindMapOverlay onClose={() => setMindMapOpen(false)} />}
     </>
   );
 }
