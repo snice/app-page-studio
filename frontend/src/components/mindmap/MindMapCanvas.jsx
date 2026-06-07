@@ -6,8 +6,8 @@ import { MindMapConnections } from './MindMapConnections';
 const NODE_SIZES = {
   project: { w: 160, h: 48 },
   group: { w: 160, h: 44 },
-  file: { w: 180, h: 44 },
-  fileDesc: { w: 180, h: 68 }, // file node with description
+  file: { w: 230, h: 44 },
+  fileDesc: { w: 230, h: 68 }, // file node with description
 };
 
 /**
@@ -24,9 +24,9 @@ export function MindMapCanvas({ nodes, connections, bounds, direction, toggleGro
     const positions = {};
     for (const node of nodes) {
       let w, h;
-      if (node.type === 'file' && node.description) {
-        w = NODE_SIZES.fileDesc.w;
-        h = NODE_SIZES.fileDesc.h;
+      if (node.type === 'file') {
+        w = NODE_SIZES.file.w;
+        h = node.estimatedHeight || NODE_SIZES.file.h;
       } else {
         const size = NODE_SIZES[node.type] || { w: 150, h: 44 };
         w = size.w;

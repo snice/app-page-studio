@@ -16,10 +16,18 @@ const V_GROUP_Y = 200;
 const V_FILE_Y = 340;
 const V_NODE_WIDTH = 160;
 const V_NODE_HEIGHT = 44;
-const V_NODE_HEIGHT_DESC = 68;
 const V_NODE_GAP_X = 20;
 const V_GROUP_GAP_X = 40;
 const V_CANVAS_PADDING = 60;
+
+function estimateFileNodeHeight(description) {
+  if (!description) return V_NODE_HEIGHT;
+  const CHARS_PER_LINE = 18;
+  const LINE_HEIGHT = 16;
+  const DESC_OVERHEAD = 14; // margin-top + padding-top + border
+  const lines = Math.ceil(description.length / CHARS_PER_LINE);
+  return V_NODE_HEIGHT + DESC_OVERHEAD + lines * LINE_HEIGHT;
+}
 
 /**
  * Build tree data from pagesConfig for mind map rendering.
@@ -61,10 +69,10 @@ export function useMindMapLayout(direction = 'vertical') {
     }
 
     if (direction === 'horizontal') {
-      // 左右: groups spread horizontally, files below each group
-      return buildHorizontalGroupsLayout(groups, files, filesByGroup, ungroupedFiles, projectName, collapsedGroups);
+      // 上下树形布局: root居顶, 分组水平展开, 文件在各分组下方
+      return buildVerticalTreeLayout(groups, files, filesByGroup, ungroupedFiles, projectName, collapsedGroups);
     } else {
-      // 上下 (default): classic mindmap - root left, groups stacked vertically, files right
+      // 左右经典布局 (default): root居左, 分组垂直堆叠, 文件在右
       return buildClassicLayout(groups, files, filesByGroup, ungroupedFiles, projectName, collapsedGroups);
     }
   }, [pagesConfig, collapsedGroups, direction]);
@@ -96,17 +104,30 @@ function buildClassicLayout(groups, files, filesByGroup, ungroupedFiles, project
   for (const group of groups) {
     const groupFiles = filesByGroup[group.id] || [];
     const isCollapsed = collapsedGroups.has(group.id);
-    const visibleCount = isCollapsed ? 0 : groupFiles.length;
-    const h = Math.max(H_NODE_HEIGHT, visibleCount * (H_NODE_HEIGHT + H_NODE_GAP_Y));
+    let h = H_NODE_HEIGHT;
+    if (!isCollapsed) {
+      h = 0;
+      groupFiles.forEach((file) => {
+        h += estimateFileNodeHeight(file.description) + H_NODE_GAP_Y;
+      });
+      h = Math.max(H_NODE_HEIGHT, h);
+    }
     groupHeights.push(h);
     totalHeight += h + H_GROUP_GAP_Y;
   }
 
   const ungroupedCollapsed = collapsedGroups.has('__ungrouped__');
-  const ungroupedVisible = ungroupedCollapsed ? 0 : ungroupedFiles.length;
-  const ungroupedH = ungroupedFiles.length > 0
-    ? Math.max(H_NODE_HEIGHT, ungroupedVisible * (H_NODE_HEIGHT + H_NODE_GAP_Y))
-    : 0;
+  let ungroupedH = 0;
+  if (ungroupedFiles.length > 0) {
+    if (ungroupedCollapsed) {
+      ungroupedH = H_NODE_HEIGHT;
+    } else {
+      ungroupedFiles.forEach((file) => {
+        ungroupedH += estimateFileNodeHeight(file.description) + H_NODE_GAP_Y;
+      });
+      ungroupedH = Math.max(H_NODE_HEIGHT, ungroupedH);
+    }
+  }
   if (ungroupedFiles.length > 0) {
     totalHeight += ungroupedH + H_GROUP_GAP_Y;
   }
@@ -142,8 +163,10 @@ function buildClassicLayout(groups, files, filesByGroup, ungroupedFiles, project
     });
 
     if (!isCollapsed) {
-      groupFiles.forEach((file, fIdx) => {
-        const fileY = currentY + fIdx * (H_NODE_HEIGHT + H_NODE_GAP_Y) + H_NODE_HEIGHT / 2;
+      let fileAccY = currentY;
+      groupFiles.forEach((file) => {
+        const nodeH = estimateFileNodeHeight(file.description);
+        const fileY = fileAccY + nodeH / 2;
         nodesList.push({
           id: `file-${file.path}`, type: 'file', path: file.path,
           label: file.stateName || file.name || file.path.split('/').pop(),
@@ -151,8 +174,10 @@ function buildClassicLayout(groups, files, filesByGroup, ungroupedFiles, project
           devStatus: file.devStatus || 'pending',
           sourceType: file.sourceType || 'html',
           groupId: group.id,
+          estimatedHeight: nodeH,
           x: H_FILE_X, y: fileY,
         });
+        fileAccY += nodeH + H_NODE_GAP_Y;
 
         connectionsList.push({
           id: `conn-${group.id}-${file.path}`,
@@ -184,8 +209,10 @@ function buildClassicLayout(groups, files, filesByGroup, ungroupedFiles, project
     });
 
     if (!ungroupedCollapsed) {
-      ungroupedFiles.forEach((file, fIdx) => {
-        const fileY = currentY + fIdx * (H_NODE_HEIGHT + H_NODE_GAP_Y) + H_NODE_HEIGHT / 2;
+      let ugFileAccY = currentY;
+      ungroupedFiles.forEach((file) => {
+        const nodeH = estimateFileNodeHeight(file.description);
+        const fileY = ugFileAccY + nodeH / 2;
         nodesList.push({
           id: `file-${file.path}`, type: 'file', path: file.path,
           label: file.stateName || file.name || file.path.split('/').pop(),
@@ -193,8 +220,10 @@ function buildClassicLayout(groups, files, filesByGroup, ungroupedFiles, project
           devStatus: file.devStatus || 'pending',
           sourceType: file.sourceType || 'html',
           groupId: null,
+          estimatedHeight: nodeH,
           x: H_FILE_X, y: fileY,
         });
+        ugFileAccY += nodeH + H_NODE_GAP_Y;
 
         connectionsList.push({
           id: `conn-ungrouped-${file.path}`,
@@ -211,43 +240,57 @@ function buildClassicLayout(groups, files, filesByGroup, ungroupedFiles, project
   return {
     nodes: nodesList,
     connections: connectionsList,
-    bounds: { width: H_FILE_X + 240, height: Math.max(currentY + H_CANVAS_PADDING, 400) },
+    bounds: { width: H_FILE_X + 300, height: Math.max(currentY + H_CANVAS_PADDING, 400) },
   };
 }
 
 /**
- * Horizontal groups layout (左右): root at top, groups spread horizontally, files below each group
+ * 树形布局 (上下): root居中顶部, 分组水平展开, 文件在各分组下方垂直堆叠
+ * 对应 direction === 'horizontal' (UI显示为"左右")
  */
-function buildHorizontalGroupsLayout(groups, files, filesByGroup, ungroupedFiles, projectName, collapsedGroups) {
+function buildVerticalTreeLayout(groups, files, filesByGroup, ungroupedFiles, projectName, collapsedGroups) {
   const nodesList = [];
   const connectionsList = [];
 
-  // Root node at top-left area
-  nodesList.push({
-    id: 'root', type: 'project', label: projectName,
-    x: V_CANVAS_PADDING, y: V_ROOT_Y,
-  });
-
-  let currentX = V_CANVAS_PADDING;
-
-  // Group nodes in a horizontal row
+  // 收集所有分组(含未分组)
   const allGroups = [...groups];
   if (ungroupedFiles.length > 0) {
     allGroups.push({ id: '__ungrouped__', name: '未分组', color: '#6b7280' });
   }
 
-  const groupPositions = {}; // groupId -> { x, width }
+  const groupNodeWidth = V_NODE_WIDTH; // 分组节点宽度 (160)
+  const fileNodeWidth = 230; // 文件节点宽度 (accounts for description text)
+  const trunkGap = 18; // trunk line gap left of file nodes
+  const fileLeftMargin = trunkGap + 4; // extra space for bracket trunk
+  const fileXOffset = fileLeftMargin; // files start after trunk gap, left-aligned under group
+
+  // 计算分组的实际跨度, accounting for wider file area
+  const effectiveGroupWidth = Math.max(groupNodeWidth, fileXOffset + fileNodeWidth);
+  const groupsSpan = V_CANVAS_PADDING + allGroups.length * effectiveGroupWidth + (allGroups.length - 1) * V_GROUP_GAP_X + V_CANVAS_PADDING;
+  const groupsLeftEdge = V_CANVAS_PADDING;
+  const groupsRightEdge = V_CANVAS_PADDING + (allGroups.length - 1) * (effectiveGroupWidth + V_GROUP_GAP_X) + effectiveGroupWidth;
+  const groupsCenterX = (groupsLeftEdge + groupsRightEdge) / 2;
+
+  // Root节点水平居中于所有分组跨度上方
+  const rootWidth = 160;
+  const rootX = groupsCenterX - rootWidth / 2;
+
+  nodesList.push({
+    id: 'root', type: 'project', label: projectName,
+    x: rootX, y: V_ROOT_Y,
+  });
+
+  // 分组水平排列
+  let currentX = V_CANVAS_PADDING;
 
   allGroups.forEach((group) => {
     const isUngrouped = group.id === '__ungrouped__';
     const groupFiles = isUngrouped ? ungroupedFiles : (filesByGroup[group.id] || []);
     const isCollapsed = collapsedGroups.has(isUngrouped ? '__ungrouped__' : group.id);
-    const visibleCount = isCollapsed ? 0 : groupFiles.length;
 
-    // Group node position
     const groupX = currentX;
-    const groupW = V_NODE_WIDTH;
 
+    // 分组节点
     nodesList.push({
       id: `group-${group.id}`, type: 'group', groupId: isUngrouped ? null : group.id,
       label: group.name, color: group.color, description: group.description,
@@ -255,7 +298,7 @@ function buildHorizontalGroupsLayout(groups, files, filesByGroup, ungroupedFiles
       x: groupX, y: V_GROUP_Y,
     });
 
-    // Connection: root bottom -> group top
+    // 连接: root底部中心 -> 分组顶部中心
     connectionsList.push({
       id: isUngrouped ? 'conn-root-ungrouped' : `conn-root-${group.id}`,
       from: { nodeId: 'root', side: 'bottom' },
@@ -263,14 +306,11 @@ function buildHorizontalGroupsLayout(groups, files, filesByGroup, ungroupedFiles
       color: group.color || '#6b7280',
     });
 
-    groupPositions[group.id] = { x: groupX };
-
-    // File nodes stacked vertically below the group
+    // 文件节点在分组下方垂直堆叠, 居中对齐
     if (!isCollapsed) {
-      groupFiles.forEach((file, fIdx) => {
-        const hasDesc = !!(file.description);
-        const nodeH = hasDesc ? V_NODE_HEIGHT_DESC : V_NODE_HEIGHT;
-        const fileY = V_FILE_Y + fIdx * (nodeH + V_NODE_GAP_X);
+      let currentFileY = V_FILE_Y;
+      groupFiles.forEach((file) => {
+        const nodeH = estimateFileNodeHeight(file.description);
 
         nodesList.push({
           id: `file-${file.path}`, type: 'file', path: file.path,
@@ -279,7 +319,9 @@ function buildHorizontalGroupsLayout(groups, files, filesByGroup, ungroupedFiles
           devStatus: file.devStatus || 'pending',
           sourceType: file.sourceType || 'html',
           groupId: isUngrouped ? null : group.id,
-          x: groupX, y: fileY,
+          x: groupX + fileXOffset,
+          y: currentFileY,
+          estimatedHeight: nodeH,
         });
 
         connectionsList.push({
@@ -288,23 +330,22 @@ function buildHorizontalGroupsLayout(groups, files, filesByGroup, ungroupedFiles
           to: { nodeId: `file-${file.path}`, side: 'top' },
           color: group.color || '#6b7280',
         });
+
+        currentFileY += nodeH + V_NODE_GAP_X;
       });
     }
 
-    // Calculate column width for spacing
-    const colHeight = isCollapsed ? 0 : visibleCount * ((groupFiles.some(f => f.description) ? V_NODE_HEIGHT_DESC : V_NODE_HEIGHT) + V_NODE_GAP_X);
-    currentX += groupW + V_GROUP_GAP_X;
+    currentX += effectiveGroupWidth + V_GROUP_GAP_X;
   });
 
-  // Calculate bounds
-  const totalWidth = currentX + V_CANVAS_PADDING;
+  // 计算画布边界
+  const totalWidth = Math.max(groupsSpan, groupsRightEdge + V_CANVAS_PADDING);
 
-  // Find max Y from file nodes
   let maxY = V_GROUP_Y + V_NODE_HEIGHT + 60;
   nodesList.forEach((n) => {
     if (n.type === 'file') {
-      const hasDesc = !!(n.description);
-      maxY = Math.max(maxY, n.y + (hasDesc ? V_NODE_HEIGHT_DESC : V_NODE_HEIGHT) + V_CANVAS_PADDING);
+      const h = n.estimatedHeight || estimateFileNodeHeight(n.description);
+      maxY = Math.max(maxY, n.y + h + V_CANVAS_PADDING);
     }
   });
 

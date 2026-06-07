@@ -1641,6 +1641,9 @@ input[type="range"]::-moz-range-thumb {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md), 0 0 30px var(--primary-glow);
   border: none;
+  min-width: 160px;
+  justify-content: center;
+  align-items: center;
 }
 
 .mindmap-node.is-project .mindmap-node-label {
@@ -1654,7 +1657,7 @@ input[type="range"]::-moz-range-thumb {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
-  min-width: 130px;
+  min-width: 160px;
   padding-left: 20px;
   overflow: hidden;
 }
@@ -1721,40 +1724,33 @@ input[type="range"]::-moz-range-thumb {
 .mindmap-source-tag.psd { color: #f472b6; }
 .mindmap-source-tag.image { color: #34d399; }
 
-/* 编辑态 input */
-.mindmap-node-edit {
-  position: absolute;
-  inset: 0;
-  background: var(--bg);
-  border: 2px solid var(--primary);
-  border-radius: var(--radius-md);
-  color: var(--text);
-  padding: 8px 12px;
-  font-size: inherit;
-  font-family: inherit;
-  font-weight: inherit;
-  outline: none;
-  box-shadow: 0 0 0 4px var(--primary-glow);
-  z-index: 10;
+/* 编辑态 */
+.mindmap-node-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
 }
 
-/* Tooltip */
-.mindmap-tooltip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+.mindmap-node-edit {
+  background: var(--bg);
+  border: 2px solid var(--primary);
   border-radius: var(--radius-sm);
+  color: var(--text);
   padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-glow);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mindmap-node-edit-desc {
   font-size: 11px;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-  max-width: 240px;
-  pointer-events: none;
-  box-shadow: var(--shadow-sm);
-  z-index: 20;
+  resize: vertical;
+  min-height: 40px;
+  line-height: 1.4;
 }
 
 /* Drop zone highlight */

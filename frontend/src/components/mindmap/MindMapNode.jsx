@@ -2,20 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '../common/Icon';
 import { useAppStore } from '../../lib/state';
 
-/**
- * MindMapNode - Renders a single node in the mind map.
- * type: 'project' | 'group' | 'file'
- * direction: 'vertical' | 'horizontal'
- */
 export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect }) {
   const { id, type, label, x, y } = node;
   const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState('');
-  const [showTooltip, setShowTooltip] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const inputRef = useRef(null);
-  const tooltipTimer = useRef(null);
+  const nameRef = useRef(null);
+  const editRef = useRef(null);
 
   const setCurrentFile = useAppStore((s) => s.setCurrentFile);
   const updateCurrentFile = useAppStore((s) => s.updateCurrentFile);
@@ -23,41 +18,60 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
   const moveFileToGroup = useAppStore((s) => s.moveFileToGroup);
   const currentFile = useAppStore((s) => s.currentFile);
 
+  const isHorizontalGroups = direction === 'horizontal';
+
   useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
+    if (isEditing && nameRef.current) {
+      nameRef.current.focus();
+      nameRef.current.select();
     }
   }, [isEditing]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const handleClickOutside = (e) => {
+      if (editRef.current && !editRef.current.contains(e.target)) {
+        commitEdit();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isEditing, editName, editDesc]);
 
   const handleDoubleClick = (e) => {
     e.stopPropagation();
     if (type === 'project') return;
-    setEditValue(label);
+    setEditName(label);
+    setEditDesc(node.description || '');
     setIsEditing(true);
   };
 
   const commitEdit = () => {
     setIsEditing(false);
-    if (!editValue.trim()) return;
+    if (!editName.trim()) return;
 
     if (type === 'file') {
       setCurrentFile(node.path);
       setTimeout(() => {
-        updateCurrentFile({ stateName: editValue.trim() });
+        updateCurrentFile({ stateName: editName.trim(), description: editDesc.trim() });
       }, 0);
     } else if (type === 'group' && node.groupId) {
-      updateGroup(node.groupId, { name: editValue.trim() });
+      updateGroup(node.groupId, { name: editName.trim(), description: editDesc.trim() });
     }
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
     if (e.key === 'Escape') { setIsEditing(false); }
+  };
+
+  const handleNameKeyDown = (e) => {
+    handleKeyDown(e);
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
   };
 
   const handleClick = (e) => {
     e.stopPropagation();
+    if (isEditing) return;
     if (type === 'file') {
       setCurrentFile(node.path);
       onNodeSelect?.(node.path);
@@ -66,7 +80,6 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
     }
   };
 
-  // Drag handlers for file nodes
   const handleDragStart = (e) => {
     if (type !== 'file') return;
     setIsDragging(true);
@@ -74,11 +87,8 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragEnd = () => {
-    setIsDragging(false);
-  };
+  const handleDragEnd = () => setIsDragging(false);
 
-  // Drop handlers for group nodes
   const handleDragOver = (e) => {
     if (type !== 'group') return;
     e.preventDefault();
@@ -86,9 +96,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
     setIsDragOver(true);
   };
 
-  const handleDragLeave = () => {
-    setIsDragOver(false);
-  };
+  const handleDragLeave = () => setIsDragOver(false);
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -99,31 +107,16 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
     moveFileToGroup([filePath], node.groupId);
   };
 
-  // Tooltip for description (only in horizontal mode; vertical shows inline)
-  const handleMouseEnter = () => {
-    if (type !== 'file' || !node.description) return;
-    tooltipTimer.current = setTimeout(() => setShowTooltip(true), 800);
-  };
-
-  const handleMouseLeave = () => {
-    clearTimeout(tooltipTimer.current);
-    setShowTooltip(false);
-  };
-
   const isActive = type === 'file' && currentFile?.path === node.path;
   const devStatusColors = { pending: '#f59e0b', developing: '#3b82f6', completed: '#22c55e' };
 
-  // Position: classic (vertical) mode uses translateY(-50%) since y=center
-  // horizontal groups mode uses y=top, no transform needed
-  const isHorizontalGroups = direction === 'horizontal';
   const nodeStyle = {
     left: x,
     top: y,
     ...(isHorizontalGroups ? {} : { transform: 'translateY(-50%)' }),
   };
 
-  // Show description inline for file nodes in horizontal groups mode
-  const showDescription = type === 'file' && node.description && isHorizontalGroups;
+  const showDescription = type === 'file' && node.description;
 
   return (
     <div
@@ -131,9 +124,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
       style={nodeStyle}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      draggable={type === 'file'}
+      draggable={type === 'file' && !isEditing}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
@@ -147,7 +138,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
         </div>
       )}
 
-      {type === 'group' && (
+      {type === 'group' && !isEditing && (
         <>
           <div className="group-color-bar" style={{ background: node.color }} />
           <div className="mindmap-node-content">
@@ -158,7 +149,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
         </>
       )}
 
-      {type === 'file' && (
+      {type === 'file' && !isEditing && (
         <>
           <div className="mindmap-node-content">
             <span
@@ -175,20 +166,25 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
       )}
 
       {isEditing && (
-        <input
-          ref={inputRef}
-          className="mindmap-node-edit"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={commitEdit}
-          onKeyDown={handleKeyDown}
-          onClick={(e) => e.stopPropagation()}
-        />
-      )}
-
-      {showTooltip && node.description && (
-        <div className="mindmap-tooltip">
-          {node.description}
+        <div ref={editRef} className="mindmap-node-edit-form" onClick={(e) => e.stopPropagation()}>
+          <input
+            ref={nameRef}
+            className="mindmap-node-edit"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            onKeyDown={handleNameKeyDown}
+            placeholder="名称"
+          />
+          {type === 'file' && (
+            <textarea
+              className="mindmap-node-edit mindmap-node-edit-desc"
+              value={editDesc}
+              onChange={(e) => setEditDesc(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="描述（可选）"
+              rows={2}
+            />
+          )}
         </div>
       )}
     </div>
