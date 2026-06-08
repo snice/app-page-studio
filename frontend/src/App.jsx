@@ -417,8 +417,12 @@ export default function App() {
         updates.psdSlices = state.psdMarkedSlices;
       }
       state.updateCurrentFile(updates);
+      // 缩放锁定：把当前 zoom 应用到所有相同 sourceType 的文件
+      if (state.zoomLockBySourceType && state.currentFile.sourceType) {
+        state.applyZoomToAllSameSourceType(state.currentFile.sourceType, state.zoom);
+      }
     }
-    const res = await api.savePages(pagesConfig);
+    const res = await api.savePages(useAppStore.getState().pagesConfig);
     if (res.error) { showToast(res.error); return; }
     showToast('配置已保存');
   };

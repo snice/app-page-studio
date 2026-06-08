@@ -359,6 +359,7 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer; color: var(--text-secondary); transition: all var(--transition-fast);
 }
 .zoom-btn:hover { background: var(--bg-tertiary); color: var(--text); border-color: var(--primary); }
+.zoom-btn.active { background: rgba(129,140,248,0.15); color: var(--primary); border-color: var(--primary); box-shadow: 0 0 8px var(--primary-glow); }
 .zoom-slider { width: 100px; height: 4px; -webkit-appearance: none; appearance: none; background: var(--border); border-radius: 2px; cursor: pointer; }
 .zoom-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--primary); border-radius: 50%; cursor: pointer; box-shadow: 0 0 6px var(--primary-glow); }
 .zoom-slider::-moz-range-thumb { width: 14px; height: 14px; background: var(--primary); border-radius: 50%; cursor: pointer; border: none; box-shadow: 0 0 6px var(--primary-glow); }

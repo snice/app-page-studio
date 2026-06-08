@@ -19,6 +19,8 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
   const isImageRegionSelecting = useAppStore((s) => s.isImageRegionSelecting);
   const zoom = useAppStore((s) => s.zoom);
   const setZoom = useAppStore((s) => s.setZoom);
+  const zoomLockBySourceType = useAppStore((s) => s.zoomLockBySourceType);
+  const toggleZoomLockBySourceType = useAppStore((s) => s.toggleZoomLockBySourceType);
 
   // PSD state
   const psdMode = useAppStore((s) => s.psdMode);
@@ -210,6 +212,16 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
             <span className="zoom-value">{zoom}%</span>
             <button className="zoom-btn" onClick={resetZoom} title="重置" disabled={isPsdLayers}>
               <Icon name="refresh" size="sm" />
+            </button>
+            <button
+              className={`zoom-btn zoom-lock-btn ${zoomLockBySourceType ? 'active' : ''}`}
+              onClick={toggleZoomLockBySourceType}
+              title={zoomLockBySourceType
+                ? `已锁定缩放：同类型 (${currentFile?.sourceType || '-'}) 文件统一使用此缩放`
+                : '锁定缩放：同 sourceType 文件统一使用此缩放'}
+              disabled={isPsdLayers}
+            >
+              <Icon name={zoomLockBySourceType ? 'link' : 'linkOff'} size="sm" />
             </button>
           </div>
           <button

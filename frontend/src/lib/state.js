@@ -3,9 +3,22 @@ import { create } from 'zustand';
 const STORAGE_KEY_CURRENT_PROJECT = 'appPageStudio_currentProjectId';
 const STORAGE_KEY_SESSION_ID = 'appPageStudio_sessionId';
 const STORAGE_KEY_EDITOR_NAME = 'appPageStudio_editorName';
+const STORAGE_KEY_ZOOM_LOCK = 'appPageStudio_zoomLock';
+const STORAGE_KEY_ZOOM_BY_SOURCE_TYPE = 'appPageStudio_zoomBySourceType';
 
 function generateSessionId() {
   return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+}
+
+function loadZoomLock() {
+  try { return localStorage.getItem(STORAGE_KEY_ZOOM_LOCK) === '1'; } catch { return false; }
+}
+
+function loadZoomBySourceType() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_ZOOM_BY_SOURCE_TYPE);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
 }
 
 export const useAppStore = create((set, get) => ({
@@ -61,6 +74,8 @@ export const useAppStore = create((set, get) => ({
 
   // 缩放
   zoom: 100,
+  zoomLockBySourceType: loadZoomLock(),
+  zoomBySourceType: loadZoomBySourceType(),
 
   // PSD 模式
   psdMode: 'preview', // 'preview' | 'layers'
@@ -152,7 +167,13 @@ export const useAppStore = create((set, get) => ({
     if (!path) { set({ currentFile: null }); return; }
     set((s) => {
       const file = s.pagesConfig.htmlFiles.find((f) => f.path === path);
-      return file ? { currentFile: file } : {};
+      if (!file) return {};
+      const next = { currentFile: file };
+      if (s.zoomLockBySourceType && file.sourceType) {
+        const saved = s.zoomBySourceType[file.sourceType];
+        if (typeof saved === 'number') next.zoom = Math.max(25, Math.min(200, saved));
+      }
+      return next;
     });
   },
 
@@ -387,7 +408,45 @@ export const useAppStore = create((set, get) => ({
   },
 
   // ==================== UI State ====================
-  setZoom(zoom) { set({ zoom: Math.max(25, Math.min(200, zoom)) }); },
+  setZoom(zoom) {
+    const clamped = Math.max(25, Math.min(200, zoom));
+    set((s) => {
+      const next = { zoom: clamped };
+      const sourceType = s.currentFile?.sourceType;
+      if (s.zoomLockBySourceType && sourceType) {
+        const map = { ...s.zoomBySourceType, [sourceType]: clamped };
+        next.zoomBySourceType = map;
+        try { localStorage.setItem(STORAGE_KEY_ZOOM_BY_SOURCE_TYPE, JSON.stringify(map)); } catch {}
+      }
+      return next;
+    });
+  },
+  applyZoomToAllSameSourceType(sourceType, zoom) {
+    if (!sourceType) return;
+    set((s) => ({
+      pagesConfig: {
+        ...s.pagesConfig,
+        htmlFiles: s.pagesConfig.htmlFiles.map((f) =>
+          f.sourceType === sourceType ? { ...f, zoom } : f
+        ),
+      },
+    }));
+  },
+  toggleZoomLockBySourceType() {
+    set((s) => {
+      const enabled = !s.zoomLockBySourceType;
+      try { localStorage.setItem(STORAGE_KEY_ZOOM_LOCK, enabled ? '1' : '0'); } catch {}
+      const next = { zoomLockBySourceType: enabled };
+      // 开启时：以当前 zoom 作为该 sourceType 的初始锁定值
+      const sourceType = s.currentFile?.sourceType;
+      if (enabled && sourceType) {
+        const map = { ...s.zoomBySourceType, [sourceType]: s.zoom };
+        next.zoomBySourceType = map;
+        try { localStorage.setItem(STORAGE_KEY_ZOOM_BY_SOURCE_TYPE, JSON.stringify(map)); } catch {}
+      }
+      return next;
+    });
+  },
   setActivePanelTab(tab) { set({ activePanelTab: tab }); },
   setFileFilter(filter) { set((s) => ({ fileFilter: { ...s.fileFilter, ...filter } })); },
   setIsPickerActive(v) { set({ isPickerActive: v }); },

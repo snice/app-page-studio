@@ -30,10 +30,18 @@ function injectPickerStyles(doc) {
   doc.head.appendChild(style);
 }
 
+const INTERNAL_PICKER_CLASSES = new Set([
+  'picker-hover', 'picker-selected', 'color-picker-hover', 'element-highlight',
+]);
+
 function generateSelector(el) {
   if (el.id) return `#${el.id}`;
   if (el.className && typeof el.className === 'string') {
-    const classes = el.className.split(' ').filter(Boolean).slice(0, 2);
+    const classes = el.className
+      .split(' ')
+      .filter(Boolean)
+      .filter((c) => !INTERNAL_PICKER_CLASSES.has(c))
+      .slice(0, 2);
     if (classes.length) return `.${classes.join('.')}`;
   }
   return el.tagName.toLowerCase();
@@ -333,19 +341,30 @@ export function highlightElement(iframe, selector) {
   // 清除之前的高亮
   doc.querySelectorAll('.element-highlight').forEach(el => el.classList.remove('element-highlight'));
 
+  // 兼容历史数据：剥离误存入选择器的内部 picker 类
+  const cleanedSelector = selector.replace(
+    /\.(picker-hover|picker-selected|color-picker-hover|element-highlight)(?![\w-])/g,
+    ''
+  ).trim();
+  if (!cleanedSelector) return false;
+
   try {
     let el;
-    if (selector.startsWith('#')) {
-      const id = selector.slice(1);
+    if (cleanedSelector.startsWith('#')) {
+      const id = cleanedSelector.slice(1);
       el = doc.querySelector(`[id="${id}"]`);
     } else {
-      el = doc.querySelector(selector);
+      el = doc.querySelector(cleanedSelector);
     }
     if (el) {
       // 注入高亮样式（如果尚未注入）
       injectPickerStyles(doc);
       el.classList.add('element-highlight');
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // 仅当预览内容可滚动时才滚动，避免触发父页面滚动
+      const scrollEl = doc.scrollingElement || doc.documentElement;
+      if (scrollEl && scrollEl.scrollHeight > scrollEl.clientHeight + 1) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       setTimeout(() => el.classList.remove('element-highlight'), 3000);
       return true;
     }
