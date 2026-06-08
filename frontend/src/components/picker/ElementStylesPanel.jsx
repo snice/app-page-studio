@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Icon } from '../common/Icon';
 import { Picker, highlightElement } from '../../lib/picker';
+import { copyText } from '../../lib/clipboard';
 
 // ==================== Style extraction helpers ====================
 
@@ -210,7 +211,7 @@ export function ElementStylesPanel({ selector, iframeRef, onClose }) {
   }, []);
 
   const copyToClipboard = useCallback((value) => {
-    navigator.clipboard?.writeText(value);
+    copyText(value);
   }, []);
 
   const handleHighlight = useCallback(() => {

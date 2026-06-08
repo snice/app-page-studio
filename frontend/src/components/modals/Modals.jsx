@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '../common/Icon';
 import { useAppStore } from '../../lib/state';
 import { api } from '../../lib/api';
+import { copyText } from '../../lib/clipboard';
 
 // ==================== 通用 Modal Wrapper ====================
 function ModalOverlay({ isOpen, onClose, children }) {
@@ -544,8 +545,8 @@ export function PromptModal({ isOpen, onClose }) {
   };
 
   const copy = async () => {
-    await navigator.clipboard.writeText(promptText);
-    showToast('已复制到剪贴板');
+    const ok = await copyText(promptText);
+    showToast(ok ? '已复制到剪贴板' : '复制失败，请手动选择文本复制');
   };
 
   const download = () => {

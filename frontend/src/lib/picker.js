@@ -3,6 +3,8 @@
  * 直接操作 iframe contentDocument（同源 iframe）
  */
 
+import { copyText } from './clipboard';
+
 // ==================== Element Picker ====================
 
 const pickerHandlers = {
@@ -205,39 +207,6 @@ function getColorTargetInfo() {
   return { doc: colorBoundTarget.doc, iframeRect: null, zoom: 1 };
 }
 
-/** 复制到剪贴板：优先 Clipboard API，失败回退到 execCommand */
-async function copyToClipboard(text) {
-  try {
-    if (typeof window !== 'undefined' && window.focus) window.focus();
-  } catch {}
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch (e) {
-    // 主文档失焦或权限被拒，回退到 execCommand
-  }
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.top = '0';
-    ta.style.left = '0';
-    ta.style.opacity = '0';
-    ta.style.pointerEvents = 'none';
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(ta);
-    return ok;
-  } catch {
-    return false;
-  }
-}
-
 export const ColorPickerModule = {
   /**
    * 启用取色器
@@ -318,7 +287,7 @@ export const ColorPickerModule = {
         // iframe 模式下，点击发生在 iframe 文档里，主文档失焦会导致
         // navigator.clipboard.writeText 静默 reject。先 focus 主窗口，
         // 再 await，并准备 execCommand 兜底。
-        copyToClipboard(color.hex).then((ok) => {
+        copyText(color.hex).then((ok) => {
           if (onColorPicked) onColorPicked(color.hex, ok);
         });
       }
