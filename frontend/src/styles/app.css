@@ -248,7 +248,31 @@ input[type="range"]::-moz-range-thumb {
 .group-name { flex: 1; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
 .group-count { font-size: 11px; color: var(--text-muted); background: var(--bg-tertiary); padding: 3px 8px; border-radius: var(--radius-sm); font-weight: 500; }
 .group-actions { display: flex; gap: 4px; opacity: 0; transition: opacity var(--transition-fast); }
-.file-group-header:hover .group-actions { opacity: 1; }
+.file-group-header:hover .group-actions,
+.file-group-header.confirming .group-actions { opacity: 1; }
+
+/* 内联删除确认气泡（portal 到 body，使用 fixed 定位避免被 overflow 裁剪） */
+.inline-confirm {
+  position: fixed;
+  z-index: 1000;
+  width: 240px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.18));
+  display: flex; flex-direction: column; gap: 8px;
+}
+.inline-confirm::before {
+  content: ''; position: absolute; top: -5px; right: 12px;
+  width: 8px; height: 8px; background: var(--bg);
+  border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+.inline-confirm-text { font-size: 12px; color: var(--text); line-height: 1.5; }
+.inline-confirm-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.inline-confirm-actions .btn-danger { background: var(--danger, #ef4444); color: #fff; border-color: var(--danger, #ef4444); }
+.inline-confirm-actions .btn-danger:hover { filter: brightness(1.05); }
 .group-files { border-top: 1px solid var(--border); }
 
 

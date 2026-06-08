@@ -1,6 +1,51 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../common/Icon';
 import { useAppStore } from '../../lib/state';
+
+/** 内联删除确认气泡（portal 到 body，避免被祖先 overflow 裁剪） */
+function InlineConfirm({ anchorRef, message, onConfirm, onCancel }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
+
+  useLayoutEffect(() => {
+    const el = anchorRef?.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const POPOVER_W = 240;
+    // 默认放在按钮右下方，让箭头指向按钮
+    let left = r.right - POPOVER_W;
+    if (left < 8) left = 8;
+    setPos({ top: r.bottom + 8, left, ready: true });
+  }, [anchorRef]);
+
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onCancel();
+    };
+    // 延后绑定，避免触发它打开的那次点击立刻被识别为外部点击
+    const t = setTimeout(() => document.addEventListener('mousedown', onDoc), 0);
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', onDoc); };
+  }, [onCancel]);
+
+  if (!pos.ready) return null;
+
+  return createPortal(
+    <div
+      ref={ref}
+      className="inline-confirm"
+      style={{ top: pos.top, left: pos.left }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="inline-confirm-text">{message}</div>
+      <div className="inline-confirm-actions">
+        <button className="btn btn-sm" onClick={onCancel}>取消</button>
+        <button className="btn btn-sm btn-danger" onClick={onConfirm}>删除</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 /** 高亮搜索匹配文本 */
 function HighlightText({ text, highlight }) {
@@ -12,6 +57,31 @@ function HighlightText({ text, highlight }) {
       {text.slice(0, idx)}
       <span className="search-highlight">{text.slice(idx, idx + highlight.length)}</span>
       {text.slice(idx + highlight.length)}
+    </>
+  );
+}
+
+/** 分组删除按钮 + 内联确认气泡 */
+function GroupDeleteButton({ isPending, groupName, onRequest, onCancel, onConfirm }) {
+  const btnRef = useRef(null);
+  return (
+    <>
+      <button
+        ref={btnRef}
+        className="btn btn-sm btn-icon"
+        onClick={(e) => { e.stopPropagation(); onRequest(); }}
+        title="删除"
+      >
+        <Icon name="trash" size="sm" />
+      </button>
+      {isPending && (
+        <InlineConfirm
+          anchorRef={btnRef}
+          message={`确定删除分组「${groupName}」？组内文件将移至未分组。`}
+          onCancel={onCancel}
+          onConfirm={onConfirm}
+        />
+      )}
     </>
   );
 }
@@ -64,6 +134,7 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
   const setEditingGroupId = useAppStore((s) => s.setEditingGroupId);
 
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
+  const [pendingDeleteGroupId, setPendingDeleteGroupId] = useState(null);
 
   const search = fileFilter.searchText;
   const devStatusFilter = fileFilter.devStatus;
@@ -160,7 +231,10 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
       <div className="sidebar-content">
         {groupedFiles.filter(g => g.files.length > 0).map((group) => (
           <div className="file-group" key={group.id}>
-            <div className="file-group-header" onClick={() => toggleGroup(group.id)}>
+            <div
+              className={`file-group-header${pendingDeleteGroupId === group.id ? ' confirming' : ''}`}
+              onClick={() => toggleGroup(group.id)}
+            >
               <span className="group-color" style={{ color: group.color, background: group.color }} />
               <span className="group-name">{group.name}</span>
               <span className="group-count">{group.files.length}</span>
@@ -168,9 +242,13 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
                 <button className="btn btn-sm btn-icon" onClick={(e) => { e.stopPropagation(); setEditingGroupId(group.id); onCreateGroup(); }} title="编辑">
                   <Icon name="edit" size="sm" />
                 </button>
-                <button className="btn btn-sm btn-icon" onClick={(e) => { e.stopPropagation(); deleteGroup(group.id); }} title="删除">
-                  <Icon name="trash" size="sm" />
-                </button>
+                <GroupDeleteButton
+                  isPending={pendingDeleteGroupId === group.id}
+                  groupName={group.name}
+                  onRequest={() => setPendingDeleteGroupId(group.id)}
+                  onCancel={() => setPendingDeleteGroupId(null)}
+                  onConfirm={() => { deleteGroup(group.id); setPendingDeleteGroupId(null); }}
+                />
               </div>
               <Icon name={collapsedGroups.has(group.id) ? 'chevronDown' : 'chevronUp'} size="sm" />
             </div>
