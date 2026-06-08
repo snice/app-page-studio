@@ -127,7 +127,9 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected, onOpenDesignS
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();
-    if (!confirm('确定删除此项目？所有相关数据将被删除。')) return;
+    let ok = false;
+    try { ok = window.confirm('确定删除此项目？所有相关数据将被删除。'); } catch { ok = false; }
+    if (!ok) return;
     try {
       const currentId = getCurrentProjectId();
       await api.deleteProject(id);

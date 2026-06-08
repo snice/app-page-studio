@@ -148,14 +148,25 @@ export default function App() {
     if (!projectId) return;
     let editorName = getEditorName();
     if (!editorName) {
-      editorName = prompt('请输入你的名称（用于协作编辑标识）：', '');
+      try {
+        editorName = window.prompt('请输入你的名称（用于协作编辑标识）：', '');
+      } catch (e) {
+        // 某些沙盒环境（如部分预览/iframe sandbox）不支持 prompt()，跳过协作会话注册
+        console.warn('prompt() unsupported, skip session register:', e?.message);
+        return;
+      }
       if (!editorName) return;
       setEditorName(editorName);
     }
     const sessionId = getSessionId();
     const res = await api.registerSession(projectId, sessionId, editorName);
     if (res.isCurrentEditor === false) {
-      const take = confirm(`"${res.currentEditor}" 正在编辑此项目。是否接管编辑权？`);
+      let take = false;
+      try {
+        take = window.confirm(`"${res.currentEditor}" 正在编辑此项目。是否接管编辑权？`);
+      } catch (e) {
+        console.warn('confirm() unsupported, default to not take editor:', e?.message);
+      }
       if (take) {
         const forceRes = await api.forceAcquireSession(projectId, sessionId, editorName);
         updateSessionStatus(forceRes);
@@ -361,12 +372,12 @@ export default function App() {
   }, []);
 
   /** 取色器选中颜色回调 */
-  const handleColorPicked = useCallback((hex) => {
+  const handleColorPicked = useCallback((hex, copied = true) => {
     const state = useAppStore.getState();
     const colors = [...state.pickedColors];
     if (!colors.includes(hex)) colors.push(hex);
     setPickedColors(colors);
-    showToast(`已复制: ${hex}`);
+    showToast(copied ? `已复制: ${hex}` : `已取色: ${hex}（剪贴板写入失败，请手动复制）`);
   }, []);
 
   /** 处理动作菜单选择 */
