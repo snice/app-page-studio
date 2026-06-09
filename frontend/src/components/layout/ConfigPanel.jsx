@@ -248,6 +248,70 @@ function FunctionDescriptionList({ iframeRef }) {
   ));
 }
 
+/** Tab 图标上传组件（拖拽/点击上传） */
+function TabIconUploader({ label, value, placeholder, onChange }) {
+  const projectId = useAppStore.getState().getCurrentProjectId();
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleUpload = async (file) => {
+    if (!file) return;
+    try {
+      const res = await api.uploadAsset(file);
+      if (res.error) throw new Error(res.error);
+      const assetPath = res.file?.path || '';
+      onChange(assetPath || null);
+    } catch (e) {
+      console.error('上传失败:', e);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = Array.from(e.dataTransfer?.files || []).find(f => f.type.startsWith('image/'));
+    handleUpload(file);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target?.files?.[0];
+    if (e.target) e.target.value = '';
+    handleUpload(file);
+  };
+
+  return (
+    <div className="form-group">
+      <label className="form-label">{label}</label>
+      <div
+        className={`asset-dropzone ${dragOver ? 'is-dragover' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        {value
+          ? <img className="asset-preview" src={`/html/${projectId}/${value}`} alt="icon" />
+          : <div className="asset-placeholder">拖拽/点击上传切图</div>
+        }
+      </div>
+      <input
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+      />
+      <input
+        className="form-input"
+        value={value || ''}
+        placeholder={placeholder}
+        readOnly
+        style={{ marginTop: 6 }}
+      />
+    </div>
+  );
+}
+
 /** TabBar 配置 */
 function TabBarConfig() {
   const currentFile = useAppStore((s) => s.currentFile);
@@ -295,18 +359,18 @@ function TabBarConfig() {
               value={currentFile?.tabName || ''}
               onChange={(e) => handleFieldChange('tabName', e.target.value || null)} />
           </div>
-          <div className="form-group">
-            <label className="form-label">默认图标路径</label>
-            <input type="text" className="form-input" placeholder="如：assets/tab_home.png"
-              value={currentFile?.tabIconDefault || ''}
-              onChange={(e) => handleFieldChange('tabIconDefault', e.target.value || null)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">选中图标路径</label>
-            <input type="text" className="form-input" placeholder="如：assets/tab_home_selected.png"
-              value={currentFile?.tabIconSelected || ''}
-              onChange={(e) => handleFieldChange('tabIconSelected', e.target.value || null)} />
-          </div>
+          <TabIconUploader
+            label="默认图标"
+            value={currentFile?.tabIconDefault}
+            placeholder="如：assets/tab_home.png"
+            onChange={(v) => handleFieldChange('tabIconDefault', v)}
+          />
+          <TabIconUploader
+            label="选中图标"
+            value={currentFile?.tabIconSelected}
+            placeholder="如：assets/tab_home_selected.png"
+            onChange={(v) => handleFieldChange('tabIconSelected', v)}
+          />
         </>
       )}
     </div>
