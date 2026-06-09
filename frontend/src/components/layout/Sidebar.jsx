@@ -141,8 +141,14 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
 
   /** 筛选文件 */
   const matchesFilter = useCallback((file) => {
-    if (search && !file.path.toLowerCase().includes(search.toLowerCase()) &&
-        !(file.name || '').toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hit =
+        file.path.toLowerCase().includes(q) ||
+        (file.name || '').toLowerCase().includes(q) ||
+        (file.stateName || '').toLowerCase().includes(q);
+      if (!hit) return false;
+    }
     if (devStatusFilter !== 'all' && file.devStatus !== devStatusFilter) return false;
     return true;
   }, [search, devStatusFilter]);
