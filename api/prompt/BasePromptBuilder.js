@@ -239,12 +239,18 @@ ${JSON.stringify(this.designSystem, null, 2)}
         onFocus: '页面获得焦点',
         manual: '手动触发',
       };
+      const labelIndent = `${subIndent}    `;
+      const codeIndent = `${subIndent}      `;
+      const renderSample = (label, sample) => {
+        if (!sample) return '';
+        const body = sample.split('\n').map(l => `${codeIndent}${l}`).join('\n');
+        return `${labelIndent}- ${label}:\n${codeIndent}\`\`\`json\n${body}\n${codeIndent}\`\`\`\n`;
+      };
       out += `${subIndent}- 数据加载:\n`;
       for (const ds of file.dataSources) {
         out += `${subIndent}  - **${ds.name || '未命名'}** [${timingLabels[ds.timing] || ds.timing}]: \`${ds.method || 'GET'} ${ds.apiPath || '/api/xxx'}\`\n`;
-        if (ds.description) {
-          out += `${subIndent}    ${ds.description}\n`;
-        }
+        out += renderSample('请求样本', ds.requestSample);
+        out += renderSample('响应样本', ds.responseSample);
       }
     }
 

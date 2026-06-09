@@ -377,45 +377,106 @@ function TabBarConfig() {
   );
 }
 
+const DATA_SOURCE_TIMINGS = [
+  { value: 'onInit', label: '页面初始化' },
+  { value: 'onRefresh', label: '下拉刷新' },
+  { value: 'onLoadMore', label: '上拉加载更多' },
+  { value: 'onFocus', label: '页面获得焦点' },
+  { value: 'manual', label: '手动触发' },
+];
+
+const DATA_SOURCE_METHODS = ['GET', 'POST', 'PUT', 'DELETE'];
+
 /** 数据源列表 */
 function DataSourceList() {
   const currentFile = useAppStore((s) => s.currentFile);
-  const addDataSource = useAppStore((s) => s.addDataSource);
   const updateDataSource = useAppStore((s) => s.updateDataSource);
   const removeDataSource = useAppStore((s) => s.removeDataSource);
   const items = currentFile?.dataSources || [];
 
-  return (
-    <>
-      {items.map((item, idx) => (
-        <div className="data-source-item" key={idx}>
-          <div className="data-source-header">
-            <span className="data-source-name">{item.name || `数据源 ${idx + 1}`}</span>
-            <button className="delete-btn" onClick={() => removeDataSource(idx)}>
-              <Icon name="trash" size="sm" />
-            </button>
-          </div>
-          <div className="form-group">
-            <label className="form-label">名称</label>
-            <input className="form-input" value={item.name || ''} onChange={(e) => updateDataSource(idx, 'name', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">类型</label>
-            <select className="form-select" value={item.type || 'api'} onChange={(e) => updateDataSource(idx, 'type', e.target.value)}>
-              <option value="api">API 请求</option>
-              <option value="local">本地数据</option>
-              <option value="websocket">WebSocket</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">URL / 路径</label>
-            <input className="form-input" value={item.url || ''} onChange={(e) => updateDataSource(idx, 'url', e.target.value)} />
-          </div>
+  if (items.length === 0) {
+    return (
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 24, background: 'var(--bg)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
+        暂无数据源配置
+        <span style={{ fontSize: 11, marginTop: 4, display: 'block' }}>点击 + 添加 HTTP API 数据加载</span>
+      </div>
+    );
+  }
+
+  return items.map((item, idx) => (
+    <div className="data-source-item" key={idx}>
+      <div className="data-source-header">
+        <span className="data-source-name">{item.name || '未命名数据源'}</span>
+        <button className="delete-btn" onClick={() => removeDataSource(idx)} title="删除">
+          <Icon name="x" size="sm" />
+        </button>
+      </div>
+      <div className="form-group" style={{ marginTop: 8 }}>
+        <label className="form-label" style={{ fontSize: 11 }}>数据源名称</label>
+        <input
+          className="form-input"
+          placeholder="如：用户列表、商品详情"
+          value={item.name || ''}
+          onChange={(e) => updateDataSource(idx, 'name', e.target.value)}
+        />
+      </div>
+      <div className="form-group">
+        <label className="form-label" style={{ fontSize: 11 }}>触发时机</label>
+        <select
+          className="form-select"
+          value={item.timing || 'onInit'}
+          onChange={(e) => updateDataSource(idx, 'timing', e.target.value)}
+        >
+          {DATA_SOURCE_TIMINGS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="form-row" style={{ display: 'flex', gap: 8 }}>
+        <div className="form-group" style={{ flex: '0 0 80px' }}>
+          <label className="form-label" style={{ fontSize: 11 }}>方法</label>
+          <select
+            className="form-select"
+            value={item.method || 'GET'}
+            onChange={(e) => updateDataSource(idx, 'method', e.target.value)}
+          >
+            {DATA_SOURCE_METHODS.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
         </div>
-      ))}
-      {items.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>暂无数据源</div>}
-    </>
-  );
+        <div className="form-group" style={{ flex: 1 }}>
+          <label className="form-label" style={{ fontSize: 11 }}>API 路径</label>
+          <input
+            className="form-input"
+            placeholder="/api/xxx"
+            value={item.apiPath || ''}
+            onChange={(e) => updateDataSource(idx, 'apiPath', e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="form-group">
+        <label className="form-label" style={{ fontSize: 11 }}>请求样本</label>
+        <textarea
+          className="form-input"
+          placeholder={'如：{ "page": 1, "size": 20 }'}
+          value={item.requestSample || ''}
+          onChange={(e) => updateDataSource(idx, 'requestSample', e.target.value)}
+          style={{ minHeight: 50, resize: 'vertical', fontFamily: 'var(--font-mono, monospace)' }}
+        />
+      </div>
+      <div className="form-group">
+        <label className="form-label" style={{ fontSize: 11 }}>响应样本</label>
+        <textarea
+          className="form-input"
+          placeholder={'如：{ "code": 0, "data": [...] }'}
+          value={item.responseSample || ''}
+          onChange={(e) => updateDataSource(idx, 'responseSample', e.target.value)}
+          style={{ minHeight: 50, resize: 'vertical', fontFamily: 'var(--font-mono, monospace)' }}
+        />
+      </div>
+    </div>
+  ));
 }
 
 export function ConfigPanel({ iframeRef }) {
@@ -556,7 +617,7 @@ export function ConfigPanel({ iframeRef }) {
           <div className="panel-section">
             <div className="panel-section-title">
               数据加载配置
-              <button className="btn-icon" onClick={() => addDataSource({ name: '', type: 'api', url: '' })} title="添加数据源">
+              <button className="btn-icon" onClick={() => addDataSource({ name: '', timing: 'onInit', method: 'GET', apiPath: '', requestSample: '', responseSample: '' })} title="添加数据源">
                 <Icon name="plus" size="sm" />
               </button>
             </div>
