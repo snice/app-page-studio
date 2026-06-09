@@ -110,7 +110,11 @@ function FileItem({ file, isActive, isSelected, search, onSelect, onToggleSelect
       </span>
       <div className="file-info">
         <div className="file-name">
-          <HighlightText text={file.stateName || file.name || file.path.split('/').pop()} highlight={search} />
+          {file.isPrimaryState && <span className="primary-state-badge" title="主状态">主</span>}
+          <HighlightText
+            text={file.stateName || (file.isPrimaryState ? '主状态' : (file.name || file.path.split('/').pop()))}
+            highlight={search}
+          />
         </div>
         <div className="file-path">{file.path}</div>
       </div>

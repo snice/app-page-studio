@@ -111,6 +111,13 @@ class BasePromptBuilder {
 4. 在代码中使用正确的资源引用方式: \`${g.imageAsset}\`
 5. **PSD 切图**：若提供了 PSD 切图，将切图文件一并复制到 \`${g.assetsDir}\`，并在代码中使用切图替代对应区域的 HTML/CSS 还原
 
+### 页面状态与"主状态"约定
+- 一个**页面分组**代表一个逻辑页面，其下可能包含多个状态文件（如：默认、加载中、空数据、错误、提交成功等）
+- 同一分组内的多个状态**必须在同一个页面文件中通过条件渲染/状态切换实现**，不要为每个状态分别创建新页面或新路由
+- 标注为 **主状态** 的文件是该分组的入口/默认呈现，应作为页面的主实现依据（布局、骨架、初始 UI 以此为准）
+- 主状态在每个分组的"页面状态"列表中**位于首位**；若未显式标注，可将列表首项视作主状态
+- 其他状态文件描述的是同一页面在不同条件下的视觉差异，实现时应抽取出状态变量（如 \`loading\` / \`empty\` / \`error\`）来驱动 UI 切换
+
 `);
   }
 
@@ -268,6 +275,8 @@ ${JSON.stringify(this.designSystem, null, 2)}
       const groupFiles = (this.pagesConfig.htmlFiles || [])
         .filter(f => f.groupId === group.id && this._shouldIncludeFile(f));
       if (groupFiles.length === 0) continue;
+      // 主状态置顶（稳定排序：仅把主状态前移）
+      groupFiles.sort((a, b) => (b.isPrimaryState ? 1 : 0) - (a.isPrimaryState ? 1 : 0));
 
       let sourcePath = '待创建';
       if (group.sourcePaths && group.sourcePaths[this.guide.platform]) {
@@ -287,8 +296,11 @@ ${JSON.stringify(this.designSystem, null, 2)}
 #### 页面状态
 `;
       for (const file of groupFiles) {
+        const stateLabel = file.isPrimaryState
+          ? (file.stateName ? `主状态 · ${file.stateName}` : '主状态（默认）')
+          : (file.stateName || file.name);
         out += this._renderFile(file, {
-          headerLine: `- **${file.stateName || file.name}**`,
+          headerLine: `- **${stateLabel}**`,
           subIndent: '  ',
           htmlLabel: 'HTML参考',
           emptyDescription: '',

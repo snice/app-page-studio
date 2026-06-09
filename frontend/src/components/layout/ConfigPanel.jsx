@@ -544,11 +544,23 @@ export function ConfigPanel({ iframeRef }) {
           <div className="panel-section">
             <div className="panel-section-title">基本信息</div>
             <div className="form-group">
-              <label className="form-label">状态名称</label>
-              <input type="text" className="form-input" placeholder="如：默认状态、加载中、空数据"
-                value={currentFile?.stateName || ''}
-                onChange={(e) => handleFileFieldChange('stateName', e.target.value)} />
+              <label className="checkbox-label" title="同一分组中作为入口/默认呈现的状态，无需填写状态名称">
+                <input
+                  type="checkbox"
+                  checked={!!currentFile?.isPrimaryState}
+                  onChange={(e) => useAppStore.getState().setPrimaryState(e.target.checked)}
+                />
+                <span>主状态（分组的默认/入口状态，无需状态名称）</span>
+              </label>
             </div>
+            {!currentFile?.isPrimaryState && (
+              <div className="form-group">
+                <label className="form-label">状态名称</label>
+                <input type="text" className="form-input" placeholder="如：加载中、空数据、错误"
+                  value={currentFile?.stateName || ''}
+                  onChange={(e) => handleFileFieldChange('stateName', e.target.value)} />
+              </div>
+            )}
             <div className="form-group">
               <label className="form-label">状态描述</label>
               <textarea className="form-textarea" placeholder="描述此状态的显示场景"

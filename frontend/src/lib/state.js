@@ -185,6 +185,23 @@ export const useAppStore = create((set, get) => ({
     });
   },
 
+  /** 设置当前文件是否为分组主状态；同组其他文件自动取消主状态以保证唯一 */
+  setPrimaryState(isPrimary) {
+    set((s) => {
+      if (!s.currentFile) return {};
+      const currentPath = s.currentFile.path;
+      const groupId = s.currentFile.groupId;
+      for (const f of s.pagesConfig.htmlFiles || []) {
+        if (f.path === currentPath) {
+          f.isPrimaryState = !!isPrimary;
+        } else if (isPrimary && groupId && f.groupId === groupId) {
+          f.isPrimaryState = false;
+        }
+      }
+      return { pagesConfig: { ...s.pagesConfig } };
+    });
+  },
+
   toggleSelectedFile(path) {
     set((s) => {
       const newSet = new Set(s.selectedFiles);
