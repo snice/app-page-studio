@@ -17,12 +17,13 @@
 2. **将 UI IR 保存为 HTML 文件**  
    - 文件名需与设计图一致：`__design__/xxx.png` → `__design__/xxx.html`；`__psd__/xxx.png` → `__psd__/xxx.html`。  
    - 若文件已存在，则在充分比对后**更新**该 HTML，而不是重新发明结构。
-3. **HTML 像素级检测（Playwright MCP 截图 + 对比 + 至少 3 轮修正）**  
-   - 使用 **Playwright MCP**（Cursor MCP 服务名：`user-playwright`）对 `xxx.html` 截图到 `__html_snapshot/xxx-html.png`。  
-   - MCP **不支持 `file://`**，须先在项目根启动本地 HTTP 服务，再通过 `http://127.0.0.1:<端口>/__design__/xxx.html` 打开页面（详见「像素级检测」章节）。  
-   - 将截图与设计图对比，**至少 3 轮**修改 HTML 与样式，直到边框、背景、圆角、阴影、间距、字体等足够接近。  
+3. **HTML 像素级检测（截图 + 对比 + 至少 1 轮修正）**  
+   - **优先**使用工具内部提供的网页 Preview 截图功能对 `xxx.html` 截图到 `__html_snapshot/xxx-html.png`，无需额外启动 MCP 或 HTTP 服务。  
+   - 若无内置 Preview 截图能力，则使用 **Playwright MCP**（Cursor MCP 服务名：`user-playwright`），需先在项目根启动本地 HTTP 服务（详见「像素级检测」章节）。  
+   - 若 HTML 内容可上下滚动（高于视口高度），**必须使用全页截图**（`fullPage: true`），保证整个页面完整可见，便于与设计图进行像素级对比。  
+   - 将截图与设计图对比，**至少 1 轮**修改 HTML 与样式，直到布局（横向或竖向）、边框、背景、圆角、阴影、间距、字体等足够接近。  
    - 完成后在 root 节点的 `data-notes` 中写明：`已与设计图比对，已进行像素级检测，共 N 轮`。  
-   - 若当前对话环境未启用 Playwright MCP，则视为**由调用方启用 MCP 后补跑该步骤**，但从规范角度仍视为必须流程，不得跳过。
+   - 若当前对话环境既无可用的内置 Preview 截图，也未启用 Playwright MCP，则视为**由调用方启用 MCP 后补跑该步骤**，但从规范角度仍视为必须流程，不得跳过。
 4. **仅在上述步骤完成后，才允许生成/更新目标平台代码**  
    - 平台代码（如 React Native + Expo Router 页面）必须以**最终收敛后的 HTML IR** 为唯一视觉真源。  
    - 若平台代码与 HTML 存在差异，应先回到 HTML 调整，再同步到平台实现，而不是直接“凭感觉改 UI”。
@@ -46,7 +47,7 @@
 9. **【关键】必须依据设计图生成**：UI IR 必须**仅**根据提供的设计图生成，不得在未查看或无法查看设计图时编造占位结构（如随意写“空状态”“我的贷款”等）。若设计图不可用，须在根元素 `data-notes` 中明确标注「设计图不可用，未生成」，并只输出最小 HTML 骨架或要求提供设计图后再生成。
 10. **【关键】输出顺序**：**直接输出 UI IR（HTML）**；像素级检测时**用 HTML 截图与设计图对比**。
 11. **【关键】HTML 输出后与设计图比对**：输出 UI IR（HTML）后，与设计图做**逐项比对**（结构、文案、列表等）并修正 HTML 后再交付。比对项至少包括：页面类型、根下区块数量与顺序、标题/正文文案及语言、列表条数与 item 模板、图标/图片是否需 assets。修正后在根元素 `data-notes` 注明「已与设计图比对」。
-12. **【关键】像素级检测**：用 **Playwright MCP** 对 HTML 截图，截图存放于项目根目录 **`__html_snapshot`** 下；将**截图与设计图**对比（边框、背景、阴影等），**至少 3 轮**修正与复测直至样式一致。详见本文档「像素级检测」章节。
+12. **【关键】像素级检测**：优先使用工具内置 Preview 截图，回退到 **Playwright MCP** 截图，截图存放于项目根目录 **`__html_snapshot`** 下；将**截图与设计图**对比（边框、背景、阴影等），**至少 3 轮**修正与复测直至样式一致。若 HTML 可滚动，必须使用全页截图（`fullPage: true`）。详见本文档「像素级检测」章节。
 
 ## 结构设计（推荐 HTML 约定）
 输出为**单一 HTML**，可用 `data-*` 属性承载 IR 元信息与推断信息，示例结构如下：
@@ -206,26 +207,27 @@ __psd__/
 
 ## 像素级检测（生成 HTML / 平台代码前必须执行）
 
-**UI IR 直接以 HTML 输出**。像素级检测时**只用「HTML 截图」与「设计图」对比**。流程如下，**至少执行 3 轮**，直至样式一致。
+**UI IR 直接以 HTML 输出**。像素级检测时**只用「HTML 截图」与「设计图」对比**。流程如下，**至少执行 1 轮**，直至样式一致。
 
 ### 1. 生成 HTML
 
 - 直接输出与设计图**同名**的 HTML 文件（如设计图为 `__design__/xxx.png`，则生成 `__design__/xxx.html`）。
 - 视口与设备尺寸一致（如 `width=375, height=812`），布局、字号、颜色、圆角、内边距等按设计图实现。
 
-### 2. Playwright MCP 截图
+### 2. 截图
 
-像素级检测**统一使用 Playwright MCP**，不再维护独立 Node 截图脚本。AI 代理通过 Cursor MCP 调用 `user-playwright` 服务完成截图。
+**⚠️ 全页截图要求**：若 HTML 内容高度超过视口高度（可上下滚动），**必须使用全页截图**（`fullPage: true`）截取整个页面，确保所有内容完整可见，以便与设计图进行像素级对比，避免因截断导致漏检底部元素。
 
-**前置条件**
-- Cursor 已启用 MCP 服务 **`user-playwright`**（Playwright MCP）。
-- HTML 文件已保存至项目内，例如：`<项目根>/__design__/xxx.html`。
-- 视口尺寸与设计图设备尺寸一致（如 `375×812`），`deviceScaleFactor: 1`。
-- 项目根目录下已存在 **`__html_snapshot/`** 目录（截图保存前需确保目录存在）。
+#### 2.1 内置 Preview 截图（优先）
 
-**⚠️ 不可使用 `file://` 协议**
+- 若对话环境提供内置网页 Preview 功能（如 IDE 浏览器预览、Preview 面板等），直接使用该功能的截图能力。
+- **无需**额外启动 HTTP 服务或 MCP 服务，也无需处理 `file://` 协议限制。
+- 使用 `fullPage: true`（或等效的全页截图选项）确保滚动内容被完整截取。
+- 截图保存至**项目根目录**下的 **`__html_snapshot/`**，命名规则：`__html_snapshot/xxx-html.png`（与设计图 `xxx.png` 对应）。
 
-Playwright MCP **无法直接访问** `file://` 本地路径（会报错：`Access to "file:" protocol is blocked`）。  
+#### 2.2 Playwright MCP 截图（回退）
+
+当无法使用内置 Preview 截图时，回退到 Playwright MCP 截图。Playwright MCP **无法直接访问** `file://` 本地路径（会报错：`Access to "file:" protocol is blocked`）。  
 必须通过 **本地 HTTP 服务** 提供 HTML 及静态资源（如 `static/images/`），再用 `http://` 地址打开页面。
 
 **启动本地 HTTP 服务**（在项目根目录执行，截图期间保持运行）：
@@ -249,9 +251,9 @@ python3 -m http.server 8765
    - 中文文件名须 **URL 编码**（如 `1登录.html` → `1%E7%99%BB%E5%BD%95.html`）  
    - HTML 内资源引用须使用相对路径（如 `../static/images/xxx.png`），以便 HTTP 服务正常加载
 
-3. **`browser_take_screenshot`**：保存整页截图  
+3. **`browser_take_screenshot`**：保存全页截图  
    - `type`: `png`  
-   - `fullPage`: `true`  
+   - `fullPage`: `true`（**必须启用**，确保可滚动页面内容完整截取）  
    - `filename`: `__html_snapshot/xxx-html.png`（与设计图 `xxx.png` 对应）
 
 4. **（可选）`browser_run_code_unsafe`**：若需等待资源加载完成，可执行 Playwright 代码，例如：  
@@ -268,11 +270,6 @@ python3 -m http.server 8765
 - 端口可自定（如 `8765`），避免与已有服务冲突即可。
 - 像素级检测完成后可停止 HTTP 服务。
 
-**截图输出约定**
-- 保存到**项目根目录**下的 **`__html_snapshot/`**。
-- 命名规则：设计图为 `__design__/xxx.png` → 截图为 `__html_snapshot/xxx-html.png`。
-- 截图完成后，使用 **Read 工具**分别读取设计图与 HTML 截图，进行视觉对比。
-
 **MCP 不可用时的处理**
 - 在根元素 `data-notes` 中说明：`像素级检测需启用 Playwright MCP（user-playwright）后补跑`。
 - 提醒调用方启用 MCP 并补跑上述流程后，再将最终 HTML 作为平台代码实现依据。
@@ -281,6 +278,7 @@ python3 -m http.server 8765
 
 - 将 **HTML 截图** 与 **设计图** 进行对比（并排查看或叠图/差异高亮）。
 - 重点核对以下**样式信息**是否一致：
+  - **布局**：明显的横向和竖向排版错误。
   - **边框**：有无边框、粗细、颜色（含透明）。
   - **背景**：容器与标签的背景色、渐变（若有）。
   - **阴影**：方向、模糊、透明度、颜色。
@@ -301,7 +299,7 @@ python3 -m http.server 8765
 - **通过**：HTML 截图与设计图在边框、背景、阴影、圆角、间距、字体样式上无明显差异，可视为像素级一致。
 - 在交付说明或 `meta.notes` 中注明「已进行像素级检测，共 N 轮，HTML 截图与设计图样式一致」。
 
-若当前代理/环境未启用 Playwright MCP，应在根元素 `data-notes` 中说明「像素级检测需启用 Playwright MCP（user-playwright）后补跑」，并**明确提醒调用方必须在 MCP 可用环境中补跑上述流程后，再将最终 HTML 作为平台代码实现依据**。
+若当前代理/环境既无内置 Preview 截图能力、也未启用 Playwright MCP，应在根元素 `data-notes` 中说明「像素级检测需启用 Playwright MCP（user-playwright）后补跑」，并**明确提醒调用方必须在 MCP 可用环境中补跑上述流程后，再将最终 HTML 作为平台代码实现依据**。
 
 ## 输出示例（仅格式示意）
 输出必须是 HTML，字段与结构可按需要裁剪，但必须保持结构一致与可解析。
