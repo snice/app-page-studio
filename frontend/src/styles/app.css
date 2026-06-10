@@ -103,6 +103,12 @@ input[type="range"]::-moz-range-thumb {
   width: 20px; height: 20px; cursor: pointer; border-radius: 50%;
 }
 
+/* ==================== Intel Mac 性能优化：禁用 backdrop-filter blur ==================== */
+html[data-intel-mac] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 /* ==================== App Layout ==================== */
 .app {
   display: grid;
