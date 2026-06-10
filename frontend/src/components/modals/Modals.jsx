@@ -8,8 +8,8 @@ import { copyText } from '../../lib/clipboard';
 function ModalOverlay({ isOpen, onClose, children }) {
   if (!isOpen) return null;
   return (
-    <div className="modal-overlay active" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay active">
+      <div>
         {children}
       </div>
     </div>
@@ -583,11 +583,20 @@ export function PromptModal({ isOpen, onClose }) {
         <div className="modal-body">
           <div className="form-group">
             <label className="form-label">目标平台</label>
-            <select className="form-select" value={platform} onChange={(e) => setPlatform(e.target.value)}>
-              <option value="flutter">Flutter (Dart)</option>
-              <option value="react-native">React Native (TypeScript)</option>
-              <option value="uniapp">UniApp (Vue)</option>
-            </select>
+            <div className="dev-status-radio-group">
+              <label className="radio-label">
+                <input type="radio" name="platform" value="flutter" checked={platform === 'flutter'} onChange={(e) => setPlatform(e.target.value)} />
+                <span>Flutter (Dart)</span>
+              </label>
+              <label className="radio-label">
+                <input type="radio" name="platform" value="react-native" checked={platform === 'react-native'} onChange={(e) => setPlatform(e.target.value)} />
+                <span>React Native (TypeScript)</span>
+              </label>
+              <label className="radio-label">
+                <input type="radio" name="platform" value="uniapp" checked={platform === 'uniapp'} onChange={(e) => setPlatform(e.target.value)} />
+                <span>UniApp (Vue)</span>
+              </label>
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">筛选页面</label>
@@ -715,7 +724,7 @@ export function DesignSystemDrawer({ isOpen, onClose }) {
   };
 
   return (
-    <div className={`drawer-overlay ${isOpen ? 'active' : ''}`} onClick={onClose}>
+    <div className={`drawer-overlay ${isOpen ? 'active' : ''}`}>
       <div className="drawer" onClick={(e) => e.stopPropagation()}>
         <div className="drawer-header">
           <span className="drawer-title"><Icon name="palette" size="md" /> 设计系统配置</span>
