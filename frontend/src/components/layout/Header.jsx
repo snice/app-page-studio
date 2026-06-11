@@ -14,9 +14,12 @@ export function Header({ onShowProjectSelector, onOpenDesignSystem, onDownloadDe
     <header className="header">
       <div className="logo">
         <div className="logo-icon">
-          <Icon name="smartphone" size="md" />
+          <Icon name="appstudio" size="md" />
         </div>
-        <span>App Page Studio</span>
+        <span className="logo-wordmark">
+          <span>App</span>
+          <span>Studio</span>
+        </span>
       </div>
 
       <div className="path-display" onClick={onShowProjectSelector}>

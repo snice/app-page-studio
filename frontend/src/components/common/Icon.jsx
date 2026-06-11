@@ -1,6 +1,7 @@
 import React from 'react';
 
 export const ICONS = {
+  appstudio: `<path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h8A2.5 2.5 0 0 1 18 6.5V19H7.5A2.5 2.5 0 0 1 5 16.5v-10Z"/><path d="M8.5 8h5.5"/><path d="M8.5 11.5h4"/><path d="m15 13.5 4.75-2.25-2.25 4.75-.75-1.75-1.75-.75Z"/>`,
   smartphone: `<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>`,
   refresh: `<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>`,
   save: `<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>`,
