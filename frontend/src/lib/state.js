@@ -21,6 +21,17 @@ function loadZoomBySourceType() {
   } catch { return {}; }
 }
 
+function getProjectIdFromHash() {
+  if (typeof window === 'undefined') return null;
+  const rawHash = window.location.hash.startsWith('#')
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const [routePath, query = ''] = rawHash.split('?');
+  if (routePath !== '/dashboard') return null;
+  const pid = parseInt(new URLSearchParams(query).get('pid') || '', 10);
+  return Number.isFinite(pid) && pid > 0 ? pid : null;
+}
+
 export const useAppStore = create((set, get) => ({
   // 工具配置
   config: { currentProject: null, projects: [] },
@@ -103,6 +114,8 @@ export const useAppStore = create((set, get) => ({
   },
 
   getCurrentProjectId() {
+    const routeProjectId = getProjectIdFromHash();
+    if (routeProjectId) return routeProjectId;
     const stored = localStorage.getItem(STORAGE_KEY_CURRENT_PROJECT);
     return stored ? parseInt(stored, 10) : null;
   },

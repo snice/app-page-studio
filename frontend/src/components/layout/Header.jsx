@@ -3,7 +3,7 @@ import { Icon } from '../common/Icon';
 import { useTheme } from '../../hooks/useTheme';
 import { useAppStore } from '../../lib/state';
 
-export function Header({ onShowProjectSelector, onOpenDesignSystem, onDownloadDesigns, onScanHtml, onOpenImageUpload, onSaveConfig, onDownloadConfig, onShowPromptModal }) {
+export function Header({ onGoHome, onShowProjectSelector, onOpenDesignSystem, onDownloadDesigns, onScanHtml, onOpenImageUpload, onSaveConfig, onDownloadConfig, onShowPromptModal }) {
   const { theme, toggleTheme } = useTheme();
   const currentProject = useAppStore((s) => s.getCurrentProject());
   const showToast = useAppStore((s) => s.showToast);
@@ -12,7 +12,7 @@ export function Header({ onShowProjectSelector, onOpenDesignSystem, onDownloadDe
 
   return (
     <header className="header">
-      <div className="logo">
+      <button type="button" className="logo logo-button" onClick={onGoHome} title="返回项目主页">
         <div className="logo-icon">
           <Icon name="appstudio" size="md" />
         </div>
@@ -20,7 +20,7 @@ export function Header({ onShowProjectSelector, onOpenDesignSystem, onDownloadDe
           <span>App</span>
           <span>Studio</span>
         </span>
-      </div>
+      </button>
 
       <div className="path-display" onClick={onShowProjectSelector}>
         <span className="path-label">项目</span>

@@ -1,8 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Header } from './components/layout/Header';
-import { Sidebar } from './components/layout/Sidebar';
-import { PreviewPanel } from './components/layout/PreviewPanel';
-import { ConfigPanel } from './components/layout/ConfigPanel';
+import { HomePage } from './pages/HomePage';
+import { DashboardPage } from './pages/DashboardPage';
 import { Toast } from './components/common/Toast';
 import { Icon } from './components/common/Icon';
 import { ProjectModal, ImageUploadModal, GroupModal, DeleteConfirmModal, PromptModal, DesignSystemDrawer } from './components/modals/Modals';
@@ -14,6 +12,23 @@ import { ElementStylesPanel } from './components/picker/ElementStylesPanel';
 import { MindMapOverlay } from './components/mindmap/MindMapOverlay';
 import { flattenLayers, unionBBox, layerMarkTargets, collectDrawableLayers, nextSliceColor, exportSlice, parsePSD } from './lib/psdUtils';
 import JSZip from 'jszip';
+
+function getDashboardProjectIdFromHash(hash = window.location.hash) {
+  const rawHash = hash.startsWith('#') ? hash.slice(1) : hash;
+  const [routePath, query = ''] = rawHash.split('?');
+  if (routePath !== '/dashboard') return null;
+  const pid = Number.parseInt(new URLSearchParams(query).get('pid') || '', 10);
+  return Number.isFinite(pid) && pid > 0 ? pid : null;
+}
+
+function getCurrentRoute() {
+  const projectId = getDashboardProjectIdFromHash();
+  return projectId ? { name: 'dashboard', projectId } : { name: 'home', projectId: null };
+}
+
+function getDashboardHash(projectId) {
+  return `#/dashboard?pid=${encodeURIComponent(projectId)}`;
+}
 
 // ==================== 选择器动作菜单 ====================
 function PickerActionMenu({ menu, isHtml, onAction, onClose }) {
@@ -99,6 +114,9 @@ export default function App() {
   const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [designDrawerOpen, setDesignDrawerOpen] = useState(false);
   const [mindMapOpen, setMindMapOpen] = useState(false);
+  const [view, setView] = useState(() => getCurrentRoute().name === 'dashboard' ? 'workspace' : 'home');
+  const [routeProjectId, setRouteProjectId] = useState(() => getCurrentRoute().projectId);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
 
   // Picker action menu state
   const [pickerMenu, setPickerMenu] = useState(null); // { x, y, selector, eventType }
@@ -109,26 +127,33 @@ export default function App() {
   const currentFile = useAppStore((s) => s.currentFile);
   const selectedFilesCount = useAppStore((s) => s.selectedFiles.size);
   const clearSelection = useAppStore((s) => s.clearSelection);
+  const projects = useAppStore((s) => s.config.projects || []);
+  const storeCurrentProjectId = useAppStore((s) => s.config.currentProject);
+  const currentProjectId = routeProjectId || storeCurrentProjectId || getCurrentProjectId();
 
   // ==================== 初始化 ====================
   const loadConfig = useCallback(async () => {
     try {
       const res = await api.getConfig();
-      if (res.projects) setConfig({ projects: res.projects });
+      const nextProjects = res.projects || [];
+      const storedId = getCurrentProjectId();
+      const hasStoredProject = storedId && nextProjects.some((project) => project.id === storedId);
+      if (storedId && !hasStoredProject) setCurrentProjectId(null);
+      setConfig({ projects: nextProjects, currentProject: hasStoredProject ? storedId : null });
+      return nextProjects;
     } catch (e) {
       console.error('loadConfig error:', e);
+      return [];
     }
   }, []);
 
-  const loadPages = useCallback(async () => {
-    const projectId = getCurrentProjectId();
+  const loadPages = useCallback(async (projectId = getCurrentProjectId()) => {
     if (!projectId) return;
     const res = await api.getPages();
     setPagesConfig(res);
   }, []);
 
-  const scanHtmlFiles = useCallback(async () => {
-    const projectId = getCurrentProjectId();
+  const scanHtmlFiles = useCallback(async ({ showResultToast = true, projectId = getCurrentProjectId() } = {}) => {
     if (!projectId) { showToast('请先选择项目'); return; }
     const [htmlData, imageData] = await Promise.all([
       api.scanHtmlFiles(),
@@ -140,11 +165,10 @@ export default function App() {
     const allFiles = [...htmlFiles, ...imageFiles, ...psdFiles];
     setHtmlFiles(allFiles);
     syncFilesToConfig();
-    showToast(`扫描完成，共 ${allFiles.length} 个文件`);
+    if (showResultToast) showToast(`扫描完成，共 ${allFiles.length} 个文件`);
   }, []);
 
-  const registerSession = useCallback(async () => {
-    const projectId = getCurrentProjectId();
+  const registerSession = useCallback(async (projectId = getCurrentProjectId()) => {
     if (!projectId) return;
     let editorName = getEditorName();
     if (!editorName) {
@@ -177,20 +201,6 @@ export default function App() {
       updateSessionStatus(res);
     }
     startHeartbeat(api);
-  }, []);
-
-  // 初始化
-  useEffect(() => {
-    const init = async () => {
-      await loadConfig();
-      const projectId = getCurrentProjectId();
-      if (projectId) {
-        await loadPages();
-        await scanHtmlFiles();
-        await registerSession();
-      }
-    };
-    init();
   }, []);
 
   // ==================== PSD 切图事件处理 ====================
@@ -418,6 +428,119 @@ export default function App() {
     }
   }, []);
 
+  const resetWorkspaceUi = useCallback(() => {
+    const state = useAppStore.getState();
+    if (state.isPickerActive) {
+      state.setIsPickerActive(false);
+      if (iframeRef.current) Picker.disable(iframeRef.current);
+    }
+    if (state.isColorPickerActive) {
+      state.setIsColorPickerActive(false);
+      ColorPickerModule.disable(iframeRef.current);
+    }
+    if (state.isImageRegionSelecting) {
+      setIsImageRegionSelecting(false);
+    }
+    setPickerMenu(null);
+    setStylesPanelSelector(null);
+    clearSelection();
+    resetPsdState();
+    setCurrentFile(null);
+    setZoom(100);
+    setMindMapOpen(false);
+  }, [clearSelection, resetPsdState, setCurrentFile, setIsImageRegionSelecting, setZoom]);
+
+  const showHome = useCallback(async ({ updateUrl = true } = {}) => {
+    const state = useAppStore.getState();
+    const projectId = state.getCurrentProjectId();
+    const sessionId = state.session.sessionId;
+    state.stopHeartbeat();
+
+    setImageUploadOpen(false);
+    setGroupModalOpen(false);
+    setDeleteModalOpen(false);
+    setPromptModalOpen(false);
+    setDesignDrawerOpen(false);
+    resetWorkspaceUi();
+    setRouteProjectId(null);
+    setView('home');
+    if (updateUrl) {
+      window.history.pushState(null, '', '/');
+    }
+    await loadConfig();
+
+    if (projectId && sessionId) {
+      api.releaseSession(projectId, sessionId).catch((e) => {
+        console.warn('release session failed:', e);
+      });
+    }
+  }, [loadConfig, resetWorkspaceUi]);
+
+  const loadProjectWorkspace = useCallback(async (projectOrId) => {
+    const rawProjectId = typeof projectOrId === 'object' ? projectOrId?.id : projectOrId;
+    const projectId = Number.parseInt(rawProjectId, 10);
+    if (!Number.isFinite(projectId) || projectId <= 0) return;
+
+    setWorkspaceLoading(true);
+    setRouteProjectId(projectId);
+    setCurrentProjectId(projectId);
+    resetWorkspaceUi();
+    setView('workspace');
+
+    try {
+      const nextProjects = await loadConfig();
+      if (!nextProjects.some((project) => project.id === projectId)) {
+        showToast('项目不存在');
+        showHome();
+        return;
+      }
+      await loadPages(projectId);
+      await scanHtmlFiles({ showResultToast: false, projectId });
+      await registerSession(projectId);
+    } catch (e) {
+      console.error('loadProjectWorkspace error:', e);
+      showToast('打开项目失败: ' + (e.message || '未知错误'));
+      showHome();
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  }, [loadConfig, loadPages, registerSession, resetWorkspaceUi, scanHtmlFiles, setCurrentProjectId, showHome, showToast]);
+
+  const openProjectWorkspace = useCallback((projectOrId) => {
+    const rawProjectId = typeof projectOrId === 'object' ? projectOrId?.id : projectOrId;
+    const projectId = Number.parseInt(rawProjectId, 10);
+    if (!Number.isFinite(projectId) || projectId <= 0) return;
+    const nextHash = getDashboardHash(projectId);
+    if (window.location.hash === nextHash) {
+      loadProjectWorkspace(projectId);
+      return;
+    }
+    window.location.hash = `/dashboard?pid=${projectId}`;
+  }, [loadProjectWorkspace]);
+
+  const handleGoHome = useCallback(() => {
+    showHome();
+  }, [showHome]);
+
+  useEffect(() => {
+    const syncRoute = () => {
+      const route = getCurrentRoute();
+      if (route.name === 'dashboard') {
+        loadProjectWorkspace(route.projectId);
+      } else {
+        showHome({ updateUrl: false });
+      }
+    };
+
+    syncRoute();
+    window.addEventListener('hashchange', syncRoute);
+    window.addEventListener('popstate', syncRoute);
+    return () => {
+      window.removeEventListener('hashchange', syncRoute);
+      window.removeEventListener('popstate', syncRoute);
+    };
+  }, [loadProjectWorkspace, showHome]);
+
   // ==================== Header 回调 ====================
   const handleSaveConfig = async () => {
     // 保存 PSD 切图信息和缩放大小到当前文件配置
@@ -526,21 +649,18 @@ export default function App() {
     }
   };
 
-  const handleOpenDesignSystem = () => {
-    const projectId = getCurrentProjectId();
+  const handleOpenDesignSystem = (projectIdArg) => {
+    const projectId = projectIdArg || getCurrentProjectId();
     if (!projectId) { showToast('请先选择项目'); return; }
-    const project = useAppStore.getState().getCurrentProject();
+    const project = useAppStore.getState().config.projects?.find((p) => p.id === projectId)
+      || useAppStore.getState().getCurrentProject();
     setEditingDesignSystem(project?.designSystem || { colors: [], spacing: {}, radius: {} });
     setEditingDesignProjectId(projectId);
     setDesignDrawerOpen(true);
   };
 
-  const handleProjectSelected = async () => {
-    setCurrentFile(null);
-    setZoom(100);
-    await loadPages();
-    await scanHtmlFiles();
-    await registerSession();
+  const handleProjectSelected = async (projectId) => {
+    openProjectWorkspace(projectId || getCurrentProjectId());
   };
 
   const handleFileSelected = (path) => {
@@ -684,8 +804,24 @@ export default function App() {
 
   return (
     <>
-      <div className="app">
-        <Header
+      {view === 'home' ? (
+        <HomePage
+          projects={projects}
+          currentProjectId={currentProjectId}
+          isLoading={workspaceLoading}
+          onOpenProject={openProjectWorkspace}
+          onCreateProject={() => setProjectModalOpen(true)}
+          onManageProjects={() => setProjectModalOpen(true)}
+          onOpenDesignSystem={handleOpenDesignSystem}
+        />
+      ) : (
+        <DashboardPage
+          workspaceLoading={workspaceLoading}
+          selectedFilesCount={selectedFilesCount}
+          clearSelection={clearSelection}
+          mindMapOpen={mindMapOpen}
+          iframeRef={iframeRef}
+          onGoHome={handleGoHome}
           onShowProjectSelector={() => setProjectModalOpen(true)}
           onOpenDesignSystem={handleOpenDesignSystem}
           onDownloadDesigns={handleDownloadDesigns}
@@ -694,41 +830,23 @@ export default function App() {
           onSaveConfig={handleSaveConfig}
           onDownloadConfig={handleDownloadConfig}
           onShowPromptModal={() => setPromptModalOpen(true)}
-        />
-        <Sidebar
           onCreateGroup={() => setGroupModalOpen(true)}
           onFileSelected={handleFileSelected}
           onToggleMindMap={() => setMindMapOpen((v) => !v)}
-          mindMapOpen={mindMapOpen}
-        />
-        {selectedFilesCount > 0 && (
-          <div className="selection-toolbar-float">
-            <div className="selection-toolbar-top">
-              已选择 <span className="selection-count">{selectedFilesCount}</span> 个文件
-            </div>
-            <div className="selection-toolbar-actions">
-              <button className="btn btn-sm" style={{ background: '#000', color: '#fff' }} onClick={() => setGroupModalOpen(true)}>创建分组</button>
-              <button className="btn btn-sm btn-secondary" onClick={() => setDeleteModalOpen(true)}>
-                <Icon name="trash" size="sm" /> 删除
-              </button>
-              <button className="btn btn-sm btn-secondary" onClick={clearSelection}>取消</button>
-            </div>
-          </div>
-        )}
-        <PreviewPanel
+          onDeleteSelected={() => setDeleteModalOpen(true)}
           onTogglePicker={handleTogglePicker}
           onToggleColorPicker={handleToggleColorPicker}
-          iframeRef={iframeRef}
           onIframeLoad={handleIframeLoad}
           onRegionAction={handleRegionAction}
         />
-        <ConfigPanel iframeRef={iframeRef} />
-      </div>
+      )}
 
       <Toast />
 
-      <PickerActionMenu menu={pickerMenu} isHtml={currentFile?.sourceType === 'html'} onAction={handlePickerAction} onClose={() => setPickerMenu(null)} />
-      {stylesPanelSelector && (
+      {view === 'workspace' && (
+        <PickerActionMenu menu={pickerMenu} isHtml={currentFile?.sourceType === 'html'} onAction={handlePickerAction} onClose={() => setPickerMenu(null)} />
+      )}
+      {view === 'workspace' && stylesPanelSelector && (
         <ElementStylesPanel
           selector={stylesPanelSelector}
           iframeRef={iframeRef}
@@ -736,13 +854,13 @@ export default function App() {
         />
       )}
 
-      <ProjectModal isOpen={projectModalOpen} onClose={() => setProjectModalOpen(false)} onProjectSelected={handleProjectSelected} onOpenDesignSystem={(projectId) => { const p = useAppStore.getState().config.projects?.find(pr => pr.id === projectId); setEditingDesignSystem(p?.designSystem || { colors: [], spacing: {}, radius: {} }); setEditingDesignProjectId(projectId); setDesignDrawerOpen(true); }} />
+      <ProjectModal isOpen={projectModalOpen} onClose={() => { setProjectModalOpen(false); loadConfig(); }} onProjectSelected={handleProjectSelected} onOpenDesignSystem={handleOpenDesignSystem} />
       <ImageUploadModal isOpen={imageUploadOpen} onClose={() => setImageUploadOpen(false)} onSuccess={scanHtmlFiles} />
       <GroupModal isOpen={groupModalOpen} onClose={() => setGroupModalOpen(false)} />
       <DeleteConfirmModal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} count={selectedFilesCount} onConfirm={handleDeleteFiles} />
       <PromptModal isOpen={promptModalOpen} onClose={() => setPromptModalOpen(false)} />
       <DesignSystemDrawer isOpen={designDrawerOpen} onClose={() => setDesignDrawerOpen(false)} />
-      {mindMapOpen && <MindMapOverlay onClose={() => setMindMapOpen(false)} />}
+      {view === 'workspace' && mindMapOpen && <MindMapOverlay onClose={() => setMindMapOpen(false)} />}
     </>
   );
 }

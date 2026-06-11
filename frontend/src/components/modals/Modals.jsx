@@ -72,7 +72,7 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected, onOpenDesignS
           }
         }
         showToast('项目创建成功');
-        onProjectSelected?.();
+        onProjectSelected?.(result.project?.id);
         onClose();
       }
       resetForm();
@@ -85,7 +85,7 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected, onOpenDesignS
   const switchToProject = (project) => {
     setCurrentProjectId(project.id);
     showToast(`已切换到项目: ${project.name}`);
-    onProjectSelected?.();
+    onProjectSelected?.(project.id);
     onClose();
   };
 

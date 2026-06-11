@@ -2,7 +2,20 @@
  * API 请求封装模块
  */
 
+function getProjectIdFromHash() {
+  if (typeof window === 'undefined') return null;
+  const rawHash = window.location.hash.startsWith('#')
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const [routePath, query = ''] = rawHash.split('?');
+  if (routePath !== '/dashboard') return null;
+  const pid = parseInt(new URLSearchParams(query).get('pid') || '', 10);
+  return Number.isFinite(pid) && pid > 0 ? pid : null;
+}
+
 function getProjectId() {
+  const routeProjectId = getProjectIdFromHash();
+  if (routeProjectId) return routeProjectId;
   const stored = localStorage.getItem('appPageStudio_currentProjectId');
   return stored ? parseInt(stored, 10) : null;
 }
