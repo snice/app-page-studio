@@ -195,6 +195,28 @@ html[data-intel-mac] * {
 .path-value { color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .path-chevron { color: var(--text-muted); font-size: 10px; transition: transform var(--transition-fast); }
 .path-display:hover .path-chevron { transform: translateY(2px); }
+.path-display.is-open { background: var(--bg-elevated); border-color: var(--primary); }
+.path-display.is-open .path-chevron { transform: rotate(180deg); }
+
+.project-switcher { position: relative; }
+.project-switcher-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 1000;
+  min-width: 220px; max-height: 320px; overflow-y: auto;
+  padding: 6px;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-md);
+}
+.project-switcher-empty { padding: 10px 12px; color: var(--text-muted); font-size: 13px; }
+.project-switcher-item {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text); font-size: 13px; text-align: left;
+  cursor: pointer; transition: background var(--transition-fast);
+}
+.project-switcher-item:hover { background: var(--bg-tertiary); }
+.project-switcher-item.active { background: var(--primary-glow); color: var(--primary); }
+.project-switcher-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .header-actions { margin-left: auto; display: flex; gap: 10px; }
 
 /* ==================== Home ==================== */
@@ -291,6 +313,27 @@ html[data-intel-mac] * {
   border-color: rgba(129, 140, 248, 0.6);
   box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.18), var(--shadow-sm);
 }
+.project-card-new {
+  align-items: center; justify-content: center; gap: 12px;
+  background: transparent;
+  border: 1.5px dashed var(--border);
+  color: var(--text-muted);
+  font: inherit;
+}
+.project-card-new:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-glow);
+}
+.project-card-new:disabled { cursor: progress; opacity: 0.6; }
+.project-card-new-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--bg-tertiary); color: inherit;
+}
+.project-card-new:hover .project-card-new-icon { background: rgba(129, 140, 248, 0.18); }
+.project-card-new-label { font-size: 15px; font-weight: 600; }
+
 .project-card-header {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
 }
@@ -372,6 +415,12 @@ html[data-intel-mac] * {
   background: var(--bg-elevated);
   color: var(--text);
   border-color: rgba(129, 140, 248, 0.4);
+}
+.project-card-actions { display: inline-flex; align-items: center; gap: 6px; }
+.project-card-action.danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
 }
 .home-empty {
   min-height: 280px;
@@ -492,6 +541,12 @@ html[data-intel-mac] * {
 .search-box input { flex: 1; border: none; background: transparent; color: var(--text); font-size: 13px; outline: none; }
 .search-box input::placeholder { color: var(--text-muted); }
 
+.sidebar-stats {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text-muted); font-size: 11px;
+}
+.sidebar-stats-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-muted); opacity: 0.6; }
+
 .status-filter-bar { display: flex; gap: 4px; flex-wrap: wrap; }
 .status-filter-btn {
   display: flex; align-items: center; gap: 4px;
@@ -554,8 +609,8 @@ html[data-intel-mac] * {
 }
 .inline-confirm-text { font-size: 12px; color: var(--text); line-height: 1.5; }
 .inline-confirm-actions { display: flex; justify-content: flex-end; gap: 6px; }
-.inline-confirm-actions .btn-danger { background: var(--danger, #ef4444); color: #fff; border-color: var(--danger, #ef4444); }
-.inline-confirm-actions .btn-danger:hover { filter: brightness(1.05); }
+.btn-danger { background: var(--danger, #ef4444); color: #fff; border-color: var(--danger, #ef4444); }
+.btn-danger:hover { filter: brightness(1.05); }
 .group-files { border-top: 1px solid var(--border); }
 
 
@@ -843,7 +898,6 @@ html[data-intel-mac] * {
   width: var(--trigger-width, 280px);
   min-width: 220px;
   max-height: 260px;
-  margin-left: 19px;
   overflow: hidden;
   padding: 6px;
   background: var(--bg-secondary);

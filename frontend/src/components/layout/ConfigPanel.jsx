@@ -287,7 +287,7 @@ function PageGroupComboBox({ groups, value, disabled, onChange }) {
           <Icon name="chevronDown" size="sm" />
         </ComboBox.Trigger>
       </ComboBox.InputGroup>
-      <ComboBox.Popover className="page-group-combobox-popover" placement="bottom">
+      <ComboBox.Popover className="page-group-combobox-popover" placement="bottom start">
         <ListBox className="page-group-combobox-list" items={items}>
           {(item) => (
             <ListBox.Item

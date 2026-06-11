@@ -2,6 +2,7 @@ import React from 'react';
 import { Icon } from '../components/common/Icon';
 import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../lib/state';
+import { HomePageModals } from './HomePageModals';
 
 function formatProjectDate(value) {
   if (!value) return '暂无更新';
@@ -15,7 +16,7 @@ function formatProjectDate(value) {
   });
 }
 
-function ProjectCard({ project, isCurrent, isLoading, onOpenProject, onOpenDesignSystem }) {
+function ProjectCard({ project, isCurrent, isLoading, onOpenProject, onOpenDesignSystem, onEditProject, onDeleteProject }) {
   const handleKeyDown = (event) => {
     if (isLoading) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -62,18 +63,44 @@ function ProjectCard({ project, isCurrent, isLoading, onOpenProject, onOpenDesig
           打开工作台
           <Icon name="arrowRight" size="sm" />
         </span>
-        <button
-          type="button"
-          className="project-card-action"
-          title="设计系统"
-          disabled={isLoading}
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenDesignSystem(project.id);
-          }}
-        >
-          <Icon name="palette" size="sm" />
-        </button>
+        <div className="project-card-actions">
+          <button
+            type="button"
+            className="project-card-action"
+            title="设计系统"
+            disabled={isLoading}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenDesignSystem(project.id);
+            }}
+          >
+            <Icon name="palette" size="sm" />
+          </button>
+          <button
+            type="button"
+            className="project-card-action"
+            title="编辑项目"
+            disabled={isLoading}
+            onClick={(event) => {
+              event.stopPropagation();
+              onEditProject(project);
+            }}
+          >
+            <Icon name="edit" size="sm" />
+          </button>
+          <button
+            type="button"
+            className="project-card-action danger"
+            title="删除项目"
+            disabled={isLoading}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeleteProject(project);
+            }}
+          >
+            <Icon name="trash" size="sm" />
+          </button>
+        </div>
       </div>
     </article>
   );
@@ -84,13 +111,17 @@ export function HomePage({
   currentProjectId,
   isLoading,
   onOpenProject,
-  onCreateProject,
-  onManageProjects,
-  onOpenDesignSystem,
 }) {
   const { theme, toggleTheme } = useTheme();
   const showToast = useAppStore((s) => s.showToast);
+  const openModal = useAppStore((s) => s.openModal);
+  const openDesignSystem = useAppStore((s) => s.openDesignSystem);
   const projectCount = projects.length;
+
+  const onCreateProject = () => openModal('project');
+  const onEditProject = (project) => openModal('project', { initialEdit: project });
+  const onDeleteProject = (project) => openModal('deleteProject', { project });
+  const onOpenDesignSystem = (projectId) => openDesignSystem(projectId);
 
   return (
     <main className="home-page">
@@ -116,14 +147,6 @@ export function HomePage({
               }}
             >
               <Icon name={theme === 'light' ? 'sun' : 'moon'} size="md" />
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={onManageProjects}>
-              <Icon name="settings" />
-              项目管理
-            </button>
-            <button type="button" className="btn btn-primary" onClick={onCreateProject}>
-              <Icon name="plus" />
-              新建项目
             </button>
           </div>
         </header>
@@ -162,11 +185,27 @@ export function HomePage({
                 isLoading={isLoading}
                 onOpenProject={onOpenProject}
                 onOpenDesignSystem={onOpenDesignSystem}
+                onEditProject={onEditProject}
+                onDeleteProject={onDeleteProject}
               />
             ))}
+            <button
+              type="button"
+              className="project-card project-card-new"
+              onClick={onCreateProject}
+              disabled={isLoading}
+              aria-label="新建项目"
+            >
+              <span className="project-card-new-icon">
+                <Icon name="plus" size="xl" />
+              </span>
+              <span className="project-card-new-label">新建项目</span>
+            </button>
           </section>
         )}
       </div>
+
+      <HomePageModals onProjectSelected={onOpenProject} />
     </main>
   );
 }

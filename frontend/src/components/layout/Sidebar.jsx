@@ -183,6 +183,14 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
     };
   }, [pagesConfig, matchesFilter]);
 
+  /** 统计：分组数 + 页面数（基于当前筛选结果） */
+  const { groupCount, pageCount } = useMemo(() => {
+    const visibleGroups = groupedFiles.filter((g) => g.files.length > 0).length
+      + (ungroupedFiles.length > 0 ? 1 : 0);
+    const total = groupedFiles.reduce((sum, g) => sum + g.files.length, 0) + ungroupedFiles.length;
+    return { groupCount: visibleGroups, pageCount: total };
+  }, [groupedFiles, ungroupedFiles]);
+
   const toggleGroup = (groupId) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -235,6 +243,11 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
               {status === 'all' ? '全部' : status === 'pending' ? '待开发' : status === 'developing' ? '开发中' : '已完成'}
             </button>
           ))}
+        </div>
+        <div className="sidebar-stats">
+          <span>{groupCount} 个分组</span>
+          <span className="sidebar-stats-dot" />
+          <span>{pageCount} 个页面</span>
         </div>
       </div>
 

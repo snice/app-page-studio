@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { api } from './api';
 
 const STORAGE_KEY_CURRENT_PROJECT = 'appPageStudio_currentProjectId';
 const STORAGE_KEY_SESSION_ID = 'appPageStudio_sessionId';
@@ -101,6 +102,9 @@ export const useAppStore = create((set, get) => ({
 
   // 面板 tab
   activePanelTab: 'file',
+
+  // 弹窗管理：{ [name]: props }，存在即表示打开
+  modals: {},
 
   // ==================== Actions ====================
 
@@ -488,6 +492,65 @@ export const useAppStore = create((set, get) => ({
   setEditingGroupId(id) { set({ editingGroupId: id }); },
   setEditingProjectId(id) { set({ editingProjectId: id }); },
   setHtmlFiles(files) { set({ htmlFiles: files }); },
+
+  // ==================== 弹窗控制（统一接口） ====================
+  /** 打开弹窗，props 为可选载荷（如 { initialEdit }） */
+  openModal(name, props = true) {
+    set((s) => ({ modals: { ...s.modals, [name]: props } }));
+  },
+  /** 关闭弹窗 */
+  closeModal(name) {
+    set((s) => {
+      if (!(name in s.modals)) return {};
+      const next = { ...s.modals };
+      delete next[name];
+      return { modals: next };
+    });
+  },
+  /** 打开设计系统抽屉（首页 / 工作台共用） */
+  openDesignSystem(projectId) {
+    const state = get();
+    const pid = projectId || state.getCurrentProjectId();
+    if (!pid) { state.showToast('请先选择项目'); return; }
+    const project = state.config.projects?.find((p) => p.id === pid) || state.getCurrentProject();
+    set((s) => ({
+      editingDesignSystem: project?.designSystem || { colors: [], spacing: {}, radius: {} },
+      editingDesignProjectId: pid,
+      modals: { ...s.modals, designSystem: true },
+    }));
+  },
+
+  // ==================== 数据加载（页面 / 弹窗共用） ====================
+  async loadConfig() {
+    try {
+      const res = await api.getConfig();
+      const nextProjects = res.projects || [];
+      const storedId = get().getCurrentProjectId();
+      const hasStoredProject = storedId && nextProjects.some((p) => p.id === storedId);
+      if (storedId && !hasStoredProject) get().setCurrentProjectId(null);
+      get().setConfig({ projects: nextProjects, currentProject: hasStoredProject ? storedId : null });
+      return nextProjects;
+    } catch (e) {
+      console.error('loadConfig error:', e);
+      return [];
+    }
+  },
+  async scanHtmlFiles({ showResultToast = true, projectId } = {}) {
+    const state = get();
+    const pid = projectId || state.getCurrentProjectId();
+    if (!pid) { state.showToast('请先选择项目'); return; }
+    const [htmlData, imageData] = await Promise.all([
+      api.scanHtmlFiles(),
+      api.listDesignImages(),
+    ]);
+    const htmlFiles = (htmlData.files || []).map((f) => ({ ...f, sourceType: 'html' }));
+    const imageFiles = (imageData.files || []).map((f) => ({ ...f, sourceType: 'image' }));
+    const psdFiles = (htmlData.psdFiles || []).map((f) => ({ ...f, sourceType: 'psd' }));
+    const allFiles = [...htmlFiles, ...imageFiles, ...psdFiles];
+    state.setHtmlFiles(allFiles);
+    state.syncFilesToConfig();
+    if (showResultToast) state.showToast(`扫描完成，共 ${allFiles.length} 个文件`);
+  },
 
   // ==================== PSD Actions ====================
 
