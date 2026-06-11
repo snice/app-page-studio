@@ -6,7 +6,12 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const router = express.Router();
-const { imageUpload, HTML_CACHES_DIR } = require('./utils');
+const {
+  imageUpload,
+  HTML_CACHES_DIR,
+  ensureProjectWritable,
+  sendWriteGuardError
+} = require('./utils');
 
 function ensureProjectImageDir(projectId) {
   const dir = path.join(HTML_CACHES_DIR, String(projectId), '__design__');
@@ -36,6 +41,9 @@ router.post('/upload-image', imageUpload.array('images', 20), (req, res) => {
     res.status(400).json({ error: '未选择图片文件' });
     return;
   }
+
+  const guard = ensureProjectWritable(req, projectId);
+  if (!guard.ok) return sendWriteGuardError(res, guard);
 
   const targetDir = ensureProjectImageDir(projectId);
   const saved = [];
@@ -84,6 +92,9 @@ router.post('/upload-asset', imageUpload.single('asset'), (req, res) => {
     res.status(400).json({ error: '未选择图片文件' });
     return;
   }
+
+  const guard = ensureProjectWritable(req, projectId);
+  if (!guard.ok) return sendWriteGuardError(res, guard);
 
   const targetDir = ensureProjectAssetsDir(projectId);
   const ext = path.extname(req.file.originalname || '.png') || '.png';

@@ -76,7 +76,11 @@ export function DesignSystemDrawer({ isOpen, onClose }) {
       radius: ds.radius,
     };
     if (editingDesignProjectId) {
-      await api.updateProject(editingDesignProjectId, currentProject?.name || '', currentProject?.description || '', dsData);
+      const res = await api.updateProject(editingDesignProjectId, currentProject?.name || '', currentProject?.description || '', dsData);
+      if (res.error) {
+        showToast(res.error);
+        return;
+      }
       showToast('设计系统已保存');
     }
     onClose();

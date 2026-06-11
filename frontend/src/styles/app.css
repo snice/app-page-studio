@@ -1060,6 +1060,52 @@ html[data-intel-mac] * {
 .modal-body { padding: 24px; overflow-y: auto; flex: 1; }
 .modal-footer { padding: 18px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px; background: var(--bg-secondary); }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.history-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.history-current strong { color: var(--text); font-size: 14px; }
+.history-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+.history-item-main { min-width: 0; }
+.history-item-title { font-weight: 600; font-size: 14px; color: var(--text); }
+.history-item-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 /* ==================== File Browser ==================== */
 .browser-path { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--bg); border-radius: var(--radius-md); margin-bottom: 14px; border: 1px solid var(--border); }
 .browser-path-input { flex: 1; background: none; border: none; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; }

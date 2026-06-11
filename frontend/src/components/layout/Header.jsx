@@ -3,10 +3,11 @@ import { Icon } from '../common/Icon';
 import { useTheme } from '../../hooks/useTheme';
 import { useAppStore } from '../../lib/state';
 
-export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownloadDesigns, onScanHtml, onOpenImageUpload, onSaveConfig, onDownloadConfig, onShowPromptModal }) {
+export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownloadDesigns, onScanHtml, onOpenImageUpload, onSaveConfig, onDownloadConfig, onShowPageHistory, onShowPromptModal }) {
   const { theme, toggleTheme } = useTheme();
   const currentProject = useAppStore((s) => s.getCurrentProject());
   const projects = useAppStore((s) => s.config.projects);
+  const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
   const showToast = useAppStore((s) => s.showToast);
 
   const projectDisplay = currentProject ? currentProject.name : '未选择';
@@ -78,7 +79,7 @@ export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownlo
         )}
       </div>
 
-      <button className="btn btn-icon btn-secondary" onClick={onOpenDesignSystem} title="设计系统配置">
+      <button className="btn btn-icon btn-secondary" onClick={onOpenDesignSystem} title={isCurrentEditor ? '设计系统配置' : '当前为只读'} disabled={!isCurrentEditor}>
         <Icon name="palette" size="md" />
       </button>
 
@@ -95,13 +96,17 @@ export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownlo
           <Icon name="refresh" />
           刷新
         </button>
-        <button className="btn btn-secondary" onClick={onOpenImageUpload}>
+        <button className="btn btn-secondary" onClick={onOpenImageUpload} disabled={!isCurrentEditor} title={isCurrentEditor ? '上传设计图' : '当前为只读'}>
           <Icon name="image" />
           上传设计图
         </button>
-        <button className="btn btn-secondary" onClick={onSaveConfig}>
+        <button className="btn btn-secondary" onClick={onSaveConfig} disabled={!isCurrentEditor} title={isCurrentEditor ? '保存' : '当前为只读'}>
           <Icon name="save" />
           保存
+        </button>
+        <button className="btn btn-secondary" onClick={onShowPageHistory}>
+          <Icon name="clock" />
+          历史版本
         </button>
         <button className="btn btn-secondary" onClick={onDownloadConfig}>
           <Icon name="download" />

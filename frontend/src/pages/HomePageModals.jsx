@@ -26,7 +26,8 @@ export function HomePageModals({ onProjectSelected }) {
     if (!deleteTarget) return;
     try {
       const currentId = getCurrentProjectId();
-      await api.deleteProject(deleteTarget.id);
+      const res = await api.deleteProject(deleteTarget.id);
+      if (res.error) throw new Error(res.error);
       if (currentId === deleteTarget.id) setCurrentProjectId(null);
       showToast('项目已删除');
       await loadConfig();

@@ -3,6 +3,7 @@ import { ImageUploadModal } from '../components/modals/ImageUploadModal';
 import { GroupModal } from '../components/modals/GroupModal';
 import { DeleteConfirmModal } from '../components/modals/DeleteConfirmModal';
 import { PromptModal } from '../components/modals/PromptModal';
+import { PageHistoryModal } from '../components/modals/PageHistoryModal';
 import { MindMapOverlay } from '../components/mindmap/MindMapOverlay';
 import { useAppStore } from '../lib/state';
 
@@ -31,6 +32,7 @@ export function DashboardModals({ onDeleteFiles, mindMapOpen, onCloseMindMap }) 
         onConfirm={onDeleteFiles}
       />
       <PromptModal isOpen={!!modals.prompt} onClose={() => closeModal('prompt')} />
+      <PageHistoryModal isOpen={!!modals.pageHistory} onClose={() => closeModal('pageHistory')} />
       {mindMapOpen && <MindMapOverlay onClose={onCloseMindMap} />}
     </>
   );

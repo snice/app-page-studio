@@ -11,6 +11,8 @@ const {
   HTML_CACHES_DIR,
   upload,
   extractZipToDir,
+  ensureProjectWritable,
+  sendWriteGuardError,
   Projects
 } = require('./utils');
 
@@ -148,6 +150,9 @@ router.put('/projects/:id', (req, res) => {
     return res.status(404).json({ error: '项目不存在' });
   }
 
+  const guard = ensureProjectWritable(req, projectId);
+  if (!guard.ok) return sendWriteGuardError(res, guard);
+
   Projects.update(
     projectId,
     name || project.name,
@@ -170,6 +175,9 @@ router.post('/projects/:id/html', upload.single('htmlZip'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: '请上传 ZIP 文件' });
   }
+
+  const guard = ensureProjectWritable(req, projectId);
+  if (!guard.ok) return sendWriteGuardError(res, guard);
 
   try {
     const projectDir = path.join(HTML_CACHES_DIR, String(projectId));
@@ -199,6 +207,9 @@ router.delete('/projects/:id', (req, res) => {
   if (!project) {
     return res.status(404).json({ error: '项目不存在' });
   }
+
+  const guard = ensureProjectWritable(req, projectId);
+  if (!guard.ok) return sendWriteGuardError(res, guard);
 
   try {
     // 删除 HTML 缓存目录

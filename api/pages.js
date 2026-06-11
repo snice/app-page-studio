@@ -4,7 +4,30 @@
 
 const express = require('express');
 const router = express.Router();
-const { Projects } = require('./utils');
+const { Projects, ensureProjectWritable, sendWriteGuardError } = require('./utils');
+
+function defaultPagesConfig(projectName = 'My App') {
+  return {
+    projectName,
+    targetPlatform: ['flutter'],
+    designSystem: {},
+    sharedComponents: [],
+    htmlFiles: [],
+    pageGroups: []
+  };
+}
+
+function buildPagesResponse(projectId, project, record) {
+  const pagesConfig = record?.pagesConfig || defaultPagesConfig(project?.name);
+  return {
+    pagesConfig,
+    revision: record?.revision || 0,
+    updatedAt: record?.updatedAt || null,
+    updatedBy: record?.updatedBy || null,
+    updatedBySession: record?.updatedBySession || null,
+    projectId
+  };
+}
 
 // 获取 pages.json（从 SQLite 读取）
 router.get('/pages', (req, res) => {
@@ -13,30 +36,19 @@ router.get('/pages', (req, res) => {
   if (projectId) {
     const project = Projects.getById(projectId);
     if (project) {
-      const pagesConfig = Projects.getPagesJson(projectId);
-      if (pagesConfig) {
-        return res.json(pagesConfig);
-      }
-      // 返回默认配置（带项目名称）
-      return res.json({
-        projectName: project.name,
-        targetPlatform: ['flutter'],
-        designSystem: {},
-        sharedComponents: [],
-        htmlFiles: [],
-        pageGroups: []
-      });
+      const pagesRecord = Projects.getPagesRecord(projectId);
+      return res.json(buildPagesResponse(projectId, project, pagesRecord));
     }
   }
 
   // 返回默认配置
   res.json({
-    projectName: 'My App',
-    targetPlatform: ['flutter'],
-    designSystem: {},
-    sharedComponents: [],
-    htmlFiles: [],
-    pageGroups: []
+    pagesConfig: defaultPagesConfig(),
+    revision: 0,
+    updatedAt: null,
+    updatedBy: null,
+    updatedBySession: null,
+    projectId: null
   });
 });
 
@@ -53,8 +65,87 @@ router.post('/pages', (req, res) => {
     return res.status(404).json({ error: '项目不存在' });
   }
 
-  Projects.savePagesJson(projectId, req.body);
-  res.json({ success: true });
+  const guard = ensureProjectWritable(req, projectId);
+  if (!guard.ok) return sendWriteGuardError(res, guard);
+
+  const payload = req.body?.pagesConfig ? req.body.pagesConfig : req.body;
+  const expectedRevision = Number.parseInt(req.body?.expectedRevision, 10);
+  if (!Number.isFinite(expectedRevision) || expectedRevision < 0) {
+    return res.status(428).json({ error: '缺少 expectedRevision，无法安全保存' });
+  }
+
+  const result = Projects.savePagesJsonIfRevision(projectId, payload, expectedRevision, guard);
+  if (!result.ok && result.conflict) {
+    return res.status(409).json({
+      error: '配置已被其他编辑者更新，请先重新加载最新版本',
+      conflict: true,
+      latest: buildPagesResponse(projectId, project, result.current)
+    });
+  }
+
+  res.json({
+    success: true,
+    ...buildPagesResponse(projectId, project, result.record)
+  });
+});
+
+// 获取 pages.json 历史版本
+router.get('/pages/history', (req, res) => {
+  const projectId = parseInt(req.query.projectId);
+  const limit = parseInt(req.query.limit, 10) || 30;
+
+  if (!projectId) {
+    return res.status(400).json({ error: '缺少项目 ID' });
+  }
+
+  const project = Projects.getById(projectId);
+  if (!project) {
+    return res.status(404).json({ error: '项目不存在' });
+  }
+
+  const current = Projects.getPagesRecord(projectId);
+  res.json({
+    revisions: Projects.getPageRevisions(projectId, limit),
+    currentRevision: current?.revision || 0
+  });
+});
+
+// 恢复 pages.json 历史版本
+router.post('/pages/restore', (req, res) => {
+  const projectId = parseInt(req.query.projectId);
+  const revision = Number.parseInt(req.body?.revision, 10);
+  const expectedRevision = Number.parseInt(req.body?.expectedRevision, 10);
+
+  if (!projectId || !Number.isFinite(revision)) {
+    return res.status(400).json({ error: '缺少项目 ID 或历史版本号' });
+  }
+
+  const project = Projects.getById(projectId);
+  if (!project) {
+    return res.status(404).json({ error: '项目不存在' });
+  }
+
+  const guard = ensureProjectWritable(req, projectId);
+  if (!guard.ok) return sendWriteGuardError(res, guard);
+
+  const current = Projects.getPagesRecord(projectId);
+  if (Number.isFinite(expectedRevision) && current?.revision !== expectedRevision) {
+    return res.status(409).json({
+      error: '配置已被其他编辑者更新，请先重新加载最新版本',
+      conflict: true,
+      latest: buildPagesResponse(projectId, project, current)
+    });
+  }
+
+  const record = Projects.restorePageRevision(projectId, revision, guard);
+  if (!record) {
+    return res.status(404).json({ error: '历史版本不存在' });
+  }
+
+  res.json({
+    success: true,
+    ...buildPagesResponse(projectId, project, record)
+  });
 });
 
 module.exports = router;

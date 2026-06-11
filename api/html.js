@@ -8,7 +8,16 @@ const fs = require('fs');
 const cheerio = require('cheerio');
 const AdmZip = require('adm-zip');
 const router = express.Router();
-const { Projects, getHtmlDir, upload, extractZipToDir, HTML_CACHES_DIR, resolveSafe } = require('./utils');
+const {
+  Projects,
+  getHtmlDir,
+  upload,
+  extractZipToDir,
+  HTML_CACHES_DIR,
+  resolveSafe,
+  ensureProjectWritable,
+  sendWriteGuardError
+} = require('./utils');
 
 // 上传 HTML ZIP（合并到项目目录，根目录图片自动移入 __design__）
 router.post('/upload-html', upload.single('htmlZip'), (req, res) => {
@@ -21,6 +30,9 @@ router.post('/upload-html', upload.single('htmlZip'), (req, res) => {
     res.status(400).json({ error: '请上传 ZIP 文件' });
     return;
   }
+
+  const guard = ensureProjectWritable(req, projectId);
+  if (!guard.ok) return sendWriteGuardError(res, guard);
 
   const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
@@ -61,6 +73,9 @@ router.post('/delete-files', (req, res) => {
     res.status(400).json({ error: '缺少 projectId 或 files' });
     return;
   }
+
+  const guard = ensureProjectWritable(req, projectId);
+  if (!guard.ok) return sendWriteGuardError(res, guard);
 
   const htmlDir = getHtmlDir(projectId);
   if (!fs.existsSync(htmlDir)) {

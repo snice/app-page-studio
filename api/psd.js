@@ -5,7 +5,13 @@ const Psd = require('psd');
 const AdmZip = require('adm-zip');
 const multer = require('multer');
 const router = express.Router();
-const { HTML_CACHES_DIR, resolveSafe, asyncHandler } = require('./utils');
+const {
+  HTML_CACHES_DIR,
+  resolveSafe,
+  asyncHandler,
+  ensureProjectWritable,
+  sendWriteGuardError
+} = require('./utils');
 
 const psdUpload = multer({
   storage: multer.memoryStorage(),
@@ -54,6 +60,9 @@ router.post('/upload-psd', psdUpload.array('psdFiles', 20), asyncHandler(async (
     res.status(400).json({ error: '未选择文件' });
     return;
   }
+
+  const guard = ensureProjectWritable(req, projectId);
+  if (!guard.ok) return sendWriteGuardError(res, guard);
 
   const psdDir = ensurePsdDir(projectId);
   const saved = [];

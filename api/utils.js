@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
-const { Projects } = require('../db');
+const { Projects, EditSessions } = require('../db');
 
 // HTML 缓存目录
 const HTML_CACHES_DIR = path.join(__dirname, '..', 'html_caches');
@@ -84,6 +84,42 @@ function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
 
+function getRequestSessionInfo(req) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const query = req.query && typeof req.query === 'object' ? req.query : {};
+
+  return {
+    sessionId: req.get('x-session-id') || body.sessionId || query.sessionId || '',
+    editorName: body.editorName || query.editorName || null
+  };
+}
+
+function ensureProjectWritable(req, projectId) {
+  const session = getRequestSessionInfo(req);
+  const status = EditSessions.checkSession(projectId, session.sessionId || '');
+  if (!status.isCurrentEditor) {
+    return {
+      ok: false,
+      status: 423,
+      error: `"${status.currentEditor || '其他用户'}" 正在编辑此项目，请接管后再操作`,
+      currentEditor: status.currentEditor || '其他用户'
+    };
+  }
+
+  return {
+    ok: true,
+    sessionId: session.sessionId || null,
+    editorName: session.editorName || status.currentEditor || null
+  };
+}
+
+function sendWriteGuardError(res, guard) {
+  return res.status(guard.status || 423).json({
+    error: guard.error || '当前项目暂不可写',
+    currentEditor: guard.currentEditor || null
+  });
+}
+
 /**
  * 解压 ZIP 文件到目录
  * @param {Buffer} zipBuffer - ZIP 文件 buffer
@@ -156,6 +192,9 @@ module.exports = {
   getHtmlDir,
   resolveSafe,
   asyncHandler,
+  getRequestSessionInfo,
+  ensureProjectWritable,
+  sendWriteGuardError,
   extractZipToDir,
   Projects
 };

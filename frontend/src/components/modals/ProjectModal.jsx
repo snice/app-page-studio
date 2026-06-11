@@ -43,10 +43,12 @@ export function ProjectModal({ isOpen, onClose, onProjectSelected, initialEdit }
     setSubmitting(true);
     try {
       if (isEdit) {
-        await api.updateProject(initialEdit.id, name.trim(), desc.trim());
+        const updateRes = await api.updateProject(initialEdit.id, name.trim(), desc.trim());
+        if (updateRes.error) throw new Error(updateRes.error);
         if (zipFile) {
           showToast('正在更新设计稿...');
-          await api.replaceProjectHtml(initialEdit.id, zipFile);
+          const replaceRes = await api.replaceProjectHtml(initialEdit.id, zipFile);
+          if (replaceRes.error) throw new Error(replaceRes.error);
         }
         showToast('项目已更新');
         onProjectSelected?.(initialEdit.id);

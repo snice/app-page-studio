@@ -22,6 +22,7 @@ export function useWorkspaceController() {
   const isPickerActive = useAppStore((s) => s.isPickerActive);
   const isColorPickerActive = useAppStore((s) => s.isColorPickerActive);
   const setPagesConfig = useAppStore((s) => s.setPagesConfig);
+  const setPagesMeta = useAppStore((s) => s.setPagesMeta);
   const setHtmlFiles = useAppStore((s) => s.setHtmlFiles);
   const setCurrentFile = useAppStore((s) => s.setCurrentFile);
   const setZoom = useAppStore((s) => s.setZoom);
@@ -391,10 +392,31 @@ export function useWorkspaceController() {
         state.applyZoomToAllSameSourceType(state.currentFile.sourceType, state.zoom);
       }
     }
-    const res = await api.savePages(useAppStore.getState().pagesConfig);
+    const latestState = useAppStore.getState();
+    const res = await api.savePages(latestState.pagesConfig, latestState.pagesMeta.revision);
+    if (res.conflict) {
+      let shouldReload = false;
+      try {
+        shouldReload = window.confirm(`${res.error || '配置已被其他编辑者更新'}。是否加载最新版本？`);
+      } catch (e) {
+        console.warn('confirm() unsupported, keep local changes:', e?.message);
+      }
+
+      if (shouldReload && res.latest?.pagesConfig) {
+        const currentPath = useAppStore.getState().currentFile?.path;
+        setPagesConfig(res.latest);
+        await useAppStore.getState().scanHtmlFiles({ showResultToast: false });
+        if (currentPath) useAppStore.getState().setCurrentFile(currentPath);
+        showToast('已加载最新配置');
+      } else {
+        showToast('保存被拒绝，本地修改仍保留');
+      }
+      return;
+    }
     if (res.error) { showToast(res.error); return; }
+    setPagesMeta(res);
     showToast('配置已保存');
-  }, [showToast]);
+  }, [setPagesConfig, setPagesMeta, showToast]);
 
   const handleDownloadConfig = useCallback(() => {
     const blob = new Blob([JSON.stringify(useAppStore.getState().pagesConfig, null, 2)], { type: 'application/json' });

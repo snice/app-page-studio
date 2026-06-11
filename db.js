@@ -10,6 +10,7 @@ const DB_PATH = path.join(__dirname, 'studio.db');
 
 // 初始化数据库
 const db = new Database(DB_PATH);
+db.pragma('foreign_keys = ON');
 
 // 创建表（is_current 字段保留以兼容现有数据，但不再使用）
 db.exec(`
@@ -27,7 +28,22 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
     pages_json TEXT,
+    revision INTEGER DEFAULT 1,
+    updated_by TEXT,
+    updated_by_session TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS project_page_revisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    revision INTEGER NOT NULL,
+    pages_json TEXT,
+    updated_by TEXT,
+    updated_by_session TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(project_id, revision),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
   );
 
@@ -47,6 +63,61 @@ try {
   db.exec(`ALTER TABLE projects ADD COLUMN design_system TEXT`);
 } catch (e) {
   // 字段已存在，忽略错误
+}
+
+const migrations = [
+  `ALTER TABLE project_pages ADD COLUMN revision INTEGER DEFAULT 1`,
+  `ALTER TABLE project_pages ADD COLUMN updated_by TEXT`,
+  `ALTER TABLE project_pages ADD COLUMN updated_by_session TEXT`,
+];
+
+for (const sql of migrations) {
+  try {
+    db.exec(sql);
+  } catch (e) {
+    // 字段已存在，忽略错误
+  }
+}
+
+function normalizeRevision(value) {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+function safeParsePagesJson(raw) {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function buildPagesRecord(row) {
+  if (!row) return null;
+  return {
+    pagesConfig: safeParsePagesJson(row.pages_json),
+    revision: normalizeRevision(row.revision),
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by || null,
+    updatedBySession: row.updated_by_session || null
+  };
+}
+
+function snapshotPagesRevision(projectId, row) {
+  if (!row || !row.pages_json) return;
+  db.prepare(`
+    INSERT OR IGNORE INTO project_page_revisions
+      (project_id, revision, pages_json, updated_by, updated_by_session, created_at)
+    VALUES (?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))
+  `).run(
+    projectId,
+    normalizeRevision(row.revision),
+    row.pages_json,
+    row.updated_by || null,
+    row.updated_by_session || null,
+    row.updated_at || null
+  );
 }
 
 /**
@@ -99,8 +170,8 @@ const Projects = {
 
     // 初始化空的 pages_json
     db.prepare(`
-      INSERT INTO project_pages (project_id, pages_json)
-      VALUES (?, ?)
+      INSERT INTO project_pages (project_id, pages_json, revision)
+      VALUES (?, ?, 1)
     `).run(result.lastInsertRowid, JSON.stringify({
       projectName: name,
       targetPlatform: ['flutter'],
@@ -138,42 +209,205 @@ const Projects = {
    * 获取项目的 pages.json
    */
   getPagesJson(projectId) {
+    const record = this.getPagesRecord(projectId);
+    return record ? record.pagesConfig : null;
+  },
+
+  /**
+   * 获取项目 pages.json 及版本信息
+   */
+  getPagesRecord(projectId) {
     const row = db.prepare(`
-      SELECT pages_json
+      SELECT pages_json, revision, updated_at, updated_by, updated_by_session
       FROM project_pages
       WHERE project_id = ?
     `).get(projectId);
 
-    if (row && row.pages_json) {
-      try {
-        return JSON.parse(row.pages_json);
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
+    return buildPagesRecord(row);
   },
 
   /**
    * 保存项目的 pages.json
    */
-  savePagesJson(projectId, pagesConfig) {
+  savePagesJson(projectId, pagesConfig, meta = {}) {
     const exists = db.prepare(`
-      SELECT 1 FROM project_pages WHERE project_id = ?
+      SELECT pages_json, revision, updated_at, updated_by, updated_by_session
+      FROM project_pages
+      WHERE project_id = ?
     `).get(projectId);
 
     if (exists) {
+      snapshotPagesRevision(projectId, exists);
       return db.prepare(`
         UPDATE project_pages
-        SET pages_json = ?, updated_at = CURRENT_TIMESTAMP
+        SET pages_json = ?,
+            revision = COALESCE(revision, 1) + 1,
+            updated_by = ?,
+            updated_by_session = ?,
+            updated_at = CURRENT_TIMESTAMP
         WHERE project_id = ?
-      `).run(JSON.stringify(pagesConfig), projectId);
+      `).run(
+        JSON.stringify(pagesConfig),
+        meta.editorName || null,
+        meta.sessionId || null,
+        projectId
+      );
     } else {
       return db.prepare(`
-        INSERT INTO project_pages (project_id, pages_json)
-        VALUES (?, ?)
-      `).run(projectId, JSON.stringify(pagesConfig));
+        INSERT INTO project_pages (project_id, pages_json, revision, updated_by, updated_by_session)
+        VALUES (?, ?, 1, ?, ?)
+      `).run(
+        projectId,
+        JSON.stringify(pagesConfig),
+        meta.editorName || null,
+        meta.sessionId || null
+      );
     }
+  },
+
+  /**
+   * 按版本号保存 pages.json，防止旧数据覆盖新数据
+   */
+  savePagesJsonIfRevision(projectId, pagesConfig, expectedRevision, meta = {}) {
+    const tx = db.transaction(() => {
+      const current = db.prepare(`
+        SELECT pages_json, revision, updated_at, updated_by, updated_by_session
+        FROM project_pages
+        WHERE project_id = ?
+      `).get(projectId);
+      const requestedRevision = Number.parseInt(expectedRevision, 10);
+
+      if (!current) {
+        if (requestedRevision !== 0) {
+          return {
+            ok: false,
+            conflict: true,
+            current: null
+          };
+        }
+        db.prepare(`
+          INSERT INTO project_pages (project_id, pages_json, revision, updated_by, updated_by_session)
+          VALUES (?, ?, 1, ?, ?)
+        `).run(
+          projectId,
+          JSON.stringify(pagesConfig),
+          meta.editorName || null,
+          meta.sessionId || null
+        );
+        return { ok: true, record: this.getPagesRecord(projectId) };
+      }
+
+      const currentRevision = normalizeRevision(current.revision);
+      if (requestedRevision !== currentRevision) {
+        return {
+          ok: false,
+          conflict: true,
+          current: buildPagesRecord(current)
+        };
+      }
+
+      snapshotPagesRevision(projectId, current);
+
+      const result = db.prepare(`
+        UPDATE project_pages
+        SET pages_json = ?,
+            revision = COALESCE(revision, 1) + 1,
+            updated_by = ?,
+            updated_by_session = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE project_id = ? AND revision = ?
+      `).run(
+        JSON.stringify(pagesConfig),
+        meta.editorName || null,
+        meta.sessionId || null,
+        projectId,
+        currentRevision
+      );
+
+      if (result.changes === 0) {
+        return {
+          ok: false,
+          conflict: true,
+          current: this.getPagesRecord(projectId)
+        };
+      }
+
+      return { ok: true, record: this.getPagesRecord(projectId) };
+    });
+
+    return tx();
+  },
+
+  /**
+   * 获取历史版本列表
+   */
+  getPageRevisions(projectId, limit = 30) {
+    return db.prepare(`
+      SELECT id, project_id, revision, updated_by, updated_by_session, created_at
+      FROM project_page_revisions
+      WHERE project_id = ?
+      ORDER BY revision DESC
+      LIMIT ?
+    `).all(projectId, Math.max(1, Math.min(Number.parseInt(limit, 10) || 30, 100)));
+  },
+
+  /**
+   * 获取指定历史版本
+   */
+  getPageRevision(projectId, revision) {
+    const row = db.prepare(`
+      SELECT project_id, revision, pages_json, updated_by, updated_by_session, created_at
+      FROM project_page_revisions
+      WHERE project_id = ? AND revision = ?
+    `).get(projectId, revision);
+
+    return row ? {
+      ...row,
+      pagesConfig: safeParsePagesJson(row.pages_json)
+    } : null;
+  },
+
+  /**
+   * 恢复到指定历史版本，恢复操作本身会生成一个新版本
+   */
+  restorePageRevision(projectId, revision, meta = {}) {
+    const tx = db.transaction(() => {
+      const target = db.prepare(`
+        SELECT pages_json
+        FROM project_page_revisions
+        WHERE project_id = ? AND revision = ?
+      `).get(projectId, revision);
+
+      if (!target || !target.pages_json) return null;
+
+      const current = db.prepare(`
+        SELECT pages_json, revision, updated_at, updated_by, updated_by_session
+        FROM project_pages
+        WHERE project_id = ?
+      `).get(projectId);
+
+      if (current) {
+        snapshotPagesRevision(projectId, current);
+        db.prepare(`
+          UPDATE project_pages
+          SET pages_json = ?,
+              revision = COALESCE(revision, 1) + 1,
+              updated_by = ?,
+              updated_by_session = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE project_id = ?
+        `).run(target.pages_json, meta.editorName || null, meta.sessionId || null, projectId);
+      } else {
+        db.prepare(`
+          INSERT INTO project_pages (project_id, pages_json, revision, updated_by, updated_by_session)
+          VALUES (?, ?, 1, ?, ?)
+        `).run(projectId, target.pages_json, meta.editorName || null, meta.sessionId || null);
+      }
+
+      return this.getPagesRecord(projectId);
+    });
+
+    return tx();
   }
 };
 
@@ -219,7 +453,7 @@ const EditSessions = {
       // 有其他人在编辑
       return {
         success: true,
-        isNewEditor: false,
+        isCurrentEditor: false,
         currentEditor: existing.editor_name || '其他用户',
         startedAt: existing.started_at
       };
@@ -245,7 +479,7 @@ const EditSessions = {
       `).run(projectId, sessionId, editorName);
     }
 
-    return { success: true, isNewEditor: true, currentEditor: editorName };
+    return { success: true, isCurrentEditor: true, currentEditor: editorName };
   },
 
   /**
@@ -316,7 +550,7 @@ const EditSessions = {
       INSERT INTO edit_sessions (project_id, session_id, editor_name)
       VALUES (?, ?, ?)
     `).run(projectId, sessionId, editorName);
-    return { success: true, isNewEditor: true, currentEditor: editorName };
+    return { success: true, isCurrentEditor: true, currentEditor: editorName };
   }
 };
 

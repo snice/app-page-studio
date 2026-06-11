@@ -8,6 +8,7 @@ import { ElementStylesPanel } from '../components/picker/ElementStylesPanel';
 import { DashboardModals } from './DashboardModals';
 import { useWorkspaceController } from '../hooks/useWorkspaceController';
 import { useAppStore } from '../lib/state';
+import { api } from '../lib/api';
 
 // ==================== 选择器动作菜单 ====================
 function PickerActionMenu({ menu, isHtml, onAction, onClose }) {
@@ -55,6 +56,53 @@ function PickerActionMenu({ menu, isHtml, onAction, onClose }) {
   );
 }
 
+function EditWarningBanner() {
+  const session = useAppStore((s) => s.session);
+  const showToast = useAppStore((s) => s.showToast);
+
+  if (session.isCurrentEditor) return null;
+
+  const handleForceAcquire = async () => {
+    const state = useAppStore.getState();
+    const projectId = state.getCurrentProjectId();
+    if (!projectId) return;
+
+    let editorName = state.getEditorName();
+    if (!editorName) {
+      try {
+        editorName = window.prompt('请输入你的名称（用于协作编辑标识）：', '');
+      } catch (e) {
+        console.warn('prompt() unsupported:', e?.message);
+      }
+      if (!editorName) return;
+      state.setEditorName(editorName);
+    }
+
+    const res = await api.forceAcquireSession(projectId, state.getSessionId(), editorName);
+    if (res.error) {
+      showToast(res.error);
+      return;
+    }
+    state.updateSessionStatus(res);
+    state.startHeartbeat(api);
+    showToast('已接管编辑权');
+  };
+
+  return (
+    <div className="edit-warning show">
+      <div className="edit-warning-content">
+        <Icon name="alert" size="md" />
+        <div className="edit-warning-text">
+          <strong>{session.currentEditor || '其他用户'}</strong> 正在编辑此项目，当前为只读状态
+        </div>
+        <button type="button" className="btn btn-sm" onClick={handleForceAcquire}>
+          接管编辑
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject }) {
   const ctrl = useWorkspaceController();
   const openModal = useAppStore((s) => s.openModal);
@@ -65,6 +113,7 @@ export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject }) {
 
   return (
     <div className="app">
+      <EditWarningBanner />
       <Header
         onGoHome={onGoHome}
         onSwitchProject={onSwitchProject}
@@ -74,6 +123,7 @@ export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject }) {
         onOpenImageUpload={() => openModal('imageUpload')}
         onSaveConfig={ctrl.handleSaveConfig}
         onDownloadConfig={ctrl.handleDownloadConfig}
+        onShowPageHistory={() => openModal('pageHistory')}
         onShowPromptModal={() => openModal('prompt')}
       />
       <Sidebar

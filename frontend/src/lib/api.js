@@ -2,6 +2,36 @@
  * API 请求封装模块
  */
 
+const STORAGE_KEY_SESSION_ID = 'appPageStudio_sessionId';
+const STORAGE_KEY_EDITOR_NAME = 'appPageStudio_editorName';
+
+function getStoredSessionId() {
+  try {
+    return sessionStorage.getItem(STORAGE_KEY_SESSION_ID) || '';
+  } catch {
+    return '';
+  }
+}
+
+function getStoredEditorName() {
+  try {
+    return localStorage.getItem(STORAGE_KEY_EDITOR_NAME) || '';
+  } catch {
+    return '';
+  }
+}
+
+function getSessionHeaders() {
+  const sessionId = getStoredSessionId();
+  return sessionId ? { 'X-Session-Id': sessionId } : {};
+}
+
+async function readJson(res) {
+  const data = await res.json().catch(() => ({ error: '请求失败' }));
+  if (!res.ok) data.status = res.status;
+  return data;
+}
+
 function getProjectIdFromHash() {
   if (typeof window === 'undefined') return null;
   const rawHash = window.location.hash.startsWith('#')
@@ -29,21 +59,46 @@ export const api = {
   async getPages() {
     const projectId = getProjectId();
     if (!projectId) {
-      return { projectName: 'My App', targetPlatform: ['flutter'], designSystem: {}, sharedComponents: [], htmlFiles: [], pageGroups: [] };
+      return {
+        pagesConfig: { projectName: 'My App', targetPlatform: ['flutter'], designSystem: {}, sharedComponents: [], htmlFiles: [], pageGroups: [] },
+        revision: 0,
+      };
     }
     const res = await fetch(`/api/pages?projectId=${projectId}`);
-    return res.json();
+    return readJson(res);
   },
 
-  async savePages(pagesConfig) {
+  async savePages(pagesConfig, expectedRevision) {
     const projectId = getProjectId();
     if (!projectId) return { error: '请先选择项目' };
+    const sessionId = getStoredSessionId();
+    const editorName = getStoredEditorName();
     const res = await fetch(`/api/pages?projectId=${projectId}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(pagesConfig),
+      headers: { 'Content-Type': 'application/json', ...getSessionHeaders() },
+      body: JSON.stringify({ pagesConfig, expectedRevision, sessionId, editorName }),
     });
-    return res.json();
+    return readJson(res);
+  },
+
+  async getPagesHistory(limit = 30) {
+    const projectId = getProjectId();
+    if (!projectId) return { revisions: [], currentRevision: 0 };
+    const res = await fetch(`/api/pages/history?projectId=${projectId}&limit=${limit}`);
+    return readJson(res);
+  },
+
+  async restorePagesRevision(revision, expectedRevision) {
+    const projectId = getProjectId();
+    if (!projectId) return { error: '请先选择项目' };
+    const sessionId = getStoredSessionId();
+    const editorName = getStoredEditorName();
+    const res = await fetch(`/api/pages/restore?projectId=${projectId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getSessionHeaders() },
+      body: JSON.stringify({ revision, expectedRevision, sessionId, editorName }),
+    });
+    return readJson(res);
   },
 
   async scanHtmlFiles() {
@@ -65,8 +120,8 @@ export const api = {
     if (!projectId) return { error: '请先选择项目' };
     const formData = new FormData();
     for (const file of files) formData.append('images', file);
-    const res = await fetch(`/api/upload-image?projectId=${projectId}`, { method: 'POST', body: formData });
-    return res.json();
+    const res = await fetch(`/api/upload-image?projectId=${projectId}`, { method: 'POST', headers: getSessionHeaders(), body: formData });
+    return readJson(res);
   },
 
   async uploadAsset(file) {
@@ -74,8 +129,8 @@ export const api = {
     if (!projectId) return { error: '请先选择项目' };
     const formData = new FormData();
     formData.append('asset', file);
-    const res = await fetch(`/api/upload-asset?projectId=${projectId}`, { method: 'POST', body: formData });
-    return res.json();
+    const res = await fetch(`/api/upload-asset?projectId=${projectId}`, { method: 'POST', headers: getSessionHeaders(), body: formData });
+    return readJson(res);
   },
 
   async uploadHtmlZip(zipFile) {
@@ -83,8 +138,8 @@ export const api = {
     if (!projectId) return { error: '请先选择项目' };
     const formData = new FormData();
     formData.append('htmlZip', zipFile);
-    const res = await fetch(`/api/upload-html?projectId=${projectId}`, { method: 'POST', body: formData });
-    return res.json();
+    const res = await fetch(`/api/upload-html?projectId=${projectId}`, { method: 'POST', headers: getSessionHeaders(), body: formData });
+    return readJson(res);
   },
 
   async uploadPsd(files) {
@@ -92,14 +147,14 @@ export const api = {
     if (!projectId) return { error: '请先选择项目' };
     const formData = new FormData();
     for (const file of files) formData.append('psdFiles', file);
-    const res = await fetch(`/api/upload-psd?projectId=${projectId}`, { method: 'POST', body: formData });
-    return res.json();
+    const res = await fetch(`/api/upload-psd?projectId=${projectId}`, { method: 'POST', headers: getSessionHeaders(), body: formData });
+    return readJson(res);
   },
 
   async analyzeHtml(path) {
     const projectId = getProjectId();
     const res = await fetch(`/api/analyze-html?projectId=${projectId}&path=${encodeURIComponent(path)}`);
-    return res.json();
+    return readJson(res);
   },
 
   async generatePrompt(options) {
@@ -108,7 +163,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options),
     });
-    return res.json();
+    return readJson(res);
   },
 
   async downloadDesignZip(payload) {
@@ -127,10 +182,10 @@ export const api = {
   async deleteFiles(payload) {
     const res = await fetch('/api/delete-files', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getSessionHeaders() },
       body: JSON.stringify(payload),
     });
-    return res.json();
+    return readJson(res);
   },
 
   // ==================== 项目管理 ====================
@@ -159,22 +214,22 @@ export const api = {
     if (designSystem !== undefined) body.designSystem = designSystem;
     const res = await fetch(`/api/projects/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json', ...getSessionHeaders() },
+      body: JSON.stringify({ ...body, editorName: getStoredEditorName() }),
     });
-    return res.json();
+    return readJson(res);
   },
 
   async replaceProjectHtml(id, zipFile) {
     const formData = new FormData();
     formData.append('htmlZip', zipFile);
-    const res = await fetch(`/api/projects/${id}/html`, { method: 'POST', body: formData });
-    return res.json();
+    const res = await fetch(`/api/projects/${id}/html`, { method: 'POST', headers: getSessionHeaders(), body: formData });
+    return readJson(res);
   },
 
   async deleteProject(id) {
-    const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
-    return res.json();
+    const res = await fetch(`/api/projects/${id}`, { method: 'DELETE', headers: getSessionHeaders() });
+    return readJson(res);
   },
 
   // ==================== 编辑会话 ====================

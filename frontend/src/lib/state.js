@@ -49,6 +49,10 @@ export const useAppStore = create((set, get) => ({
     sharedComponents: [], htmlFiles: [], pageGroups: [],
   },
 
+  pagesMeta: {
+    revision: 0, updatedAt: null, updatedBy: null, updatedBySession: null, projectId: null,
+  },
+
   // HTML 文件列表
   htmlFiles: [],
 
@@ -140,17 +144,41 @@ export const useAppStore = create((set, get) => ({
     return state.config.projects.find((p) => p.id === projectId) || null;
   },
 
-  setPagesConfig(newPagesConfig) {
+  setPagesConfig(newPagesConfig, meta = null) {
+    const wrapped = newPagesConfig?.pagesConfig ? newPagesConfig : null;
+    const pagesConfig = wrapped ? wrapped.pagesConfig : newPagesConfig;
+    const nextMeta = meta || (wrapped ? {
+      revision: wrapped.revision || 0,
+      updatedAt: wrapped.updatedAt || null,
+      updatedBy: wrapped.updatedBy || null,
+      updatedBySession: wrapped.updatedBySession || null,
+      projectId: wrapped.projectId || null,
+    } : null);
+
     set({
       pagesConfig: {
-        projectName: newPagesConfig.projectName || 'My App',
-        targetPlatform: newPagesConfig.targetPlatform || ['flutter'],
-        designSystem: newPagesConfig.designSystem || {},
-        sharedComponents: newPagesConfig.sharedComponents || [],
-        htmlFiles: newPagesConfig.htmlFiles || [],
-        pageGroups: newPagesConfig.pageGroups || [],
+        projectName: pagesConfig?.projectName || 'My App',
+        targetPlatform: pagesConfig?.targetPlatform || ['flutter'],
+        designSystem: pagesConfig?.designSystem || {},
+        sharedComponents: pagesConfig?.sharedComponents || [],
+        htmlFiles: pagesConfig?.htmlFiles || [],
+        pageGroups: pagesConfig?.pageGroups || [],
       },
+      ...(nextMeta ? { pagesMeta: nextMeta } : {}),
     });
+  },
+
+  setPagesMeta(meta) {
+    set((s) => ({
+      pagesMeta: {
+        ...s.pagesMeta,
+        revision: meta?.revision ?? s.pagesMeta.revision,
+        updatedAt: meta?.updatedAt ?? s.pagesMeta.updatedAt,
+        updatedBy: meta?.updatedBy ?? s.pagesMeta.updatedBy,
+        updatedBySession: meta?.updatedBySession ?? s.pagesMeta.updatedBySession,
+        projectId: meta?.projectId ?? s.pagesMeta.projectId,
+      },
+    }));
   },
 
   syncFilesToConfig() {
