@@ -11,7 +11,7 @@ import { useAppStore } from '../lib/state';
  * 工作台（DashboardPage）自己的弹窗集合。
  * 打开/关闭统一通过 store 的 modals 接口，谁的弹窗谁渲染。
  */
-export function DashboardModals({ onDeleteFiles, mindMapOpen, onCloseMindMap }) {
+export function DashboardModals({ onDeleteFiles, mindMapOpen, onCloseMindMap, onRequestConfirm }) {
   const modals = useAppStore((s) => s.modals);
   const closeModal = useAppStore((s) => s.closeModal);
   const scanHtmlFiles = useAppStore((s) => s.scanHtmlFiles);
@@ -32,7 +32,11 @@ export function DashboardModals({ onDeleteFiles, mindMapOpen, onCloseMindMap }) 
         onConfirm={onDeleteFiles}
       />
       <PromptModal isOpen={!!modals.prompt} onClose={() => closeModal('prompt')} />
-      <PageHistoryModal isOpen={!!modals.pageHistory} onClose={() => closeModal('pageHistory')} />
+      <PageHistoryModal
+        isOpen={!!modals.pageHistory}
+        onClose={() => closeModal('pageHistory')}
+        onRequestConfirm={onRequestConfirm}
+      />
       {mindMapOpen && <MindMapOverlay onClose={onCloseMindMap} />}
     </>
   );

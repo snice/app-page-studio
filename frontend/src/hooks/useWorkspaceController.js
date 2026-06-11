@@ -14,7 +14,7 @@ import JSZip from 'jszip';
  * iframe 引用、元素/取色选择器、PSD 切图、热更新、保存/下载等业务 handler。
  * 这些逻辑只属于工作台，从 App 下沉到此处，与页面就近管理。
  */
-export function useWorkspaceController() {
+export function useWorkspaceController({ requestConfirm } = {}) {
   const showToast = useAppStore((s) => s.showToast);
   const pagesConfig = useAppStore((s) => s.pagesConfig);
   const currentFile = useAppStore((s) => s.currentFile);
@@ -395,12 +395,12 @@ export function useWorkspaceController() {
     const latestState = useAppStore.getState();
     const res = await api.savePages(latestState.pagesConfig, latestState.pagesMeta.revision);
     if (res.conflict) {
-      let shouldReload = false;
-      try {
-        shouldReload = window.confirm(`${res.error || '配置已被其他编辑者更新'}。是否加载最新版本？`);
-      } catch (e) {
-        console.warn('confirm() unsupported, keep local changes:', e?.message);
-      }
+      const shouldReload = await requestConfirm?.({
+        title: '保存冲突',
+        message: res.error || '配置已被其他编辑者更新。',
+        hint: '加载最新版本会替换当前工作台内容；取消后本地修改仍保留。',
+        confirmText: '加载最新',
+      });
 
       if (shouldReload && res.latest?.pagesConfig) {
         const currentPath = useAppStore.getState().currentFile?.path;
@@ -416,7 +416,7 @@ export function useWorkspaceController() {
     if (res.error) { showToast(res.error); return; }
     setPagesMeta(res);
     showToast('配置已保存');
-  }, [setPagesConfig, setPagesMeta, showToast]);
+  }, [requestConfirm, setPagesConfig, setPagesMeta, showToast]);
 
   const handleDownloadConfig = useCallback(() => {
     const blob = new Blob([JSON.stringify(useAppStore.getState().pagesConfig, null, 2)], { type: 'application/json' });

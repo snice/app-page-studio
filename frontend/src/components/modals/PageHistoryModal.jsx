@@ -9,7 +9,7 @@ function formatTime(value) {
   return String(value).replace('T', ' ').slice(0, 19);
 }
 
-export function PageHistoryModal({ isOpen, onClose }) {
+export function PageHistoryModal({ isOpen, onClose, onRequestConfirm }) {
   const [loading, setLoading] = useState(false);
   const [revisions, setRevisions] = useState([]);
   const pagesMeta = useAppStore((s) => s.pagesMeta);
@@ -38,23 +38,23 @@ export function PageHistoryModal({ isOpen, onClose }) {
   }, [isOpen, showToast]);
 
   const handleRestore = async (revision) => {
-    let confirmed = false;
-    try {
-      confirmed = window.confirm(`恢复到版本 ${revision}？当前配置会作为新历史版本保留。`);
-    } catch (e) {
-      console.warn('confirm() unsupported:', e?.message);
-    }
+    const confirmed = await onRequestConfirm?.({
+      title: '恢复历史版本',
+      message: `恢复到版本 ${revision}？`,
+      hint: '当前配置会作为新历史版本保留。',
+      confirmText: '恢复版本',
+    });
     if (!confirmed) return;
 
     const currentPath = useAppStore.getState().currentFile?.path;
     const res = await api.restorePagesRevision(revision, pagesMeta.revision);
     if (res.conflict) {
-      let shouldReload = false;
-      try {
-        shouldReload = window.confirm(`${res.error || '配置已被其他编辑者更新'}。是否加载最新版本？`);
-      } catch (e) {
-        console.warn('confirm() unsupported:', e?.message);
-      }
+      const shouldReload = await onRequestConfirm?.({
+        title: '恢复冲突',
+        message: res.error || '配置已被其他编辑者更新。',
+        hint: '加载最新版本会替换当前工作台内容。',
+        confirmText: '加载最新',
+      });
       if (shouldReload && res.latest?.pagesConfig) {
         setPagesConfig(res.latest);
         await scanHtmlFiles({ showResultToast: false });

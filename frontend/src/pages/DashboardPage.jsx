@@ -56,7 +56,7 @@ function PickerActionMenu({ menu, isHtml, onAction, onClose }) {
   );
 }
 
-function EditWarningBanner() {
+function EditWarningBanner({ onRequestEditorName }) {
   const session = useAppStore((s) => s.session);
   const showToast = useAppStore((s) => s.showToast);
 
@@ -69,11 +69,9 @@ function EditWarningBanner() {
 
     let editorName = state.getEditorName();
     if (!editorName) {
-      try {
-        editorName = window.prompt('请输入你的名称（用于协作编辑标识）：', '');
-      } catch (e) {
-        console.warn('prompt() unsupported:', e?.message);
-      }
+      editorName = await onRequestEditorName?.({
+        message: '请输入你的名称，用于多人协作时标识当前编辑者。',
+      });
       if (!editorName) return;
       state.setEditorName(editorName);
     }
@@ -103,8 +101,8 @@ function EditWarningBanner() {
   );
 }
 
-export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject }) {
-  const ctrl = useWorkspaceController();
+export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject, onRequestEditorName, onRequestConfirm }) {
+  const ctrl = useWorkspaceController({ requestConfirm: onRequestConfirm });
   const openModal = useAppStore((s) => s.openModal);
   const openDesignSystem = useAppStore((s) => s.openDesignSystem);
   const scanHtmlFiles = useAppStore((s) => s.scanHtmlFiles);
@@ -113,7 +111,7 @@ export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject }) {
 
   return (
     <div className="app">
-      <EditWarningBanner />
+      <EditWarningBanner onRequestEditorName={onRequestEditorName} />
       <Header
         onGoHome={onGoHome}
         onSwitchProject={onSwitchProject}
@@ -179,6 +177,7 @@ export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject }) {
         onDeleteFiles={ctrl.handleDeleteFiles}
         mindMapOpen={ctrl.mindMapOpen}
         onCloseMindMap={() => ctrl.setMindMapOpen(false)}
+        onRequestConfirm={onRequestConfirm}
       />
     </div>
   );

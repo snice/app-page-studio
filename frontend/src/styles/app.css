@@ -1058,6 +1058,7 @@ html[data-intel-mac] * {
 .modal-close { background: var(--bg); border: 1px solid var(--border); color: var(--text-muted); width: 32px; height: 32px; border-radius: var(--radius-md); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all var(--transition-normal); }
 .modal-close:hover { background: var(--bg-tertiary); color: var(--text); border-color: rgba(255,255,255,0.15); }
 .modal-body { padding: 24px; overflow-y: auto; flex: 1; }
+.modal-copy { margin: 0 0 16px 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
 .modal-footer { padding: 18px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px; background: var(--bg-secondary); }
 
 .btn:disabled {

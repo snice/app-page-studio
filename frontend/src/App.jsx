@@ -3,6 +3,8 @@ import { HomePage } from './pages/HomePage';
 import { DashboardPage } from './pages/DashboardPage';
 import { Toast } from './components/common/Toast';
 import { DesignSystemDrawer } from './components/modals/DesignSystemDrawer';
+import { ConfirmModal } from './components/modals/ConfirmModal';
+import { EditorNameModal } from './components/modals/EditorNameModal';
 import { useAppStore } from './lib/state';
 import { api } from './lib/api';
 
@@ -41,10 +43,34 @@ export default function App() {
   const [view, setView] = useState(() => getCurrentRoute().name === 'dashboard' ? 'workspace' : 'home');
   const [routeProjectId, setRouteProjectId] = useState(() => getCurrentRoute().projectId);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [editorNameRequest, setEditorNameRequest] = useState(null);
+  const [confirmRequest, setConfirmRequest] = useState(null);
 
   const projects = useAppStore((s) => s.config.projects || []);
   const storeCurrentProjectId = useAppStore((s) => s.config.currentProject);
   const currentProjectId = routeProjectId || storeCurrentProjectId || getCurrentProjectId();
+
+  const requestEditorName = useCallback((options = {}) => new Promise((resolve) => {
+    setEditorNameRequest({ ...options, resolve });
+  }), []);
+
+  const resolveEditorNameRequest = useCallback((value) => {
+    setEditorNameRequest((request) => {
+      request?.resolve(value);
+      return null;
+    });
+  }, []);
+
+  const requestConfirm = useCallback((options = {}) => new Promise((resolve) => {
+    setConfirmRequest({ ...options, resolve });
+  }), []);
+
+  const resolveConfirmRequest = useCallback((value) => {
+    setConfirmRequest((request) => {
+      request?.resolve(value);
+      return null;
+    });
+  }, []);
 
   // ==================== 初始化 ====================
   const loadPages = useCallback(async (projectId = getCurrentProjectId()) => {
@@ -57,25 +83,21 @@ export default function App() {
     if (!projectId) return;
     let editorName = getEditorName();
     if (!editorName) {
-      try {
-        editorName = window.prompt('请输入你的名称（用于协作编辑标识）：', '');
-      } catch (e) {
-        // 某些沙盒环境（如部分预览/iframe sandbox）不支持 prompt()，跳过协作会话注册
-        console.warn('prompt() unsupported, skip session register:', e?.message);
-        return;
-      }
+      editorName = await requestEditorName({
+        message: '请输入你的名称，用于多人协作时标识当前编辑者。',
+      });
       if (!editorName) return;
       setEditorName(editorName);
     }
     const sessionId = getSessionId();
     const res = await api.registerSession(projectId, sessionId, editorName);
     if (res.isCurrentEditor === false) {
-      let take = false;
-      try {
-        take = window.confirm(`"${res.currentEditor}" 正在编辑此项目。是否接管编辑权？`);
-      } catch (e) {
-        console.warn('confirm() unsupported, default to not take editor:', e?.message);
-      }
+      const take = await requestConfirm({
+        title: '接管编辑权',
+        message: <>“<b>{res.currentEditor}</b>” 正在编辑此项目。是否接管编辑权？</>,
+        hint: '接管后对方会变为只读状态。',
+        confirmText: '接管编辑',
+      });
       if (take) {
         const forceRes = await api.forceAcquireSession(projectId, sessionId, editorName);
         updateSessionStatus(forceRes);
@@ -86,7 +108,7 @@ export default function App() {
       updateSessionStatus(res);
     }
     startHeartbeat(api);
-  }, []);
+  }, [getCurrentProjectId, getEditorName, getSessionId, requestConfirm, requestEditorName, setEditorName, startHeartbeat, updateSessionStatus]);
 
   /** 路由切换时重置工作台的全局状态（纯 store 层，iframe/picker 由工作台自身的副作用响应） */
   const resetWorkspaceUi = useCallback(() => {
@@ -202,6 +224,8 @@ export default function App() {
           workspaceLoading={workspaceLoading}
           onGoHome={handleGoHome}
           onSwitchProject={openProjectWorkspace}
+          onRequestEditorName={requestEditorName}
+          onRequestConfirm={requestConfirm}
         />
       )}
 
@@ -209,6 +233,25 @@ export default function App() {
 
       {/* 设计系统抽屉：首页与工作台共用，挂在顶层 */}
       <DesignSystemDrawer isOpen={!!modals.designSystem} onClose={() => closeModal('designSystem')} />
+      <EditorNameModal
+        isOpen={!!editorNameRequest}
+        title={editorNameRequest?.title || '协作编辑标识'}
+        message={editorNameRequest?.message}
+        initialValue={getEditorName() || ''}
+        onClose={() => resolveEditorNameRequest(null)}
+        onSubmit={(name) => resolveEditorNameRequest(name)}
+      />
+      <ConfirmModal
+        isOpen={!!confirmRequest}
+        title={confirmRequest?.title}
+        message={confirmRequest?.message}
+        hint={confirmRequest?.hint}
+        confirmText={confirmRequest?.confirmText}
+        cancelText={confirmRequest?.cancelText}
+        danger={confirmRequest?.danger}
+        onClose={() => resolveConfirmRequest(false)}
+        onConfirm={() => resolveConfirmRequest(true)}
+      />
     </>
   );
 }
