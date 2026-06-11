@@ -58,6 +58,33 @@ function getHtmlDir(projectId) {
 }
 
 /**
+ * 在指定基目录内安全解析用户传入的相对路径，防止路径穿越（../）。
+ * @param {string} baseDir - 允许访问的基目录（信任）
+ * @param {string} userPath - 用户传入的相对路径（不信任）
+ * @returns {string|null} 解析后的绝对路径；若越界或非法则返回 null
+ */
+function resolveSafe(baseDir, userPath) {
+  if (typeof userPath !== 'string' || userPath.length === 0) return null;
+  // 禁止绝对路径与空字节
+  if (path.isAbsolute(userPath) || userPath.includes('\0')) return null;
+
+  const base = path.resolve(baseDir);
+  const resolved = path.resolve(base, userPath);
+
+  // 必须严格位于 base 内部（或等于 base）
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) return null;
+  return resolved;
+}
+
+/**
+ * 包装异步路由处理器，自动捕获 reject 并转交 Express 错误中间件。
+ * @param {Function} fn - async (req, res, next) => {}
+ */
+function asyncHandler(fn) {
+  return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+}
+
+/**
  * 解压 ZIP 文件到目录
  * @param {Buffer} zipBuffer - ZIP 文件 buffer
  * @param {string} targetDir - 目标目录
@@ -127,6 +154,8 @@ module.exports = {
   upload,
   imageUpload,
   getHtmlDir,
+  resolveSafe,
+  asyncHandler,
   extractZipToDir,
   Projects
 };

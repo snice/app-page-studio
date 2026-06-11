@@ -25,16 +25,28 @@ npm run dev      # Start with auto-open browser
     ├── projects.js     # Project management APIs
     ├── pages.js        # Pages config APIs
     ├── html.js         # HTML scan/analyze APIs
-    └── prompt.js       # Prompt generation API
+    ├── image.js        # Image upload/replace APIs
+    ├── psd.js          # PSD scan/preview/slice APIs
+    ├── sessions.js     # Session (conversation) APIs
+    ├── prompt.js       # Prompt generation route (thin)
+    └── prompt/         # Prompt builders
+        ├── index.js                  # Builder factory (by target framework)
+        ├── BasePromptBuilder.js      # Shared prompt assembly logic
+        ├── FlutterPromptBuilder.js
+        ├── ReactNativePromptBuilder.js
+        └── UniAppPromptBuilder.js
 ```
 
 ### Server (`server.js`)
 Lightweight entry point:
 - Express middleware setup
-- Static file serving (`/public`, `/html`)
+- Static file serving: Vite build output (`frontend_dist` / `frontend/dist`) + `/html/:projectId`
+- SPA fallback to `index.html` for non-API/non-html routes
 - WebSocket server for hot-reload
-- File watcher (chokidar) for HTML changes
+- File watcher (chokidar) for HTML/PSD changes
 - Mounts API routers from `api/` directory
+
+> 旧的 `public/` 纯 HTML 前端已删除；前端只走 Vite 构建产物。若未构建，server 启动时会打印告警。
 
 ### Database (`db.js`)
 SQLite database module using `better-sqlite3`:
@@ -74,41 +86,59 @@ SQLite database module using `better-sqlite3`:
 - `GET /api/extract-images` - Extract image paths from HTML
 - `POST /api/copy-images` - Copy images to project assets directory
 
-**prompt.js** - Prompt generation:
+**image.js** - Image handling:
+- Upload / replace image assets within a project
+
+**psd.js** - PSD handling:
+- Scan PSD files, generate previews, and produce slices for the design workflow
+
+**sessions.js** - Sessions:
+- Conversation/session records associated with prompt generation
+
+**prompt.js + prompt/** - Prompt generation:
 - `POST /api/generate-prompt` - Generate AI development prompt
+- The route is thin; actual assembly lives in `api/prompt/`. `index.js` picks a builder by target framework (Flutter / React Native / UniApp), all extending `BasePromptBuilder`.
 
 ### HTML Storage
 Project HTML files are stored in `html_caches/{project_id}/` directory, uploaded as ZIP files.
 
 ### Frontend Structure
 
-> **Note**: `public/` 下的纯 HTML/CSS/JS 版本已废弃，不再更新。当前前端为 Vite + React 实现。
+前端为 Vite + React 实现，源码全部位于 `frontend/src`。
 
 ```
 frontend/
 ├── index.html                  # Vite 入口 HTML
 ├── src/
-│   ├── main.jsx                # React 入口
-│   ├── App.jsx                 # 主应用组件（Picker/ColorPicker 逻辑、动作菜单）
+│   ├── main.jsx                # React 入口（路由挂载）
+│   ├── App.jsx                 # 应用外壳（主题、全局 Modal、路由）
+│   ├── pages/
+│   │   ├── HomePage.jsx        # 项目列表首页
+│   │   ├── HomePageModals.jsx  # 首页相关弹窗
+│   │   ├── DashboardPage.jsx   # 工作台（三栏：Sidebar/Preview/Config）
+│   │   └── DashboardModals.jsx # 工作台相关弹窗
 │   ├── components/
 │   │   ├── common/
-│   │   │   ├── Icon.jsx        # SVG 图标组件（基于 icons.js 数据）
+│   │   │   ├── Icon.jsx        # SVG 图标组件（ICONS 数据 + <Icon> 组件，自带）
 │   │   │   └── Toast.jsx       # Toast 提示组件
 │   │   ├── layout/
 │   │   │   ├── Header.jsx      # 顶部工具栏
 │   │   │   ├── Sidebar.jsx     # 左侧文件列表（含搜索、分组、筛选）
 │   │   │   ├── PreviewPanel.jsx# 中间预览面板（iframe + 缩放控制）
-│   │   │   └── ConfigPanel.jsx # 右侧配置面板（页面配置、交互/切图/功能描述列表、TabBar）
-│   │   ├── modals/
-│   │   │   └── Modals.jsx      # 弹窗集合（项目、提示词生成等）
-│   │   └── picker/
-│   │       └── ElementStylesPanel.jsx # 元素样式编辑面板
+│   │   │   └── ConfigPanel.jsx # 右侧配置面板（页面配置、交互/切图/功能描述、TabBar）
+│   │   ├── modals/             # 弹窗集合（项目、分组、提示词、图片上传、设计系统抽屉、确认框等）
+│   │   ├── picker/             # ElementStylesPanel（元素样式）、ImageRegionSelector（区域选择）
+│   │   ├── psd/                # PSD 切图：PSDCanvas、LayerPanel、SlicesPanel
+│   │   └── mindmap/            # 页面思维导图：MindMapCanvas/Overlay/Node/Connections + useMindMapLayout
 │   ├── hooks/
 │   │   ├── useTheme.js         # 主题切换 Hook
-│   │   └── useWebSocket.js     # WebSocket 热更新 Hook
+│   │   ├── useWebSocket.js     # WebSocket 热更新 Hook
+│   │   └── useWorkspaceController.js # 工作台全部交互逻辑（iframe/picker/PSD/保存下载，集中式）
 │   ├── lib/
 │   │   ├── api.js              # API 请求封装
 │   │   ├── picker.js           # Picker/ColorPicker（直接操作 iframe.contentDocument）
+│   │   ├── psdUtils.js         # PSD 图层扁平化、切图导出等工具
+│   │   ├── clipboard.js        # 剪贴板封装
 │   │   └── state.js            # Zustand 全局状态管理
 │   └── styles/
 │       └── app.css             # 全局样式（含主题变量）
@@ -139,20 +169,15 @@ frontend/
 ## Code Style Guidelines
 
 ### Icons
-**IMPORTANT: Always use SVG icons via `<icon-component>`, never use emoji.**
+**IMPORTANT: Always use SVG icons via the `<Icon>` component, never use emoji.**
 
-All icons are defined in `icons.js` as a Web Component. Use:
+Icons are defined and rendered by `frontend/src/components/common/Icon.jsx` (the `ICONS` object holds the SVG inner content; the `<Icon>` component wraps it). Usage:
 
-```html
-<!-- In HTML -->
-<icon-component name="check"></icon-component>
-<icon-component name="folder" size="lg"></icon-component>
-```
+```jsx
+import { Icon } from '../common/Icon';
 
-```javascript
-// In JS (dynamic rendering)
-UI.icon('check')           // Returns: <icon-component name="check"></icon-component>
-UI.icon('folder', 'lg')    // Returns: <icon-component name="folder" size="lg"></icon-component>
+<Icon name="check" />
+<Icon name="folder" size="lg" />
 ```
 
 Size options:
@@ -162,18 +187,11 @@ Size options:
 - `lg` - 20x20
 - `xl` - 24x24
 
-Available icons (defined in `ICONS` object in `icons.js`):
-- **App**: smartphone
-- **Actions**: refresh, save, sparkles, plus
-- **Theme**: sun, moon
-- **Files**: file, fileEmpty, folder, folderOpen
-- **Navigation**: chevronDown, chevronUp, arrowUp
-- **Editing**: edit, trash, x, check
-- **Functions**: target, copy, download, upload, package
+The available icon names are the keys of the `ICONS` object in `Icon.jsx` (e.g. appstudio, smartphone, refresh, save, sparkles, plus, sun, moon, file, folder, chevronDown, arrowLeft, edit, trash, x, check, target, copy, download, upload, package, image, palette, settings…). Check the file for the current full list.
 
-To add new icons:
-1. Add the SVG path to `ICONS` object in `icons.js`
-2. Only include the inner content (no `<svg>` wrapper), e.g.: `newIcon: '<path d="..."/>'`
+To add a new icon:
+1. Add an entry to the `ICONS` object in `Icon.jsx`.
+2. Only include the inner SVG content (no `<svg>` wrapper), e.g.: `newIcon: '<path d="..."/>'`
 
 ### Theme Support
 - Use CSS variables for all colors (defined in `:root` and `[data-theme="light"]`)

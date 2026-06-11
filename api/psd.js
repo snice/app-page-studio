@@ -5,7 +5,7 @@ const Psd = require('psd');
 const AdmZip = require('adm-zip');
 const multer = require('multer');
 const router = express.Router();
-const { HTML_CACHES_DIR } = require('./utils');
+const { HTML_CACHES_DIR, resolveSafe, asyncHandler } = require('./utils');
 
 const psdUpload = multer({
   storage: multer.memoryStorage(),
@@ -44,7 +44,7 @@ async function convertPsdToPreview(psdFilePath) {
   }
 }
 
-router.post('/upload-psd', psdUpload.array('psdFiles', 20), (req, res) => {
+router.post('/upload-psd', psdUpload.array('psdFiles', 20), asyncHandler(async (req, res) => {
   const projectId = parseInt(req.query.projectId, 10);
   if (!projectId) {
     res.status(400).json({ error: '缺少项目 ID' });
@@ -57,6 +57,22 @@ router.post('/upload-psd', psdUpload.array('psdFiles', 20), (req, res) => {
 
   const psdDir = ensurePsdDir(projectId);
   const saved = [];
+
+  // 写入一个 PSD 并生成预览，返回结果条目
+  const savePsd = async (buffer, originalName) => {
+    const nonce = Math.random().toString(36).slice(2, 8);
+    const fileName = `${Date.now()}_${nonce}.psd`;
+    const targetPath = path.join(psdDir, fileName);
+    fs.writeFileSync(targetPath, buffer);
+
+    const previewPath = await convertPsdToPreview(targetPath);
+    saved.push({
+      name: fileName,
+      originalName,
+      path: `__psd__/${fileName}`,
+      previewPath: previewPath ? `__psd__/${path.basename(previewPath)}` : null
+    });
+  };
 
   for (const file of req.files) {
     const lower = file.originalname.toLowerCase();
@@ -72,41 +88,15 @@ router.post('/upload-psd', psdUpload.array('psdFiles', 20), (req, res) => {
         if (parts.some(p => p.startsWith('.'))) continue;
         if (!/\.psd$/i.test(entryName)) continue;
 
-        const nonce = Math.random().toString(36).slice(2, 8);
-        const fileName = `${Date.now()}_${nonce}.psd`;
-        const targetPath = path.join(psdDir, fileName);
-        fs.writeFileSync(targetPath, entry.getData());
-
-        convertPsdToPreview(targetPath).then(previewPath => {
-          // 预览图生成完成后再返回结果
-          saved.push({
-            name: fileName,
-            originalName: baseName,
-            path: `__psd__/${fileName}`,
-            previewPath: previewPath ? `__psd__/${path.basename(previewPath)}` : null
-          });
-        });
+        await savePsd(entry.getData(), path.basename(entryName));
       }
     } else {
-      const nonce = Math.random().toString(36).slice(2, 8);
-      const fileName = `${Date.now()}_${nonce}.psd`;
-      const targetPath = path.join(psdDir, fileName);
-      fs.writeFileSync(targetPath, file.buffer);
-
-      convertPsdToPreview(targetPath).then(previewPath => {
-        // 预览图生成完成后再返回结果
-        saved.push({
-          name: fileName,
-          originalName: file.originalname,
-          path: `__psd__/${fileName}`,
-          previewPath: previewPath ? `__psd__/${path.basename(previewPath)}` : null
-        });
-      });
+      await savePsd(file.buffer, file.originalname);
     }
   }
 
   res.json({ files: saved });
-});
+}));
 
 router.get('/list-psd', (req, res) => {
   const projectId = parseInt(req.query.projectId, 10);
@@ -136,7 +126,7 @@ router.get('/list-psd', (req, res) => {
   res.json({ files });
 });
 
-router.get('/psd-preview', (req, res) => {
+router.get('/psd-preview', asyncHandler(async (req, res) => {
   const projectId = parseInt(req.query.projectId, 10);
   const psdPath = req.query.path;
   if (!projectId || !psdPath) {
@@ -144,25 +134,26 @@ router.get('/psd-preview', (req, res) => {
     return;
   }
 
-  const fullPath = path.join(HTML_CACHES_DIR, String(projectId), psdPath);
+  const projectRoot = path.join(HTML_CACHES_DIR, String(projectId));
+  const fullPath = resolveSafe(projectRoot, psdPath);
+  if (!fullPath) {
+    res.status(400).json({ error: '非法路径' });
+    return;
+  }
   if (!fs.existsSync(fullPath)) {
     res.status(404).json({ error: 'PSD 文件不存在' });
     return;
   }
 
-  convertPsdToPreview(fullPath).then(previewPath => {
-    if (!previewPath) {
-      res.status(500).json({ error: 'PSD 转换失败' });
-      return;
-    }
+  const previewPath = await convertPsdToPreview(fullPath);
+  if (!previewPath) {
+    res.status(500).json({ error: 'PSD 转换失败' });
+    return;
+  }
 
-    const relativePath = path.relative(
-      path.join(HTML_CACHES_DIR, String(projectId)),
-      previewPath
-    );
-    res.json({ previewPath: relativePath });
-  });
-});
+  const relativePath = path.relative(projectRoot, previewPath);
+  res.json({ previewPath: relativePath });
+}));
 
 
 module.exports = router;

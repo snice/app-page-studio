@@ -171,31 +171,36 @@ npm start
 
 ```
 app-page-studio/
-├── server.js              # Express 服务入口
+├── server.js              # Express 服务入口（静态服务 + WebSocket 热更新）
 ├── db.js                  # SQLite 数据库模块
 ├── api/                   # API 路由
 │   ├── projects.js        # 项目管理
 │   ├── pages.js           # 页面配置
 │   ├── html.js            # HTML 扫描/分析
-│   ├── prompt.js          # 提示词生成
+│   ├── image.js           # 图片上传/替换
+│   ├── psd.js             # PSD 扫描/预览/切图
+│   ├── sessions.js        # 会话记录
+│   ├── prompt.js          # 提示词生成路由
+│   ├── prompt/            # 提示词构建器（Flutter / RN / UniApp）
 │   └── utils.js           # 共享工具
-├── public/                # 前端静态文件
-│   ├── index.html         # 主页面
-│   ├── css/styles.css     # 样式
-│   └── js/
-│       ├── icons.js       # SVG 图标组件
-│       ├── theme.js       # 主题切换
-│       ├── state.js       # 状态管理
-│       ├── api.js         # API 封装
-│       ├── picker.js      # 元素选择器
-│       ├── ui.js          # UI 渲染
-│       └── app.js         # 应用入口
+├── frontend/              # Vite + React 前端（源码）
+│   ├── index.html         # Vite 入口
+│   └── src/
+│       ├── main.jsx       # React 入口
+│       ├── App.jsx        # 应用外壳
+│       ├── pages/         # 首页 / 工作台
+│       ├── components/    # layout / modals / picker / psd / mindmap / common
+│       ├── hooks/         # useTheme / useWebSocket / useWorkspaceController
+│       ├── lib/           # api / state(Zustand) / picker / psdUtils
+│       └── styles/        # 全局样式
 ├── html_caches/           # 项目 HTML 文件存储
 │   └── {project_id}/      # 按项目 ID 分目录
-│       └── __design__/    # 设计图存放目录
+│       ├── __design__/    # 设计图存放目录
 │       └── __assets__/    # 切图资源目录
-└── data.db                # SQLite 数据库
+└── studio.db              # SQLite 数据库
 ```
+
+> 前端为 Vite + React：开发用 `npm run dev:frontend` 起 Vite，生产用 `npm run build:frontend` 构建到 `frontend/dist` 后由 server.js 提供。
 
 ## 🎯 核心功能详解
 
@@ -385,7 +390,8 @@ my_uniapp/
 ## 🔧 技术栈
 
 - **后端**: Node.js + Express + SQLite
-- **前端**: 原生 HTML/CSS/JS (无框架依赖)
+- **前端**: Vite + React + Zustand
+- **PSD 解析**: psd
 - **HTML 解析**: Cheerio
 - **文件处理**: Multer + ADM-Zip
 - **热更新**: WebSocket + Chokidar

@@ -25,7 +25,7 @@ const PORT = 3000;
 // 中间件
 app.use(express.json({ limit: '50mb' }));
 
-// 前端静态服务：优先使用构建产物，回退到 public 目录
+// 前端静态服务：使用 Vite 构建产物（frontend_dist 优先，回退 frontend/dist）
 const frontendDist = [
   path.join(__dirname, 'frontend_dist'),
   path.join(__dirname, 'frontend', 'dist'),
@@ -34,7 +34,7 @@ const frontendDist = [
 if (frontendDist) {
   app.use(express.static(frontendDist));
 } else {
-  app.use(express.static(path.join(__dirname, 'public')));
+  console.warn('⚠️  未找到前端构建产物，请先运行 npm run build:frontend（或开发模式用 npm run dev:frontend 起 Vite）');
 }
 
 // 动态 HTML 静态服务（根据 URL 中的项目 ID 提供文件）
@@ -68,6 +68,14 @@ if (frontendDist) {
     next();
   });
 }
+
+// 全局错误处理：兜底捕获路由抛出的同步异常与 next(err) 传递的错误，
+// 避免请求挂起或返回 HTML 错误栈。
+app.use((err, req, res, next) => {
+  console.error(`❌ ${req.method} ${req.originalUrl}:`, err.message);
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({ error: err.message || '服务器内部错误' });
+});
 
 // 启动服务器
 const server = app.listen(PORT, () => {

@@ -8,7 +8,7 @@ const fs = require('fs');
 const cheerio = require('cheerio');
 const AdmZip = require('adm-zip');
 const router = express.Router();
-const { Projects, getHtmlDir, upload, extractZipToDir, HTML_CACHES_DIR } = require('./utils');
+const { Projects, getHtmlDir, upload, extractZipToDir, HTML_CACHES_DIR, resolveSafe } = require('./utils');
 
 // 上传 HTML ZIP（合并到项目目录，根目录图片自动移入 __design__）
 router.post('/upload-html', upload.single('htmlZip'), (req, res) => {
@@ -175,7 +175,12 @@ router.get('/scan-html', (req, res) => {
 router.get('/html-content', (req, res) => {
   const projectId = parseInt(req.query.projectId);
   const htmlDir = getHtmlDir(projectId);
-  const htmlPath = path.join(htmlDir, req.query.path);
+  const htmlPath = resolveSafe(htmlDir, req.query.path);
+
+  if (!htmlPath) {
+    res.status(400).json({ error: 'Invalid path' });
+    return;
+  }
 
   if (!fs.existsSync(htmlPath)) {
     res.status(404).json({ error: 'File not found' });
@@ -190,7 +195,12 @@ router.get('/html-content', (req, res) => {
 router.get('/analyze-html', (req, res) => {
   const projectId = parseInt(req.query.projectId);
   const htmlDir = getHtmlDir(projectId);
-  const htmlPath = path.join(htmlDir, req.query.path);
+  const htmlPath = resolveSafe(htmlDir, req.query.path);
+
+  if (!htmlPath) {
+    res.status(400).json({ error: 'Invalid path' });
+    return;
+  }
 
   if (!fs.existsSync(htmlPath)) {
     res.status(404).json({ error: 'File not found' });
