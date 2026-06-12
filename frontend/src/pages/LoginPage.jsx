@@ -31,17 +31,17 @@ export function LoginPage({ onLoggedIn }) {
 
   return (
     <div className="login-page">
-      <button
-        className="btn btn-icon btn-secondary login-theme-toggle"
-        type="button"
-        onClick={toggleTheme}
-        title="切换主题"
-        aria-label="切换主题"
-      >
-        <Icon name={theme === 'light' ? 'sun' : 'moon'} size="md" />
-      </button>
-
       <form className="login-card" onSubmit={submit}>
+        <button
+          className="btn btn-icon btn-secondary login-theme-toggle"
+          type="button"
+          onClick={toggleTheme}
+          title="切换主题"
+          aria-label="切换主题"
+        >
+          <Icon name={theme === 'light' ? 'sun' : 'moon'} size="md" />
+        </button>
+
         <div className="login-heading">
           <div className="logo-icon login-logo" aria-hidden="true">
             <Icon name="appstudio" size="lg" />
