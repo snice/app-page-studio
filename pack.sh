@@ -2,7 +2,7 @@
 #
 # App Page Studio 打包脚本
 # 用法:
-#   ./pack.sh   # 构建 React 前端（frontend/dist）并打包后端
+#   ./pack.sh   # 构建 React 前端（packages/client/dist）并打包后端
 #
 
 set -e
@@ -24,22 +24,29 @@ mkdir -p "${DIST_DIR}"
 
 # 后端文件
 echo "  复制后端文件..."
-cp server.js db.js "${DIST_DIR}/"
-cp package-lock.json "${DIST_DIR}/" 2>/dev/null || true
-cp pnpm-lock.yaml "${DIST_DIR}/" 2>/dev/null || true
+cp packages/server/server.js packages/server/db.js packages/server/paths.js "${DIST_DIR}/"
 # 精简 package.json：只保留 start 脚本
 node -e "
-  const pkg = require('./package.json');
-  pkg.scripts = { start: pkg.scripts.start, postinstall: pkg.scripts.postinstall };
+  const root = require('./package.json');
+  const server = require('./packages/server/package.json');
+  const pkg = {
+    name: root.name,
+    version: root.version,
+    private: true,
+    main: 'server.js',
+    scripts: { start: 'node server.js' },
+    dependencies: server.dependencies
+  };
   require('fs').writeFileSync('${DIST_DIR}/package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
-cp -r api "${DIST_DIR}/api"
-cp -r schemas "${DIST_DIR}/schemas" 2>/dev/null || true
+cp packages/server/package-lock.json "${DIST_DIR}/package-lock.json"
+cp -r packages/server/api "${DIST_DIR}/api"
+cp -r packages/server/schemas "${DIST_DIR}/schemas" 2>/dev/null || true
 
 # 前端文件
 echo "  构建 React 前端..."
-(cd frontend && npx vite build)
-cp -r frontend/dist "${DIST_DIR}/frontend_dist"
+pnpm --filter client build
+cp -r packages/client/dist "${DIST_DIR}/frontend_dist"
 echo "  React 前端已构建并集成"
 
 # 生成启动说明
@@ -49,7 +56,7 @@ App Page Studio
 
 启动方式:
   1. npm install
-  2. npm start
+  2. npm run start
   3. 浏览器打开 http://localhost:3000
 
 EOF

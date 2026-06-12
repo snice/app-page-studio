@@ -1,448 +1,290 @@
 # App Page Studio
 
-一个用于将 **设计稿 HTML / 设计图(PNG/JPG/WebP)** 转换为 AI
-开发提示词的工具，帮助快速还原 Flutter、React Native 和 UniApp 页面。
+English | [简体中文](README.zh-CN.md)
 
-## ✨ 功能特性
+App Page Studio is a workspace for turning design inputs into structured AI implementation prompts for Flutter, React Native, and UniApp page restoration.
 
-- **HTML/设计图预览** - 在模拟手机框架中实时预览设计稿 HTML
-  或设计图，支持多种设备尺寸
-- **设计图模式** - 支持 PNG/JPG/WebP 设计图，配合 `UI-IR-AGENT.md` 生成 UI
-  IR(JSON)
-- **多平台支持** - 支持 Flutter、React Native、UniApp
-  三种平台，生成对应的代码提示
-- **多状态管理** - 将多个 HTML
-  文件分组为同一页面的不同状态（默认、加载中、空数据等）
-- **开发状态追踪** -
-  为每个页面标记开发状态（待开发/开发中/已完成），方便进度管理
-- **元素选择器** - HTML 模式下可点选元素；设计图模式下可拖拽选区
-- **查看样式** -
-  查看选中元素的详细样式信息（文字、盒模型、背景、布局），支持拖拽面板
-- **交互配置** - 为元素添加点击、滑动等交互行为描述
-- **切图标记** - 标记需要切图替换的区域，上传图片资源并生成引用提示
-- **功能描述** - 为元素添加功能描述（如摄像头、扫码、地图等原生功能）
-- **Tabbar 配置** - 标记 Tabbar 页面，配置 Tab 序号、名称、图标路径
-- **数据管理** - 配置页面的 HTTP API 数据加载（初始化、刷新、加载更多等）
-- **设计系统** - 配置颜色、间距、圆角等设计规范
-- **智能搜索** - 文件名搜索和开发状态筛选，快速定位页面
-- **元素回选** - 点击已配置的交互/切图项，自动在预览中高亮对应元素/区域
-- **提示词生成** - 生成结构化的 AI 提示词，支持按开发状态或仅当前页
-- **多项目管理** - 支持多个项目快速切换
-- **实时热更新** - 文件变更自动刷新预览
-- **深色/浅色主题** - 支持主题切换
+It supports HTML exports, PNG/JPG/WebP design images, PSD previews and layer slicing, page grouping, interaction/slice/feature annotations, design-system metadata, multi-user collaboration, and revision history.
 
-## 🚀 快速开始
+## Features
 
-### 安装依赖
+- **Multi-source design input**: Upload HTML ZIP files, image ZIP files or standalone images, and PSD or PSD ZIP files.
+- **Page workspace**: Use a left file list, center phone preview or PSD canvas, and right page configuration panel.
+- **Page grouping**: Group default, loading, empty, and other states of the same page.
+- **Page configuration**: Configure state name, development status, route, source path, tab bar, data sources, and more.
+- **Element picker**: Pick elements in HTML mode, or drag regions in design-image mode.
+- **Interaction annotations**: Add tap, swipe, and other interaction descriptions to elements or regions.
+- **Slice annotations**: Upload slice assets to `__assets__/`, or mark slices in PSD layers and canvas.
+- **PSD workflow**: Generate PSD previews, inspect layers, mark slices, and keep slice data synchronized.
+- **Feature annotations**: Mark native-capability areas such as scanning, maps, and camera usage.
+- **Design system**: Maintain colors, spacing, radii, and other design rules for prompt generation.
+- **Prompt generation**: Generate prompts for Flutter, React Native, or UniApp by development status or current page.
+- **Login and permissions**: Support admins, users, project members, and owner/editor/viewer roles.
+- **Multi-user collaboration**: Use WebSocket presence and synchronization for uploads, deletes, and saves.
+- **Fine-grained saves**: Save the current page or the full project config to reduce collaboration conflicts.
+- **Revision history**: Every save can create a pages-config revision that can be viewed and restored.
+- **Dark and light themes**: Switch between UI themes.
 
-```bash
-npm install
-```
+## Architecture
 
-### 启动服务
+![App Page Studio architecture diagram](docs/architecture.svg)
+
+## Quick Start
+
+### Install Dependencies
+
+The `dev` and `build` scripts run `pnpm install` automatically. You can also install manually:
 
 ```bash
-# 开发模式（自动打开浏览器）
-npm run dev
-
-# 或普通模式
-npm start
+pnpm install
 ```
 
-访问 http://localhost:3000
+### Development Mode
 
-## 📖 使用流程
+The repository uses a pnpm workspace for the backend and frontend. The Vite frontend proxies `/api`, `/html`, and `/ws` to the backend:
 
-### 1. 创建/选择项目
-
-- 点击顶部项目选择器
-- 创建新项目或选择现有项目
-- 支持上传 HTML ZIP 或设计图 ZIP（可混合）
-- 也支持在“上传设计图”弹框中拖拽/粘贴图片，或上传 HTML ZIP
-- 可选配置设计系统 JSON
-
-> 提示词使用指南：
->
-> - `html/` 存放 HTML 设计稿
-> - `__psd__` 存放psd设计稿
-> - `__design__/` 存放图片设计稿
-> - `__assets__/` 存放切图资源
-> - 使用提示词前，将 `UI-IR-AGENT.md` 放在 Flutter / React Native / UniApp
->   项目根目录
-
-### 2. 扫描 HTML / 设计图文件
-
-- 点击"刷新"按钮扫描 HTML / 设计图文件
-- 文件列表显示在左侧边栏
-- 新文件默认为"待开发"状态
-
-### 3. 搜索和筛选文件
-
-- **搜索框**: 输入文件名或路径快速搜索，支持关键字高亮
-- **状态筛选**: 点击"全部/待开发/开发中/已完成"按钮筛选
-
-### 4. 配置页面分组
-
-- 选择多个相关文件（如：默认状态、加载中、空数据）
-- 点击"创建分组"
-- 填写分组信息：
-  - **名称**：如 "首页"
-  - **描述**：页面功能说明
-  - **路由**：App 中的路由路径（如 `/home`）
-  - **源码路径**：各平台对应的源码路径
-    - Flutter: `lib/pages/home_page.dart`
-    - React Native: `app/home.tsx`
-    - UniApp: `pages/home/home.vue`
-  - **标记颜色**：分组的视觉标识
-
-### 5. 配置单个文件
-
-- 点击文件进入详情面板
-- 填写：
-  - **状态名称**：如 "默认状态"、"加载中"
-  - **描述**：当前状态的说明
-  - **开发状态**：待开发 / 开发中 / 已完成
-  - **分组**：选择所属的页面分组
-
-### 6. 配置交互行为
-
-- 点击"添加交互"按钮
-- HTML 模式：在预览中点击元素
-- 设计图模式：在设计图上拖拽选区
-- 选择"添加交互"并填写描述（如："跳转到详情页"）
-
-### 7. 配置切图标记
-
-- 点击"添加交互"按钮
-- HTML 模式：点击要切图的元素；设计图模式：拖拽选区
-- 选择"切图标记"
-- 上传或拖拽图片，系统自动保存到 `__assets__/`
-- 可选填写切图描述
-
-### 8. 配置功能描述
-
-- 点击"选择元素"按钮
-- 在预览中点击要配置的元素
-- 选择"功能描述"
-- 填写功能说明（如："打开摄像头拍摄"、"扫码识别二维码"）
-
-### 9. 配置 Tabbar 页面
-
-如果页面是 App 底部 Tabbar 的一个 Tab 页：
-
-- 在页面配置面板中勾选"这是 Tabbar 页面"
-- 填写 Tab 配置：
-  - **Tab 序号**：从 1 开始的顺序号
-  - **Tab 名称**：如 "首页"、"我的"
-  - **默认图标路径**：如 `assets/tab_home.png`
-  - **选中图标路径**：如 `assets/tab_home_selected.png`
-- 生成提示词时会自动收集所有 Tabbar 页面，生成 Tabbar 配置表格
-
-### 10. 配置数据加载
-
-切换到"数据管理"面板，配置页面的 HTTP API 数据加载：
-
-- 点击 + 按钮添加数据源
-- 填写数据源配置：
-  - **数据源名称**：如 "用户列表"、"商品详情"
-  - **触发时机**：页面初始化 / 下拉刷新 / 上拉加载更多 / 页面获得焦点 / 手动触发
-  - **HTTP 方法**：GET / POST / PUT / DELETE
-  - **API 路径**：如 `/api/users`
-  - **数据说明**：描述返回的数据结构和用途
-
-### 11. 配置设计系统
-
-- 点击顶部调色板图标
-- 配置颜色、间距、圆角
-- 使用取色器从设计稿提取颜色
-- 保存设计系统配置
-
-### 12. 生成提示词
-
-- 点击"生成提示词"按钮
-- 选择目标平台（Flutter / React Native / UniApp）
-- 选择筛选方式：开发状态 / 当前页
-- 点击"生成"按钮
-- 复制或下载提示词
-
-> 设计图页面会提示先按 `UI-IR-AGENT.md` 生成 UI IR(JSON)，再基于 IR 实现代码。
-
-## 📁 项目结构
-
+```bash
+# Start the backend API / WebSocket server (3000) and Vite frontend (5173)
+pnpm run dev
 ```
+
+Open http://localhost:5173
+
+### Build
+
+Create a release ZIP package:
+
+```bash
+pnpm run build
+```
+
+Build output is written to `release/`. After extracting the release package, follow the bundled `README.txt` to start it.
+
+### First Login
+
+On first startup, if the database has no users, the server creates an admin account:
+
+- Default username: `admin`
+- Default password: if no environment variable is set, startup logs print a random password
+
+You can set the initial admin account with environment variables:
+
+```bash
+BOOTSTRAP_ADMIN_USERNAME=admin BOOTSTRAP_ADMIN_PASSWORD=123456 pnpm --filter server start
+```
+
+Reset a specific account password to the default value `123456`:
+
+```bash
+pnpm --filter server reset-password -- -u <username>
+```
+
+## Workflow
+
+### 1. Log In and Create a Project
+
+After login, you enter the project home. Admins can manage users. Project owners and admins can manage project members.
+
+When creating a project, you can upload a ZIP:
+
+- HTML/HTM files are extracted to `__html__/`
+- PNG/JPG/WebP files are extracted to `__design__/`
+- PSD files are extracted to `__psd__/`
+
+You can also create an empty project first, then upload HTML, design images, or PSD files in the workspace.
+
+### 2. Open the Workspace and Refresh Files
+
+Open a project through `/dashboard?pid=<projectId>`. The refresh action scans the current project for:
+
+- HTML files under `__html__/`
+- Design images under `__design__/`
+- PSD files and previews under `__psd__/`
+
+When other users upload or delete files, WebSocket broadcasts `files:changed`, and clients in the same project rescan the file list automatically.
+
+### 3. Configure Page Groups
+
+Select related files and create a page group. For example, group the default, loading, and empty states of the home page as "Home".
+
+A page group can define:
+
+- Name and description
+- Route path
+- Flutter / React Native / UniApp source paths
+- Marker color
+
+Page groups and file assignments share one conflict dimension, guarded by the group hash during save.
+
+### 4. Configure a Single Page
+
+After selecting a file, configure page information in the right panel:
+
+- State name
+- Page description
+- Development status: todo / in progress / done
+- Page group
+- Tab bar configuration
+- Data source configuration
+- Interactions, slices, and feature descriptions
+
+Single-page configuration uses a per-file conflict dimension. Multiple users can save different pages independently.
+
+### 5. Mark Interactions, Slices, and Features
+
+HTML mode:
+
+- Click "Add interaction" and pick an element in the iframe
+- Add interactions, slice annotations, feature descriptions, or inspect styles
+
+Design-image mode:
+
+- Drag a region on the image
+- Add interactions, slices, or feature descriptions to the region
+
+PSD mode:
+
+- Use the PSD canvas and layer panel to locate content
+- Mark slices on the canvas
+- Save slice data to the current PSD page configuration
+
+### 6. Save Configuration
+
+The top bar provides two save entry points:
+
+- **Save current page**: Save unsaved group changes first if needed, then save the current file configuration.
+- **Save all**: Save the entire `pagesConfig`, useful for batch edits or global configuration changes.
+
+Conflict control:
+
+- Current-page saves use `entityHashes.files[path]` to check whether the target file changed remotely.
+- Group saves use `entityHashes.groups` to check whether page groups or assignments changed remotely.
+- Full saves use the global `revision` guard.
+
+When another user saves the same page or group, WebSocket notifies the client and auto-merges when the local state is clean.
+
+### 7. View Revision History
+
+Every successful save advances the pages-config revision and stores a historical snapshot. You can view and restore snapshots from "Revision history".
+
+### 8. Generate Prompts
+
+Click "Generate prompt" and choose a target platform:
+
+- Flutter
+- React Native
+- UniApp
+
+You can filter by development status or generate only for the current page. For design-image pages, the prompt asks you to generate UI IR (JSON) according to `UI-IR-AGENT.md` first, then implement code from the IR.
+
+## Project Structure
+
+```text
 app-page-studio/
-├── server.js              # Express 服务入口（静态服务 + WebSocket 热更新）
-├── db.js                  # SQLite 数据库模块
-├── api/                   # API 路由
-│   ├── projects.js        # 项目管理
-│   ├── pages.js           # 页面配置
-│   ├── html.js            # HTML 扫描/分析
-│   ├── image.js           # 图片上传/替换
-│   ├── psd.js             # PSD 扫描/预览/切图
-│   ├── sessions.js        # 会话记录
-│   ├── prompt.js          # 提示词生成路由
-│   ├── prompt/            # 提示词构建器（Flutter / RN / UniApp）
-│   └── utils.js           # 共享工具
-├── frontend/              # Vite + React 前端（源码）
-│   ├── index.html         # Vite 入口
-│   └── src/
-│       ├── main.jsx       # React 入口
-│       ├── App.jsx        # 应用外壳
-│       ├── pages/         # 首页 / 工作台
-│       ├── components/    # layout / modals / picker / psd / mindmap / common
-│       ├── hooks/         # useTheme / useWebSocket / useWorkspaceController
-│       ├── lib/           # api / state(Zustand) / picker / psdUtils
-│       └── styles/        # 全局样式
-├── html_caches/           # 项目 HTML 文件存储
-│   └── {project_id}/      # 按项目 ID 分目录
-│       ├── __design__/    # 设计图存放目录
-│       └── __assets__/    # 切图资源目录
-└── studio.db              # SQLite 数据库
+├── package.json           # pnpm workspace scripts
+├── pnpm-workspace.yaml
+├── packages/
+│   ├── server/
+│   │   ├── server.js      # Express entry, session, static assets, WebSocket
+│   │   ├── db.js          # SQLite schema and data-access modules
+│   │   ├── paths.js       # workspace paths, data paths, frontend build paths
+│   │   └── api/
+│   │       ├── auth.js
+│   │       ├── projects.js
+│   │       ├── pages.js
+│   │       ├── html.js
+│   │       ├── image.js
+│   │       ├── psd.js
+│   │       ├── prompt.js
+│   │       ├── prompt/
+│   │       └── utils.js
+│   └── client/
+│       ├── index.html     # Vite entry
+│       ├── vite.config.js # Vite proxy for /api, /html, /ws
+│       └── src/
+│           ├── main.jsx
+│           ├── App.jsx
+│           ├── pages/
+│           ├── components/
+│           ├── hooks/
+│           ├── lib/
+│           └── styles/
+├── html_caches/
+│   └── {projectId}/
+│       ├── __html__/      # HTML design exports
+│       ├── __design__/    # PNG/JPG/WebP design images
+│       ├── __assets__/    # User-uploaded slice assets
+│       └── __psd__/       # PSD files and generated PNG previews
+└── studio.db              # SQLite database
 ```
 
-> 前端为 Vite + React：开发用 `npm run dev:frontend` 起 Vite，生产用 `npm run build:frontend` 构建到 `frontend/dist` 后由 server.js 提供。
+## API Overview
 
-## 🎯 核心功能详解
+Business APIs require login. Login state is stored through `express-session`.
 
-### 开发状态管理
+- `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
+- `GET/POST/PUT/DELETE /api/auth/users...`: admin user management
+- `GET /api/projects`, `POST /api/projects`, `PUT /api/projects/:id`, `DELETE /api/projects/:id`
+- `GET/POST/PUT/DELETE /api/projects/:id/members...`: project member management
+- `GET /api/pages`: read pages config, revision, and entity hashes
+- `POST /api/pages`: save the full config
+- `PATCH /api/pages/file`: save one page config
+- `PATCH /api/pages/groups`: save page groups and file assignments
+- `GET /api/pages/history`, `POST /api/pages/restore`: revision history
+- `POST /api/upload-html`, `GET /api/scan-html`, `GET /api/html-content`
+- `POST /api/upload-image`, `GET /api/list-images`, `POST /api/upload-asset`
+- `POST /api/upload-psd`, `GET /api/list-psd`, `GET /api/psd-preview`
+- `POST /api/download-design-zip`
+- `POST /api/generate-prompt`
 
-每个页面文件都有开发状态标记：
+## Collaboration and Save Model
 
-- **待开发** (黄色) - 还未开始开发
-- **开发中** (蓝色) - 正在开发中
-- **已完成** (绿色) - 开发完成
+Page configuration is still stored as one full JSON blob in `project_pages.pages_json`, but save entry points are split by conflict dimension:
 
-状态用途：
+- **Single-page information**: one `htmlFiles[]` entry identified by `path`, guarded by the file hash.
+- **Group information**: `pageGroups[]` plus `groupId` and `isPrimaryState` assignments in `htmlFiles[]`, guarded by the group hash.
+- **Global information**: the full config, guarded by `revision`.
 
-1. 在文件列表中快速识别进度
-2. 筛选特定状态的文件
-3. 生成提示词时按状态筛选（默认只生成"开发中"的页面）
+WebSocket provides collaboration awareness and synchronization:
 
-### 元素选择器
+- Presence shows collaborators on the current project, page, or group.
+- Uploading or deleting HTML, design images, or PSD files broadcasts `files:changed`.
+- Saving the current page broadcasts `pages:file-saved`.
+- Saving groups broadcasts `pages:groups-saved`.
+- Saving the full config broadcasts `pages:full-saved`.
+- Filesystem changes in HTML/PSD files broadcast `html:changed`.
 
-点击"添加交互"后，在预览中：
+## Tech Stack
 
-- **HTML 模式**：点击元素 → 弹出菜单选择操作
-- **设计图模式**：拖拽选区 → 弹出菜单选择操作
-- **添加交互** → 定义点击、滑动等行为
-- **切图标记** → 标记需要切图的区域
-- **功能描述** → 添加原生功能说明
-- **查看样式** → 显示元素的详细样式信息
+- **Backend**: Node.js, Express, express-session, WebSocket
+- **Database**: SQLite, better-sqlite3, better-sqlite3-session-store
+- **File processing**: Multer, ADM-Zip, archiver, Chokidar
+- **PSD processing**: psd for backend previews, ag-psd for frontend parsing
+- **Frontend**: Vite, React, React Router, Zustand, HeroUI, Tailwind CSS
 
-### 元素回选高亮
+## Prompt Usage Suggestions
 
-- 点击交互列表或图片替换列表中的**选择器标签**
-- 预览区域自动滚动并高亮对应元素
-- 高亮效果：绿色边框 + 脉冲动画，3秒后自动消失
+After generating prompts, place the corresponding design resources in the target project and put `UI-IR-AGENT.md` at the Flutter / React Native / UniApp project root.
 
-### 查看样式
+Suggested batch workflow:
 
-点击元素后选择"查看样式"，可查看：
+1. Mark pages to implement as "in progress".
+2. Generate prompts only for the current page or current development status.
+3. Confirm slice asset paths and source paths are configured.
+4. After AI generates code, manually review styles, routing, state management, and API logic.
 
-- **基本信息**：标签名、选择器、文本内容（文本元素）
-- **文字样式**（文本元素）：字体、字号、字重、行高、字间距、颜色、对齐、装饰
-- **盒模型**：宽高、内外边距、边框、圆角
-- **背景与视觉**：背景色、透明度、阴影
-- **布局**：display、position、flex 属性、溢出、层级
+## FAQ
 
-面板功能：
+**Q: What should I do if preview does not show?** A: Confirm you are logged in, have project access, and have uploaded HTML, design images, or PSD files. Click "Refresh" to rescan.
 
-- 点击颜色值或样式值可复制到剪贴板
-- 拖拽标题栏可移动面板位置
-- 面板会自动限制在可视区域内
+**Q: Why can other users not see the design image I uploaded?** A: A successful upload broadcasts file changes through WebSocket. If a client was disconnected, click "Refresh" to rescan the file list.
 
-### 取色器
+**Q: Why does saving the current page report a conflict?** A: Another user has already saved the same page. Load the latest version, then merge your changes.
 
-- 点击"取色"按钮激活取色模式
-- 在预览中点击任意位置提取颜色
-- 提取的颜色可添加到设计系统
+**Q: When should I use save all?** A: Use it for batch edits, global design-system changes, or broad configuration changes. In daily collaboration, prefer "Save current page".
 
-### 缩放控制
+**Q: Can a viewer edit?** A: No. Viewers are read-only. Owners and editors can save, and owners plus admins can manage project members.
 
-- 使用滑块或 +/- 按钮调整预览缩放
-- 支持 25% - 150% 缩放范围
-- 点击重置按钮恢复 100%
-
-### 多平台支持
-
-| 平台         | 语言       | 布局组件           | 状态管理 | 路由         | 图片路径                               |
-| ------------ | ---------- | ------------------ | -------- | ------------ | -------------------------------------- |
-| Flutter      | Dart       | Column, Row, Stack | GetX     | GetX 路由    | `Image.asset('assets/images/xxx.png')` |
-| React Native | TypeScript | View, ScrollView   | Zustand  | Expo Router  | `require('@/assets/images/xxx.png')`   |
-| UniApp       | Vue 3 + TS | view, scroll-view  | Pinia    | uni-app 路由 | `'/static/images/xxx.png'`             |
-
-### 切图标记说明
-
-在生成的提示词中，切图标记会显示为：
-
-```
-- 切图标记:
-  - `.banner-img` → 切图 `__assets__/banner.png` (首页轮播图)
-```
-
-AI 会根据提示词：
-
-1. 忽略 HTML 中的原始内容
-2. 在指定位置使用图片组件
-3. 使用切图资源替换对应区域
-
-### 功能描述说明
-
-在生成的提示词中，功能描述会显示为：
-
-```
-- 功能描述（这些元素并非静态展示，需要实现对应的功能）:
-  - `.camera-btn`: 点击打开摄像头拍摄
-  - `.scan-area`: 扫码识别二维码
-```
-
-### Tabbar 配置说明
-
-在生成的提示词中，Tabbar 配置会显示为表格和平台特定的实现建议：
-
-```
-## Tabbar 配置
-
-应用底部有 4 个 Tab 页面：
-
-| Tab序号 | 名称 | 默认图标 | 选中图标 | 路由 |
-|--------|------|---------|---------|------|
-| 1 | 首页 | `assets/tab_home.png` | `assets/tab_home_selected.png` | `/home` |
-| 2 | 分类 | `assets/tab_category.png` | `assets/tab_category_selected.png` | `/category` |
-...
-```
-
-### 数据加载说明
-
-在生成的提示词中，数据加载配置会显示为：
-
-```
-- 数据加载:
-  - **用户列表** [页面初始化]: `GET /api/users`
-    返回用户数组，包含头像、昵称、等级
-  - **加载更多** [上拉加载更多]: `GET /api/users?page=n`
-    分页加载更多用户
-```
-
-AI 会根据配置在对应时机调用 API 并处理数据。
-
-## 📋 提示词使用指南
-
-生成提示词后，按以下步骤在 Cursor IDE 中使用：
-
-### 1. 准备设计稿
-
-将上传到本工具的 ZIP 文件解压，放置到项目代码根目录的 `html` 文件夹中：
-
-**Flutter 项目：**
-
-```
-my_flutter_app/
-├── lib/
-├── html/                  ← 放置设计稿 HTML
-│   ├── home.html
-│   ├── profile.html
-│   └── images/
-├── pubspec.yaml
-└── ...
-```
-
-**React Native 项目：**
-
-```
-my_rn_app/
-├── app/
-├── html/                  ← 放置设计稿 HTML
-│   ├── home.html
-│   ├── profile.html
-│   └── images/
-├── package.json
-└── ...
-```
-
-**UniApp 项目：**
-
-```
-my_uniapp/
-├── pages/
-├── html/                  ← 放置设计稿 HTML
-│   ├── home.html
-│   ├── profile.html
-│   └── images/
-├── pages.json
-└── ...
-```
-
-### 2. 在 Cursor IDE 中使用
-
-1. 打开 Cursor IDE，进入你的项目
-2. 按 `Cmd+L`（Mac）或 `Ctrl+L`（Windows）打开 AI 对话框
-3. 将生成的提示词粘贴到对话框中
-4. 发送消息，AI 将根据提示词和 HTML 设计稿生成代码
-
-### 3. 最佳实践
-
-- **分批开发**：建议按页面分组逐个开发，避免一次性生成过多代码
-- **状态筛选**：使用"开发中"状态筛选，只生成当前需要开发的页面
-- **检查代码**：AI 生成的代码需要人工审查和测试
-- **图片资源**：切图资源建议统一放在 `__assets__/` 中并保持路径一致
-
-## 🔧 技术栈
-
-- **后端**: Node.js + Express + SQLite
-- **前端**: Vite + React + Zustand
-- **PSD 解析**: psd
-- **HTML 解析**: Cheerio
-- **文件处理**: Multer + ADM-Zip
-- **热更新**: WebSocket + Chokidar
-- **数据库**: better-sqlite3
-
-## 📝 提示词示例
-
-生成的提示词包含：
-
-1. **目标平台信息** - 框架、语言、组件、状态管理、路由
-2. **重要注意事项** - 忽略状态栏、导航栏等
-3. **图片资源处理** - 自动检测和引用方式
-4. **路由管理指南** - 各平台的路由使用说明
-5. **设计系统** - 颜色、间距、圆角配置
-6. **Tabbar 配置** - Tab 页面列表、图标路径、各平台实现建议
-7. **页面列表** - 每个页面的详细配置（按开发状态筛选）
-8. **交互行为** - 元素的点击、滑动等事件
-9. **切图标记** - 需要切图替换的区域
-10. **功能描述** - 需要实现的原生功能
-11. **数据加载** - HTTP API 调用配置和触发时机
-12. **开发指引** - 最佳实践和注意事项
-
-## 💡 使用技巧
-
-1. **开发状态管理**：新开发的页面标记为"开发中"，完成后标记为"已完成"
-2. **分组策略**：将同一页面的不同状态（默认、加载、空数据）分到一组
-3. **选择器精确**：使用具体的 class 或 id，避免使用通用选择器
-4. **描述清晰**：交互和图片替换的描述要具体明确
-5. **多平台配置**：如果需要多平台，填写所有平台的源码路径
-6. **图片路径**：使用项目资源目录的相对路径
-7. **设计系统**：配置好颜色和间距，AI 会使用这些值生成代码
-8. **批量操作**：使用搜索和状态筛选快速定位需要处理的页面
-9. **Tabbar 配置**：确保所有 Tab 页面都配置了序号和图标路径
-10. **数据加载**：为需要请求 API 的页面配置数据源，注明触发时机
-
-## 🐛 常见问题
-
-**Q: 为什么预览不显示？** A: 请先上传 HTML 文件并选择要预览的文件
-
-**Q: 选择器找不到元素？** A: 检查选择器语法是否正确，或在浏览器 DevTools 中验证
-
-**Q: 如何修改已创建的分组？** A: 点击分组名称右侧的编辑按钮
-
-**Q: 提示词中的源码路径显示"待创建"？** A: 在分组配置中填写对应平台的源码路径
-
-**Q: 生成的提示词没有包含某些页面？** A:
-检查页面的开发状态，确保在生成提示词时勾选了对应的状态筛选
-
-**Q: 如何只生成特定状态的页面提示词？** A:
-在生成提示词弹窗中，勾选需要包含的开发状态（待开发/开发中/已完成）
-
-## 📄 License
+## License
 
 MIT

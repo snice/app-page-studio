@@ -1,0 +1,10 @@
+/* ==================== App Layout ==================== */
+.app {
+  display: grid;
+  grid-template-columns: 300px 1fr 360px;
+  grid-template-rows: 60px 1fr;
+  height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+

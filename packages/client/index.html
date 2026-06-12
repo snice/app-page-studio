@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>App Page Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      // 在 React 挂载前同步应用主题，避免首屏先 dark 再切 light 的闪烁
+      (function() {
+        try {
+          var saved = localStorage.getItem('theme') || 'dark';
+          document.documentElement.setAttribute('data-theme', saved);
+        } catch(e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+    <script>
+      // 检测 Intel Mac，设置 data-intel-mac 属性以禁用 backdrop-filter（避免卡顿）
+      (function() {
+        if (!/Mac/i.test(navigator.userAgent || navigator.platform)) return;
+        function mark() { document.documentElement.setAttribute('data-intel-mac', ''); }
+        function isAppleSilicon() {
+          try {
+            var c = document.createElement('canvas');
+            var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+            if (gl) {
+              var ext = gl.getExtension('WEBGL_debug_renderer_info');
+              if (ext) return /Apple\s+M\d/i.test(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL));
+            }
+          } catch(e) {}
+          return false;
+        }
+        try {
+          if (navigator.userAgentData) {
+            navigator.userAgentData.getHighEntropyValues(['architecture']).then(function(ua) {
+              if (ua.architecture === 'x86' || ua.architecture === 'x86_64') mark();
+            });
+          } else {
+            if (!isAppleSilicon()) mark();
+          }
+        } catch(e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

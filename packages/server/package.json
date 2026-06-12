@@ -1,0 +1,28 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App Page Studio Express server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "reset-password": "node tools/reset-password.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "archiver": "^8.0.0",
+    "better-sqlite3": "^12.5.0",
+    "better-sqlite3-session-store": "^0.1.0",
+    "chokidar": "^3.5.3",
+    "express": "^4.18.2",
+    "express-session": "^1.19.0",
+    "multer": "^2.0.2",
+    "open": "^9.1.0",
+    "psd": "^3.4.0",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

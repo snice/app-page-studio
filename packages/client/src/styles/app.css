@@ -1,0 +1,23 @@
+/**
+ * App 全局样式入口
+ * 按模块拆分到 ./modules/ 下，顺序与原 app.css 一致，避免级联覆盖被打乱。
+ */
+
+@import './modules/theme.css';
+@import './modules/layout.css';
+@import './modules/header.css';
+@import './modules/home.css';
+@import './modules/login.css';
+@import './modules/buttons.css';
+@import './modules/sidebar.css';
+@import './modules/preview.css';
+@import './modules/config-panel.css';
+@import './modules/element-styles.css';
+@import './modules/modals.css';
+@import './modules/toast.css';
+@import './modules/selection-toolbar.css';
+@import './modules/svg-icons.css';
+@import './modules/edit-warning.css';
+@import './modules/drawer.css';
+@import './modules/psd.css';
+@import './modules/mindmap.css';
