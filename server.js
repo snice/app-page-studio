@@ -8,6 +8,9 @@ const path = require('path');
 const fs = require('fs');
 const chokidar = require('chokidar');
 const { WebSocketServer } = require('ws');
+const session = require('express-session');
+const SqliteStore = require('better-sqlite3-session-store')(session);
+const crypto = require('crypto');
 
 // 导入 API 路由
 const projectsRouter = require('./api/projects');
@@ -17,13 +20,63 @@ const promptRouter = require('./api/prompt');
 const imageRouter = require('./api/image');
 const psdRouter = require('./api/psd');
 const sessionsRouter = require('./api/sessions');
+const authRouter = require('./api/auth');
+const { requireAuth } = authRouter;
 const { HTML_CACHES_DIR } = require('./api/utils');
+const { db, Users, Projects } = require('./db');
 
 const app = express();
 const PORT = 3000;
 
 // 中间件
 app.use(express.json({ limit: '50mb' }));
+
+// ===== Session =====
+const SESSION_SECRET = process.env.SESSION_SECRET
+  || (process.env.NODE_ENV === 'production'
+    ? (() => { console.error('❌ 生产环境必须设置 SESSION_SECRET'); process.exit(1); })()
+    : 'dev-secret-' + crypto.randomBytes(8).toString('hex'));
+
+const sessionMiddleware = session({
+  store: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 15 * 60 * 1000 } }),
+  name: 'aps.sid',
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 天
+  },
+});
+
+app.use(sessionMiddleware);
+
+// ===== 引导管理员账号 =====
+(function bootstrapAdmin() {
+  if (Users.count() > 0) {
+    const owner = Users.getFirstAdmin() || Users.getFirst();
+    if (owner) Projects.assignLegacyProjectsToUser(owner.id);
+    return;
+  }
+  const username = process.env.BOOTSTRAP_ADMIN_USERNAME || 'admin';
+  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  let adminId;
+  if (!password) {
+    const generated = crypto.randomBytes(9).toString('base64url');
+    adminId = Users.create({ username, password: generated, role: 'admin' });
+    console.log('\n========== 初始管理员账号已创建 ==========');
+    console.log(`  用户名: ${username}`);
+    console.log(`  密码:   ${generated}`);
+    console.log('  请立即登录并修改密码。');
+    console.log('==========================================\n');
+  } else {
+    adminId = Users.create({ username, password, role: 'admin' });
+    console.log(`✅ 已根据 env 创建管理员: ${username}`);
+  }
+  Projects.assignLegacyProjectsToUser(adminId);
+})();
 
 // 前端静态服务：使用 Vite 构建产物（frontend_dist 优先，回退 frontend/dist）
 const frontendDist = [
@@ -38,24 +91,31 @@ if (frontendDist) {
 }
 
 // 动态 HTML 静态服务（根据 URL 中的项目 ID 提供文件）
-app.use('/html/:projectId', (req, res, next) => {
-  const projectId = req.params.projectId;
-  const htmlDir = path.join(HTML_CACHES_DIR, projectId);
+app.use('/html/:projectId', requireAuth, (req, res, next) => {
+  const projectId = Number.parseInt(req.params.projectId, 10);
+  if (!Number.isFinite(projectId) || projectId <= 0 || !Projects.userCanAccess(projectId, req.authUser)) {
+    return res.status(404).send('Project not found');
+  }
+
+  const htmlDir = path.join(HTML_CACHES_DIR, String(projectId));
   if (fs.existsSync(htmlDir)) {
-    express.static(htmlDir)(req, res, next);
+    express.static(htmlDir, { dotfiles: 'deny' })(req, res, next);
   } else {
     res.status(404).send('Project not found');
   }
 });
 
-// 挂载 API 路由
-app.use('/api', projectsRouter);
-app.use('/api', pagesRouter);
-app.use('/api', htmlRouter);
-app.use('/api', promptRouter);
-app.use('/api', imageRouter);
-app.use('/api', psdRouter);
-app.use('/api', sessionsRouter);
+// 鉴权路由（公开 /auth/login、/auth/me；其余在 router 内部 requireAdmin）
+app.use('/api', authRouter);
+
+// 业务 API 全部要求登录
+app.use('/api', requireAuth, projectsRouter);
+app.use('/api', requireAuth, pagesRouter);
+app.use('/api', requireAuth, htmlRouter);
+app.use('/api', requireAuth, promptRouter);
+app.use('/api', requireAuth, imageRouter);
+app.use('/api', requireAuth, psdRouter);
+app.use('/api', requireAuth, sessionsRouter);
 
 // SPA fallback：非 API / 非 html 路由返回前端 index.html
 if (frontendDist) {
@@ -69,12 +129,18 @@ if (frontendDist) {
   });
 }
 
-// 全局错误处理：兜底捕获路由抛出的同步异常与 next(err) 传递的错误，
-// 避免请求挂起或返回 HTML 错误栈。
+// 全局错误处理：兜底捕获路由抛出的同步异常与 next(err) 传递的错误。
+// 生产环境对客户端隐藏原始 message（可能包含路径），开发模式保留原文便于调试。
+const IS_DEV = process.env.NODE_ENV !== 'production';
 app.use((err, req, res, next) => {
-  console.error(`❌ ${req.method} ${req.originalUrl}:`, err.message);
+  console.error(`❌ ${req.method} ${req.originalUrl}:`, err);
   if (res.headersSent) return next(err);
-  res.status(err.status || 500).json({ error: err.message || '服务器内部错误' });
+  const status = err.status || 500;
+  // 4xx 是客户端错误，message 是给用户看的提示，可直接返回；5xx 才脱敏。
+  const safeMessage = status < 500
+    ? (err.message || '请求参数有误')
+    : (IS_DEV ? (err.message || '服务器内部错误') : '服务器内部错误');
+  res.status(status).json({ error: safeMessage });
 });
 
 // 启动服务器

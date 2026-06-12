@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const cheerio = require('cheerio');
 const AdmZip = require('adm-zip');
+const archiver = require('archiver');
 const router = express.Router();
 const {
   Projects,
@@ -15,12 +16,13 @@ const {
   extractZipToDir,
   HTML_CACHES_DIR,
   resolveSafe,
+  ensureProjectReadable,
   ensureProjectWritable,
   sendWriteGuardError
 } = require('./utils');
 
 // 上传 HTML ZIP（合并到项目目录，根目录图片自动移入 __design__）
-router.post('/upload-html', upload.single('htmlZip'), (req, res) => {
+router.post('/upload-html', upload.single('htmlZip'), (req, res, next) => {
   const projectId = parseInt(req.query.projectId);
   if (!projectId) {
     res.status(400).json({ error: '缺少项目 ID' });
@@ -60,7 +62,7 @@ router.post('/upload-html', upload.single('htmlZip'), (req, res) => {
 
     res.json({ success: true, movedImages: movedCount });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    next(e);
   }
 });
 
@@ -105,7 +107,19 @@ router.post('/delete-files', (req, res) => {
       } else {
         const parentDir = path.dirname(absPath);
         const relParent = path.relative(htmlDir, parentDir);
-        if (relParent && relParent !== '.' && relParent !== '..') {
+        const parentIsSubdir = relParent && relParent !== '.' && relParent !== '..' && !relParent.startsWith('..');
+        // 仅当父目录里没有其他 HTML 兄弟时，才整目录删除（兼容"一 HTML 一文件夹"的设计稿导出）
+        let siblingHtmlExists = false;
+        if (parentIsSubdir) {
+          try {
+            const siblings = fs.readdirSync(parentDir);
+            siblingHtmlExists = siblings.some(name => {
+              if (path.join(parentDir, name) === absPath) return false;
+              return /\.html?$/i.test(name);
+            });
+          } catch { siblingHtmlExists = true; }
+        }
+        if (parentIsSubdir && !siblingHtmlExists) {
           fs.rmSync(parentDir, { recursive: true, force: true });
         } else {
           fs.unlinkSync(absPath);
@@ -121,6 +135,9 @@ router.post('/delete-files', (req, res) => {
 // 扫描 HTML 文件
 router.get('/scan-html', (req, res) => {
   const projectId = parseInt(req.query.projectId);
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) return sendWriteGuardError(res, readable);
+
   const htmlDir = getHtmlDir(projectId);
   const htmlRoot = path.resolve(htmlDir);
   console.log('扫描 HTML 目录:', htmlDir);
@@ -189,6 +206,9 @@ router.get('/scan-html', (req, res) => {
 // 读取 HTML 内容（用于元素选择器）
 router.get('/html-content', (req, res) => {
   const projectId = parseInt(req.query.projectId);
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) return sendWriteGuardError(res, readable);
+
   const htmlDir = getHtmlDir(projectId);
   const htmlPath = resolveSafe(htmlDir, req.query.path);
 
@@ -209,6 +229,9 @@ router.get('/html-content', (req, res) => {
 // 分析 HTML 结构
 router.get('/analyze-html', (req, res) => {
   const projectId = parseInt(req.query.projectId);
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) return sendWriteGuardError(res, readable);
+
   const htmlDir = getHtmlDir(projectId);
   const htmlPath = resolveSafe(htmlDir, req.query.path);
 
@@ -287,41 +310,50 @@ router.post('/download-design-zip', (req, res) => {
     return;
   }
 
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) return sendWriteGuardError(res, readable);
+
   const htmlDir = getHtmlDir(projectId);
   if (!fs.existsSync(htmlDir)) {
     res.status(404).json({ error: '项目目录不存在' });
     return;
   }
 
-  const project = Projects.getById(projectId);
+  const project = readable.project;
   let pagesConfig = []
   if (project) {
     pagesConfig = Projects.getPagesJson(projectId);
   }
 
   const htmlRoot = path.resolve(htmlDir);
-  const zip = new AdmZip();
-  let addedCount = 0;
   const addedPaths = new Set();
 
   const toPosix = (p) => p.replace(/\\/g, '/');
   const stripLeading = (p) => p.replace(/^[/\\]+/, '');
 
-  // 递归添加目录下所有文件
-  const addDirRecursive = (dirAbsPath, zipPrefix) => {
+  // 第一遍：收集所有要打包的条目（不读文件），用于预检"是否有可打包内容"
+  // 条目类型：{ kind: 'file', absPath, zipPath } | { kind: 'buffer', buffer, zipPath }
+  const planned = [];
+  const planFile = (absPath, zipPath) => {
+    if (addedPaths.has(zipPath)) return;
+    addedPaths.add(zipPath);
+    planned.push({ kind: 'file', absPath, zipPath });
+  };
+  const planBuffer = (buffer, zipPath) => {
+    if (addedPaths.has(zipPath)) return;
+    addedPaths.add(zipPath);
+    planned.push({ kind: 'buffer', buffer, zipPath });
+  };
+  const planDirRecursive = (dirAbsPath, zipPrefix) => {
     if (!fs.existsSync(dirAbsPath) || !fs.statSync(dirAbsPath).isDirectory()) return;
     const entries = fs.readdirSync(dirAbsPath, { withFileTypes: true });
     for (const entry of entries) {
       const entryAbsPath = path.join(dirAbsPath, entry.name);
       const zipPath = zipPrefix ? `${zipPrefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
-        addDirRecursive(entryAbsPath, zipPath);
+        planDirRecursive(entryAbsPath, zipPath);
       } else if (entry.isFile()) {
-        if (!addedPaths.has(zipPath)) {
-          zip.addFile(zipPath, fs.readFileSync(entryAbsPath));
-          addedPaths.add(zipPath);
-          addedCount += 1;
-        }
+        planFile(entryAbsPath, zipPath);
       }
     }
   };
@@ -330,7 +362,6 @@ router.post('/download-design-zip', (req, res) => {
     if (!item || !item.path) continue;
     const relPath = stripLeading(String(item.path));
     const absPath = path.resolve(htmlDir, relPath);
-    // 安全检查：必须在项目目录内
     if (absPath !== htmlRoot && !absPath.startsWith(htmlRoot + path.sep)) continue;
     if (!fs.existsSync(absPath)) continue;
 
@@ -339,77 +370,69 @@ router.post('/download-design-zip', (req, res) => {
     const isHtml = !isPsd && item.sourceType !== 'image' && !posixPath.match(/\.(png|jpe?g|webp|gif)$/i);
 
     if (isHtml) {
-      // HTML 文件：打包其所在目录下的所有关联资源（CSS、JS、图片等）
       const parentDir = path.dirname(absPath);
       const parentRel = path.dirname(relPath);
-      const zipPrefix = toPosix(parentRel);
-      addDirRecursive(parentDir, zipPrefix);
+      planDirRecursive(parentDir, toPosix(parentRel));
+    } else if (!isPsd) {
+      planFile(absPath, posixPath);
     } else {
-      // 图片：直接添加文件，保持原始路径
-      if (!isPsd && !addedPaths.has(posixPath)) {
-        zip.addFile(posixPath, fs.readFileSync(absPath));
-        addedPaths.add(posixPath);
-        addedCount += 1;
-      }
-      // PSD 文件：跳过 .psd 源文件（对代码生成无用），只包含预览 PNG 和切图
-      if (isPsd) {
-        const previewPng = posixPath.replace(/\.psd$/i, '.png');
-        const previewAbsPath = path.resolve(htmlDir, previewPng);
-        if (fs.existsSync(previewAbsPath) && !addedPaths.has(previewPng)) {
-          zip.addFile(previewPng, fs.readFileSync(previewAbsPath));
-          addedPaths.add(previewPng);
-          addedCount += 1;
-        }
+      // PSD 跳过源文件，只带预览 PNG 和切图
+      const previewPng = posixPath.replace(/\.psd$/i, '.png');
+      const previewAbsPath = path.resolve(htmlDir, previewPng);
+      if (fs.existsSync(previewAbsPath)) planFile(previewAbsPath, previewPng);
 
-        // 添加导出的切图文件
-        const slices = psdSliceExports[posixPath];
-        if (slices && slices.length > 0) {
-          const psdBaseName = path.basename(posixPath, path.extname(posixPath));
-          const slicesPrefix = `__psd__/${psdBaseName}_slices`;
-          for (const slice of slices) {
-            if (!slice.data) continue;
-            const sliceFileName = `${slice.name}.${slice.ext || 'png'}`;
-            const sliceZipPath = `${slicesPrefix}/${sliceFileName}`;
-            if (!addedPaths.has(sliceZipPath)) {
-              const buffer = Buffer.from(slice.data, 'base64');
-              zip.addFile(sliceZipPath, buffer);
-              addedPaths.add(sliceZipPath);
-              addedCount += 1;
-            }
-          }
+      const slices = psdSliceExports[posixPath];
+      if (slices && slices.length > 0) {
+        const psdBaseName = path.basename(posixPath, path.extname(posixPath));
+        const slicesPrefix = `__psd__/${psdBaseName}_slices`;
+        for (const slice of slices) {
+          if (!slice.data) continue;
+          const sliceZipPath = `${slicesPrefix}/${slice.name}.${slice.ext || 'png'}`;
+          planBuffer(Buffer.from(slice.data, 'base64'), sliceZipPath);
         }
       }
     }
   }
 
-  // 处理imageReplacements字段中可能存在但未被上面流程添加的图片资源
+  // imageReplacements 引用的资源
   for (const item of files) {
     const configItem = pagesConfig.htmlFiles ? pagesConfig.htmlFiles.find(f => f.path === item.path) : null;
-
     const replacements = configItem?.imageReplacements || [];
     for (const rep of replacements) {
       if (!rep.imagePath) continue;
       const assetRel = stripLeading(String(rep.imagePath));
-      const assetPosix = toPosix(assetRel);
-      if (addedPaths.has(assetPosix)) continue;
       const assetAbs = path.resolve(htmlDir, assetRel);
       if (!assetAbs.startsWith(htmlRoot + path.sep)) continue;
       if (!fs.existsSync(assetAbs)) continue;
-      zip.addFile(assetPosix, fs.readFileSync(assetAbs));
-      addedPaths.add(assetPosix);
-      addedCount += 1;
+      planFile(assetAbs, toPosix(assetRel));
     }
   }
 
-  if (addedCount === 0) {
+  if (planned.length === 0) {
     res.status(400).json({ error: '未找到可打包的文件' });
     return;
   }
 
-  const zipBuffer = zip.toBuffer();
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', `attachment; filename="design-pack-${projectId}.zip"`);
-  res.send(zipBuffer);
+
+  const archive = archiver('zip', { zlib: { level: 6 } });
+  archive.on('warning', (err) => { if (err.code !== 'ENOENT') console.error('archive warning:', err); });
+  archive.on('error', (err) => {
+    console.error('archive error:', err);
+    if (!res.headersSent) res.status(500).end();
+    else res.destroy(err);
+  });
+  archive.pipe(res);
+
+  for (const entry of planned) {
+    if (entry.kind === 'file') {
+      archive.file(entry.absPath, { name: entry.zipPath });
+    } else {
+      archive.append(entry.buffer, { name: entry.zipPath });
+    }
+  }
+  archive.finalize();
 });
 
 // 生成 CSS 选择器

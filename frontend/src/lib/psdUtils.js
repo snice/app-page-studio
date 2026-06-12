@@ -2,7 +2,15 @@
  * PSD 工具模块
  * 基于 ag-psd 解析 PSD 文件，提供图层操作、合成等工具函数
  */
-import { readPsd, initializeCanvas } from 'ag-psd';
+
+let agPsdModulePromise = null;
+
+async function loadAgPsd() {
+  if (!agPsdModulePromise) {
+    agPsdModulePromise = import('ag-psd');
+  }
+  return agPsdModulePromise;
+}
 
 /**
  * @typedef {Object} LayerInfo
@@ -79,6 +87,7 @@ function mapLayer(layer) {
  */
 export async function parsePSD(buffer) {
   layerCounter = 0;
+  const { readPsd, initializeCanvas } = await loadAgPsd();
 
   initializeCanvas((width, height) => {
     const c = document.createElement('canvas');

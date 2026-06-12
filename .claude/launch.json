@@ -7,6 +7,12 @@
       "runtimeArgs": ["-c", "export PATH=/Users/itfenbao/.nvm/versions/node/v22.22.0/bin:$PATH && npm run dev"],
       "port": 5173,
       "cwd": "frontend"
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "export PATH=/Users/itfenbao/.nvm/versions/node/v22.22.0/bin:$PATH && node server.js"],
+      "port": 3000
     }
   ]
 }

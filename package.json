@@ -22,10 +22,13 @@
   "license": "MIT",
   "dependencies": {
     "adm-zip": "^0.5.16",
+    "archiver": "^8.0.0",
     "better-sqlite3": "^12.5.0",
+    "better-sqlite3-session-store": "^0.1.0",
     "cheerio": "^1.0.0-rc.12",
     "chokidar": "^3.5.3",
     "express": "^4.18.2",
+    "express-session": "^1.19.0",
     "multer": "^2.0.2",
     "open": "^9.1.0",
     "psd": "^3.4.0",

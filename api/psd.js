@@ -9,6 +9,7 @@ const {
   HTML_CACHES_DIR,
   resolveSafe,
   asyncHandler,
+  ensureProjectReadable,
   ensureProjectWritable,
   sendWriteGuardError
 } = require('./utils');
@@ -114,7 +115,10 @@ router.get('/list-psd', (req, res) => {
     return;
   }
 
-  const psdDir = path.join(HTML_CACHES_DIR, String(projectId), 'psd');
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) return sendWriteGuardError(res, readable);
+
+  const psdDir = path.join(HTML_CACHES_DIR, String(projectId), '__psd__');
   if (!fs.existsSync(psdDir)) {
     res.json({ files: [] });
     return;
@@ -142,6 +146,9 @@ router.get('/psd-preview', asyncHandler(async (req, res) => {
     res.status(400).json({ error: '缺少参数' });
     return;
   }
+
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) return sendWriteGuardError(res, readable);
 
   const projectRoot = path.join(HTML_CACHES_DIR, String(projectId));
   const fullPath = resolveSafe(projectRoot, psdPath);

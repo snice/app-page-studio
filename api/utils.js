@@ -43,18 +43,12 @@ const imageUpload = multer({
 });
 
 /**
- * 获取 HTML 目录路径（基于请求中的 projectId）
- * @param {number} projectId - 项目 ID
- * @returns {string}
+ * 获取项目 HTML 目录路径
+ * @param {number} projectId
+ * @returns {string} 项目目录绝对路径（即使不存在也返回，由调用方决定如何处理）
  */
 function getHtmlDir(projectId) {
-  if (projectId) {
-    const projectHtmlDir = path.join(HTML_CACHES_DIR, String(projectId));
-    if (fs.existsSync(projectHtmlDir)) {
-      return projectHtmlDir;
-    }
-  }
-  return path.join(__dirname, '..', 'html');
+  return path.join(HTML_CACHES_DIR, String(projectId || ''));
 }
 
 /**
@@ -88,13 +82,46 @@ function getRequestSessionInfo(req) {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const query = req.query && typeof req.query === 'object' ? req.query : {};
 
+  // sessionId 仍由客户端提供（区分多 tab），editorName 一律取登录用户名（防伪造）
   return {
     sessionId: req.get('x-session-id') || body.sessionId || query.sessionId || '',
-    editorName: body.editorName || query.editorName || null
+    editorName: req.authUser?.username || req.session?.user?.username || null
   };
 }
 
+function getAuthUser(req) {
+  return req.authUser || req.session?.user || null;
+}
+
+function getProjectForRequest(req, projectId) {
+  return Projects.getById(projectId, getAuthUser(req));
+}
+
+function ensureProjectReadable(req, projectId) {
+  const project = getProjectForRequest(req, projectId);
+  if (!project) {
+    return {
+      ok: false,
+      status: 404,
+      error: '项目不存在'
+    };
+  }
+
+  return { ok: true, project };
+}
+
 function ensureProjectWritable(req, projectId) {
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) return readable;
+
+  if (!Projects.userCanWrite(projectId, getAuthUser(req))) {
+    return {
+      ok: false,
+      status: 403,
+      error: '无权修改此项目'
+    };
+  }
+
   const session = getRequestSessionInfo(req);
   const status = EditSessions.checkSession(projectId, session.sessionId || '');
   if (!status.isCurrentEditor) {
@@ -108,16 +135,31 @@ function ensureProjectWritable(req, projectId) {
 
   return {
     ok: true,
+    project: readable.project,
     sessionId: session.sessionId || null,
     editorName: session.editorName || status.currentEditor || null
   };
 }
 
-function sendWriteGuardError(res, guard) {
+function sendProjectGuardError(res, guard) {
   return res.status(guard.status || 423).json({
     error: guard.error || '当前项目暂不可写',
     currentEditor: guard.currentEditor || null
   });
+}
+
+const sendWriteGuardError = sendProjectGuardError;
+
+/**
+ * 是否应跳过 ZIP 条目（macOS 元数据 / 隐藏文件）
+ */
+function shouldSkipZipEntry(entryPath) {
+  const parts = entryPath.split('/');
+  for (const part of parts) {
+    if (part === '__MACOSX') return true;
+    if (part.startsWith('.')) return true;
+  }
+  return false;
 }
 
 /**
@@ -134,20 +176,8 @@ function extractZipToDir(zipBuffer, targetDir) {
     fs.mkdirSync(targetDir, { recursive: true });
   }
 
-  // 需要跳过的隐藏文件/文件夹模式
-  const shouldSkip = (entryPath) => {
-    const parts = entryPath.split('/');
-    for (const part of parts) {
-      // 跳过 macOS 特殊目录
-      if (part === '__MACOSX') return true;
-      // 跳过 .DS_Store 和其他以 . 开头的隐藏文件/文件夹
-      if (part.startsWith('.')) return true;
-    }
-    return false;
-  };
-
   // 过滤有效的条目
-  const validEntries = entries.filter(e => !shouldSkip(e.entryName));
+  const validEntries = entries.filter(e => !shouldSkipZipEntry(e.entryName));
 
   // 检测是否所有文件都在一个根目录下
   const topLevelDirs = new Set();
@@ -174,9 +204,13 @@ function extractZipToDir(zipBuffer, targetDir) {
 
     if (!entryPath) continue;
 
-    const targetPath = path.join(targetDir, entryPath);
-    const targetDirPath = path.dirname(targetPath);
+    // 防 ZIP Slip：拒绝包含 .. 或绝对路径的条目，确认解压后仍在 targetDir 内
+    if (entryPath.includes('\0') || path.isAbsolute(entryPath)) continue;
+    const targetPath = path.resolve(targetDir, entryPath);
+    const baseResolved = path.resolve(targetDir);
+    if (targetPath !== baseResolved && !targetPath.startsWith(baseResolved + path.sep)) continue;
 
+    const targetDirPath = path.dirname(targetPath);
     if (!fs.existsSync(targetDirPath)) {
       fs.mkdirSync(targetDirPath, { recursive: true });
     }
@@ -193,8 +227,13 @@ module.exports = {
   resolveSafe,
   asyncHandler,
   getRequestSessionInfo,
+  getAuthUser,
+  getProjectForRequest,
+  ensureProjectReadable,
   ensureProjectWritable,
+  sendProjectGuardError,
   sendWriteGuardError,
   extractZipToDir,
+  shouldSkipZipEntry,
   Projects
 };

@@ -11,6 +11,7 @@ const {
   HTML_CACHES_DIR,
   upload,
   extractZipToDir,
+  shouldSkipZipEntry,
   ensureProjectWritable,
   sendWriteGuardError,
   Projects
@@ -20,22 +21,13 @@ function inspectZipContents(zipBuffer) {
   const zip = new AdmZip(zipBuffer);
   const entries = zip.getEntries();
 
-  const shouldSkip = (entryPath) => {
-    const parts = entryPath.split('/');
-    for (const part of parts) {
-      if (part === '__MACOSX') return true;
-      if (part.startsWith('.')) return true;
-    }
-    return false;
-  };
-
   let hasHtml = false;
   let hasImages = false;
   let hasPsd = false;
 
   for (const entry of entries) {
     if (entry.isDirectory) continue;
-    if (shouldSkip(entry.entryName)) continue;
+    if (shouldSkipZipEntry(entry.entryName)) continue;
     const lower = entry.entryName.toLowerCase();
     if (lower.endsWith('.html') || lower.endsWith('.htm')) {
       hasHtml = true;
@@ -51,54 +43,39 @@ function inspectZipContents(zipBuffer) {
   return { hasHtml, hasImages, hasPsd };
 }
 
-// 获取配置（返回项目列表）
-router.get('/config', (req, res) => {
-  const projects = Projects.getAll();
-  res.json({
-    projects: projects.map(p => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      designSystem: p.designSystem,
-      createdAt: p.created_at,
-      updatedAt: p.updated_at
-    }))
-  });
-});
+function serializeProject(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    designSystem: p.designSystem,
+    ownerUserId: p.ownerUserId,
+    memberRole: p.memberRole,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at
+  };
+}
 
-// 获取所有项目
-router.get('/projects', (req, res) => {
-  const projects = Projects.getAll();
-  res.json({
-    projects: projects.map(p => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      designSystem: p.designSystem,
-      createdAt: p.created_at,
-      updatedAt: p.updated_at
-    }))
-  });
+function listProjectsResponse(req) {
+  return { projects: Projects.getAll(req.authUser).map(serializeProject) };
+}
+
+// 获取所有项目（/api/config 为历史别名，等价于 /api/projects）
+router.get(['/projects', '/config'], (req, res) => {
+  res.json(listProjectsResponse(req));
 });
 
 // 获取单个项目
 router.get('/projects/:id', (req, res) => {
-  const project = Projects.getById(parseInt(req.params.id));
+  const project = Projects.getById(parseInt(req.params.id), req.authUser);
   if (!project) {
     return res.status(404).json({ error: '项目不存在' });
   }
-  res.json({
-    id: project.id,
-    name: project.name,
-    description: project.description,
-    designSystem: project.designSystem,
-    createdAt: project.created_at,
-    updatedAt: project.updated_at
-  });
+  res.json(serializeProject(project));
 });
 
 // 创建项目（带 ZIP 上传）
-router.post('/projects', upload.single('htmlZip'), (req, res) => {
+router.post('/projects', upload.single('htmlZip'), (req, res, next) => {
   const { name, description } = req.body;
 
   if (!name) {
@@ -106,24 +83,26 @@ router.post('/projects', upload.single('htmlZip'), (req, res) => {
   }
 
   try {
+    const zipContents = req.file ? inspectZipContents(req.file.buffer) : null;
+    if (zipContents && !zipContents.hasHtml && !zipContents.hasImages && !zipContents.hasPsd) {
+      return res.status(400).json({ error: 'ZIP 未包含 HTML、图片或 PSD 文件' });
+    }
+
     // 创建项目记录
-    const projectId = Projects.create(name, description || '');
+    const projectId = Projects.create(name, description || '', req.authUser?.id);
 
     // 如果有上传 ZIP 文件，解压到项目目录
     if (req.file) {
       const projectDir = path.join(HTML_CACHES_DIR, String(projectId));
-      const { hasHtml, hasImages, hasPsd } = inspectZipContents(req.file.buffer);
 
-      if (hasHtml) {
+      if (zipContents.hasHtml) {
         extractZipToDir(req.file.buffer, projectDir);
-      } else if (hasImages) {
+      } else if (zipContents.hasImages) {
         const designDir = path.join(projectDir, '__design__');
         extractZipToDir(req.file.buffer, designDir);
-      } else if (hasPsd) {
-        const psdDir = path.join(projectDir, 'psd');
+      } else if (zipContents.hasPsd) {
+        const psdDir = path.join(projectDir, '__psd__');
         extractZipToDir(req.file.buffer, psdDir);
-      } else {
-        return res.status(400).json({ error: 'ZIP 未包含 HTML、图片或 PSD 文件' });
       }
     }
 
@@ -136,7 +115,7 @@ router.post('/projects', upload.single('htmlZip'), (req, res) => {
       }
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    next(e);
   }
 });
 
@@ -145,13 +124,9 @@ router.put('/projects/:id', (req, res) => {
   const projectId = parseInt(req.params.id);
   const { name, description, designSystem } = req.body;
 
-  const project = Projects.getById(projectId);
-  if (!project) {
-    return res.status(404).json({ error: '项目不存在' });
-  }
-
   const guard = ensureProjectWritable(req, projectId);
   if (!guard.ok) return sendWriteGuardError(res, guard);
+  const project = guard.project;
 
   Projects.update(
     projectId,
@@ -164,13 +139,8 @@ router.put('/projects/:id', (req, res) => {
 });
 
 // 替换项目 HTML（上传新的 ZIP）
-router.post('/projects/:id/html', upload.single('htmlZip'), (req, res) => {
+router.post('/projects/:id/html', upload.single('htmlZip'), (req, res, next) => {
   const projectId = parseInt(req.params.id);
-
-  const project = Projects.getById(projectId);
-  if (!project) {
-    return res.status(404).json({ error: '项目不存在' });
-  }
 
   if (!req.file) {
     return res.status(400).json({ error: '请上传 ZIP 文件' });
@@ -191,22 +161,17 @@ router.post('/projects/:id/html', upload.single('htmlZip'), (req, res) => {
     extractZipToDir(req.file.buffer, projectDir);
 
     // 更新时间
-    Projects.update(projectId, project.name, project.description, project.designSystem);
+    Projects.touch(projectId);
 
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    next(e);
   }
 });
 
 // 删除项目
-router.delete('/projects/:id', (req, res) => {
+router.delete('/projects/:id', (req, res, next) => {
   const projectId = parseInt(req.params.id);
-
-  const project = Projects.getById(projectId);
-  if (!project) {
-    return res.status(404).json({ error: '项目不存在' });
-  }
 
   const guard = ensureProjectWritable(req, projectId);
   if (!guard.ok) return sendWriteGuardError(res, guard);
@@ -223,7 +188,7 @@ router.delete('/projects/:id', (req, res) => {
 
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    next(e);
   }
 });
 

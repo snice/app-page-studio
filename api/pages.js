@@ -4,7 +4,12 @@
 
 const express = require('express');
 const router = express.Router();
-const { Projects, ensureProjectWritable, sendWriteGuardError } = require('./utils');
+const {
+  Projects,
+  ensureProjectReadable,
+  ensureProjectWritable,
+  sendWriteGuardError
+} = require('./utils');
 
 function defaultPagesConfig(projectName = 'My App') {
   return {
@@ -34,11 +39,10 @@ router.get('/pages', (req, res) => {
   const projectId = parseInt(req.query.projectId);
 
   if (projectId) {
-    const project = Projects.getById(projectId);
-    if (project) {
-      const pagesRecord = Projects.getPagesRecord(projectId);
-      return res.json(buildPagesResponse(projectId, project, pagesRecord));
-    }
+    const readable = ensureProjectReadable(req, projectId);
+    if (!readable.ok) return sendWriteGuardError(res, readable);
+    const pagesRecord = Projects.getPagesRecord(projectId);
+    return res.json(buildPagesResponse(projectId, readable.project, pagesRecord));
   }
 
   // 返回默认配置
@@ -60,13 +64,9 @@ router.post('/pages', (req, res) => {
     return res.status(400).json({ error: '请先选择项目' });
   }
 
-  const project = Projects.getById(projectId);
-  if (!project) {
-    return res.status(404).json({ error: '项目不存在' });
-  }
-
   const guard = ensureProjectWritable(req, projectId);
   if (!guard.ok) return sendWriteGuardError(res, guard);
+  const project = guard.project;
 
   const payload = req.body?.pagesConfig ? req.body.pagesConfig : req.body;
   const expectedRevision = Number.parseInt(req.body?.expectedRevision, 10);
@@ -98,10 +98,8 @@ router.get('/pages/history', (req, res) => {
     return res.status(400).json({ error: '缺少项目 ID' });
   }
 
-  const project = Projects.getById(projectId);
-  if (!project) {
-    return res.status(404).json({ error: '项目不存在' });
-  }
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) return sendWriteGuardError(res, readable);
 
   const current = Projects.getPagesRecord(projectId);
   res.json({
@@ -120,13 +118,9 @@ router.post('/pages/restore', (req, res) => {
     return res.status(400).json({ error: '缺少项目 ID 或历史版本号' });
   }
 
-  const project = Projects.getById(projectId);
-  if (!project) {
-    return res.status(404).json({ error: '项目不存在' });
-  }
-
   const guard = ensureProjectWritable(req, projectId);
   if (!guard.ok) return sendWriteGuardError(res, guard);
+  const project = guard.project;
 
   const current = Projects.getPagesRecord(projectId);
   if (Number.isFinite(expectedRevision) && current?.revision !== expectedRevision) {

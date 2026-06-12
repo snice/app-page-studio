@@ -2,6 +2,8 @@
  * API 请求封装模块
  */
 
+import { getCurrentProjectId } from './routeUtils';
+
 const STORAGE_KEY_SESSION_ID = 'appPageStudio_sessionId';
 const STORAGE_KEY_EDITOR_NAME = 'appPageStudio_editorName';
 
@@ -26,34 +28,44 @@ function getSessionHeaders() {
   return sessionId ? { 'X-Session-Id': sessionId } : {};
 }
 
-async function readJson(res) {
+function notifyAuthExpired() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aps-auth-expired'));
+  }
+}
+
+async function readJson(res, options = {}) {
   const data = await res.json().catch(() => ({ error: '请求失败' }));
   if (!res.ok) data.status = res.status;
+  if (!res.ok && res.status === 401 && !options.skipAuthEvent) notifyAuthExpired();
   return data;
 }
 
-function getProjectIdFromHash() {
-  if (typeof window === 'undefined') return null;
-  const rawHash = window.location.hash.startsWith('#')
-    ? window.location.hash.slice(1)
-    : window.location.hash;
-  const [routePath, query = ''] = rawHash.split('?');
-  if (routePath !== '/dashboard') return null;
-  const pid = parseInt(new URLSearchParams(query).get('pid') || '', 10);
-  return Number.isFinite(pid) && pid > 0 ? pid : null;
-}
-
-function getProjectId() {
-  const routeProjectId = getProjectIdFromHash();
-  if (routeProjectId) return routeProjectId;
-  const stored = localStorage.getItem('appPageStudio_currentProjectId');
-  return stored ? parseInt(stored, 10) : null;
-}
+const getProjectId = getCurrentProjectId;
 
 export const api = {
+  async getMe() {
+    const res = await fetch('/api/auth/me');
+    return readJson(res, { skipAuthEvent: true });
+  },
+
+  async login(username, password) {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    return readJson(res, { skipAuthEvent: true });
+  },
+
+  async logout() {
+    const res = await fetch('/api/auth/logout', { method: 'POST' });
+    return readJson(res);
+  },
+
   async getConfig() {
     const res = await fetch('/api/config');
-    return res.json();
+    return readJson(res);
   },
 
   async getPages() {
@@ -105,14 +117,14 @@ export const api = {
     const projectId = getProjectId();
     if (!projectId) return { files: [], htmlPath: '' };
     const res = await fetch(`/api/scan-html?projectId=${projectId}`);
-    return res.json();
+    return readJson(res);
   },
 
   async listDesignImages() {
     const projectId = getProjectId();
     if (!projectId) return { files: [] };
     const res = await fetch(`/api/list-images?projectId=${projectId}`);
-    return res.json();
+    return readJson(res);
   },
 
   async uploadDesignImages(files) {
@@ -174,6 +186,7 @@ export const api = {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({ error: '下载失败' }));
+      if (res.status === 401) notifyAuthExpired();
       throw new Error(data.error || '下载失败');
     }
     return res.blob();
@@ -192,12 +205,12 @@ export const api = {
 
   async getProjects() {
     const res = await fetch('/api/projects');
-    return res.json();
+    return readJson(res);
   },
 
   async getProject(id) {
     const res = await fetch(`/api/projects/${id}`);
-    return res.json();
+    return readJson(res);
   },
 
   async createProject(name, description, zipFile) {
@@ -206,7 +219,7 @@ export const api = {
     formData.append('description', description || '');
     if (zipFile) formData.append('htmlZip', zipFile);
     const res = await fetch('/api/projects', { method: 'POST', body: formData });
-    return res.json();
+    return readJson(res);
   },
 
   async updateProject(id, name, description, designSystem = undefined) {
@@ -240,7 +253,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ projectId, sessionId, editorName }),
     });
-    return res.json();
+    return readJson(res);
   },
 
   async sessionHeartbeat(projectId, sessionId) {
@@ -249,12 +262,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ projectId, sessionId }),
     });
-    return res.json();
+    return readJson(res);
   },
 
   async checkSession(projectId, sessionId) {
     const res = await fetch(`/api/session/check?projectId=${projectId}&sessionId=${encodeURIComponent(sessionId)}`);
-    return res.json();
+    return readJson(res);
   },
 
   async releaseSession(projectId, sessionId) {
@@ -263,7 +276,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ projectId, sessionId }),
     });
-    return res.json();
+    return readJson(res);
   },
 
   async forceAcquireSession(projectId, sessionId, editorName) {
@@ -272,6 +285,36 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ projectId, sessionId, editorName }),
     });
-    return res.json();
+    return readJson(res);
+  },
+
+  // ==================== 用户管理 ====================
+
+  async listUsers() {
+    const res = await fetch('/api/auth/users');
+    return readJson(res);
+  },
+
+  async createUser({ username, password, role }) {
+    const res = await fetch('/api/auth/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, role }),
+    });
+    return readJson(res);
+  },
+
+  async updateUser(id, payload) {
+    const res = await fetch(`/api/auth/users/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return readJson(res);
+  },
+
+  async deleteUser(id) {
+    const res = await fetch(`/api/auth/users/${id}`, { method: 'DELETE' });
+    return readJson(res);
   },
 };

@@ -9,6 +9,7 @@ const router = express.Router();
 const {
   imageUpload,
   HTML_CACHES_DIR,
+  ensureProjectReadable,
   ensureProjectWritable,
   sendWriteGuardError
 } = require('./utils');
@@ -72,6 +73,9 @@ router.get('/list-images', (req, res) => {
     res.status(400).json({ error: '缺少项目 ID' });
     return;
   }
+
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) return sendWriteGuardError(res, readable);
 
   const dir = ensureProjectImageDir(projectId);
   const files = fs.readdirSync(dir)
