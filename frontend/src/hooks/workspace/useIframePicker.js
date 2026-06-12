@@ -42,7 +42,7 @@ export function useIframePicker({ iframeRef }) {
         const raw = (el.getAttribute('src') || '').trim();
         if (raw) {
           let resolved = raw;
-          try { resolved = new URL(raw, doc.baseURI).href; } catch (_) {}
+          try { resolved = new URL(raw, doc.baseURI).href; } catch (_) { }
           const m = resolved.match(/__html__\/.+$/);
           imgSrc = m ? m[0] : raw;
         }
@@ -75,7 +75,7 @@ export function useIframePicker({ iframeRef }) {
       showToast(`已添加交互: ${selector}`);
     } else if (action === 'image') {
       addImageReplacement({ selector, imagePath: '', description: '' });
-      showToast(`已添加切图标记: ${selector}`);
+      showToast(`已加入切图标记: ${selector}`);
     } else if (action === 'auto-image') {
       addImageReplacement({ selector, imagePath: extra?.imgSrc || '', description: '' });
       showToast(`已自动切图: ${selector}`);

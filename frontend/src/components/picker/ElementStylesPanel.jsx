@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Icon } from '../common/Icon';
 import { Picker, highlightElement } from '../../lib/picker';
 import { copyText } from '../../lib/clipboard';
+import { useAppStore } from '../../lib/state';
 
 // ==================== Style extraction helpers ====================
 
-const TEXT_TAGS = new Set(['span','p','h1','h2','h3','h4','h5','h6','a','label','strong','em','b','i','u','small','mark','del','ins','sub','sup','code','pre','blockquote','li','dt','dd','th','td','caption','figcaption','cite','q','abbr','time','var','samp','kbd']);
+const TEXT_TAGS = new Set(['span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'label', 'strong', 'em', 'b', 'i', 'u', 'small', 'mark', 'del', 'ins', 'sub', 'sup', 'code', 'pre', 'blockquote', 'li', 'dt', 'dd', 'th', 'td', 'caption', 'figcaption', 'cite', 'q', 'abbr', 'time', 'var', 'samp', 'kbd']);
 
 function formatBoxValue(top, right, bottom, left) {
   const t = parseFloat(top) || 0, r = parseFloat(right) || 0;
@@ -100,14 +101,27 @@ function ColorRow({ label, colorValue, onCopy }) {
   );
 }
 
-function ImageRow({ label, url, onPreview }) {
+function ImageRow({ label, url, onPreview, onAddSlice }) {
   if (!url) return null;
   return (
     <div className="styles-row bg-image-row">
       <span className="styles-label">{label}</span>
-      <span className="styles-value bg-image-value" title="点击放大查看" onClick={() => onPreview(url)}>
-        <img src={url} className="bg-image-thumbnail" alt={label} onError={e => e.target.style.display = 'none'} />
-        <span className="bg-image-hint">点击放大</span>
+      <span className="styles-value bg-image-value">
+        <span className="bg-image-preview" title="点击放大查看" onClick={() => onPreview(url)}>
+          <img src={url} className="bg-image-thumbnail" alt={label} onError={e => e.target.style.display = 'none'} />
+          <span className="bg-image-hint">点击放大</span>
+        </span>
+        {onAddSlice && (
+          <button
+            type="button"
+            className="bg-image-action"
+            title="加入切图标记"
+            onClick={(e) => { e.stopPropagation(); onAddSlice(url); }}
+          >
+            <Icon name="image" size="sm" />
+            <span>切图</span>
+          </button>
+        )}
       </span>
     </div>
   );
@@ -141,6 +155,21 @@ function ImagePreviewOverlay({ url, onClose }) {
 export function ElementStylesPanel({ selector, iframeRef, onClose }) {
   const panelRef = useRef(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const addImageReplacement = useAppStore((s) => s.addImageReplacement);
+  const showToast = useAppStore((s) => s.showToast);
+  const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
+
+  const handleAddSlice = useCallback((url) => {
+    if (isCurrentEditor === false) {
+      showToast('当前为只读，不能修改页面配置');
+      return;
+    }
+    if (!url) return;
+    const m = String(url).match(/__html__\/.+$/);
+    const imagePath = m ? m[0] : url;
+    addImageReplacement({ selector, imagePath, description: '' });
+    showToast(`已加入切图标记: ${selector}`);
+  }, [addImageReplacement, showToast, isCurrentEditor, selector]);
 
   // Extract styles from selected element in iframe
   const el = Picker.selectedElement;
@@ -319,8 +348,8 @@ export function ElementStylesPanel({ selector, iframeRef, onClose }) {
               背景与视觉
             </div>
             <ColorRow label="背景色" colorValue={info.backgroundColor} onCopy={copyToClipboard} />
-            <ImageRow label="图片" url={info.imgSrc} onPreview={setPreviewUrl} />
-            <ImageRow label="背景图" url={info.bgImageUrl} onPreview={setPreviewUrl} />
+            <ImageRow label="图片" url={info.imgSrc} onPreview={setPreviewUrl} onAddSlice={handleAddSlice} />
+            <ImageRow label="背景图" url={info.bgImageUrl} onPreview={setPreviewUrl} onAddSlice={handleAddSlice} />
             <StyleRow label="透明度" value={info.opacity} onCopy={copyToClipboard} />
             <StyleRow label="阴影" value={info.boxShadow} onCopy={copyToClipboard} />
           </div>

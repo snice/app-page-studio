@@ -28,10 +28,13 @@
 .styles-value.color-value { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 2px 6px; border-radius: var(--radius-sm); transition: all var(--transition-fast); }
 .styles-value.color-value:hover { background: var(--bg-tertiary); }
 .color-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; }
-.styles-value.bg-image-value { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 6px; border-radius: var(--radius-sm); transition: all var(--transition-fast); }
-.styles-value.bg-image-value:hover { background: var(--bg-tertiary); }
+.styles-value.bg-image-value { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: var(--radius-sm); }
+.bg-image-preview { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 2px 4px; border-radius: var(--radius-sm); transition: all var(--transition-fast); }
+.bg-image-preview:hover { background: var(--bg-tertiary); }
 .bg-image-thumbnail { width: 40px; height: 40px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); }
 .bg-image-hint { font-size: 11px; color: var(--text-muted); }
+.bg-image-action { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 11px; color: var(--text-secondary); background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all var(--transition-fast); }
+.bg-image-action:hover { color: var(--text-primary); background: var(--bg-secondary); border-color: var(--accent); }
 
 /* Image Preview Overlay */
 .image-preview-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 20000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease; }
