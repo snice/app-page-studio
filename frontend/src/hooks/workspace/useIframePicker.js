@@ -14,6 +14,7 @@ export function useIframePicker({ iframeRef }) {
   const showToast = useAppStore((s) => s.showToast);
   const currentFile = useAppStore((s) => s.currentFile);
   const currentProjectId = useAppStore((s) => s.config.currentProject);
+  const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
   const isPickerActive = useAppStore((s) => s.isPickerActive);
   const isColorPickerActive = useAppStore((s) => s.isColorPickerActive);
   const setIsImageRegionSelecting = useAppStore((s) => s.setIsImageRegionSelecting);
@@ -51,6 +52,10 @@ export function useIframePicker({ iframeRef }) {
       Picker.disable(iframe);
       useAppStore.getState().setIsPickerActive(false);
     }
+    if (action !== 'styles' && isCurrentEditor === false) {
+      showToast('当前为只读，不能修改页面配置');
+      return;
+    }
     if (action === 'interaction') {
       addInteraction({ selector, eventType: eventType || 'tap', action: '' });
       showToast(`已添加交互: ${selector}`);
@@ -63,9 +68,13 @@ export function useIframePicker({ iframeRef }) {
     } else if (action === 'styles') {
       setStylesPanelSelector(selector);
     }
-  }, [iframeRef, addInteraction, addImageReplacement, addFunctionDescription, showToast]);
+  }, [iframeRef, addInteraction, addImageReplacement, addFunctionDescription, isCurrentEditor, showToast]);
 
   const handleRegionAction = useCallback((action, region) => {
+    if (isCurrentEditor === false) {
+      showToast('当前为只读，不能修改页面配置');
+      return;
+    }
     if (action === 'interaction') {
       addInteraction({ selector: '区域', eventType: 'tap', action: '', region });
       showToast('已添加交互区域');
@@ -76,7 +85,7 @@ export function useIframePicker({ iframeRef }) {
       addFunctionDescription({ selector: '区域', description: '', region });
       showToast('已添加功能描述区域');
     }
-  }, [addInteraction, addImageReplacement, addFunctionDescription, showToast]);
+  }, [addInteraction, addImageReplacement, addFunctionDescription, isCurrentEditor, showToast]);
 
   const handleIframeLoad = useCallback(() => {
     const iframe = iframeRef.current;
@@ -95,6 +104,10 @@ export function useIframePicker({ iframeRef }) {
 
   const handleTogglePicker = useCallback(() => {
     const state = useAppStore.getState();
+    if (state.session?.isCurrentEditor === false) {
+      showToast('当前为只读，不能修改页面配置');
+      return;
+    }
     const cf = state.currentFile;
     const isPsdLayers = cf?.sourceType === 'psd' && state.psdMode === 'layers';
     const isImage = (cf?.sourceType === 'image' || (cf?.sourceType === 'psd' && !isPsdLayers));
@@ -132,7 +145,7 @@ export function useIframePicker({ iframeRef }) {
       if (willActivate) Picker.enable(iframe, handleElementClick);
       else { Picker.disable(iframe); setPickerMenu(null); }
     }
-  }, [iframeRef, handleElementClick, setIsImageRegionSelecting]);
+  }, [iframeRef, handleElementClick, setIsImageRegionSelecting, showToast]);
 
   const handleToggleColorPicker = useCallback(() => {
     const state = useAppStore.getState();
@@ -166,6 +179,13 @@ export function useIframePicker({ iframeRef }) {
       setPickerMenu(null);
     }
   }, [isPickerActive, iframeRef]);
+  useEffect(() => {
+    if (isCurrentEditor !== false) return;
+    const state = useAppStore.getState();
+    if (state.isPickerActive) state.setIsPickerActive(false);
+    if (iframeRef.current) Picker.disable(iframeRef.current);
+    setPickerMenu(null);
+  }, [isCurrentEditor, iframeRef]);
   useEffect(() => {
     if (!isColorPickerActive) ColorPickerModule.disable(iframeRef.current);
   }, [isColorPickerActive, iframeRef]);

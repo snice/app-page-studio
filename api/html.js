@@ -7,11 +7,12 @@ const path = require('path');
 const fs = require('fs');
 const cheerio = require('cheerio');
 const AdmZip = require('adm-zip');
-const archiver = require('archiver');
+const archiverModule = require('archiver');
 const router = express.Router();
 const {
   Projects,
   getHtmlDir,
+  getHtmlExtractDir,
   upload,
   extractZipToDir,
   HTML_CACHES_DIR,
@@ -20,6 +21,16 @@ const {
   ensureProjectWritable,
   sendWriteGuardError
 } = require('./utils');
+
+function createZipArchive(options) {
+  if (typeof archiverModule === 'function') {
+    return archiverModule('zip', options);
+  }
+  if (typeof archiverModule.ZipArchive === 'function') {
+    return new archiverModule.ZipArchive(options);
+  }
+  throw new TypeError('当前 archiver 版本不支持 ZIP 打包');
+}
 
 // 上传 HTML ZIP（合并到项目目录，根目录图片自动移入 __design__）
 router.post('/upload-html', upload.single('htmlZip'), (req, res, next) => {
@@ -40,15 +51,16 @@ router.post('/upload-html', upload.single('htmlZip'), (req, res, next) => {
 
   try {
     const projectDir = path.join(HTML_CACHES_DIR, String(projectId));
-    extractZipToDir(req.file.buffer, projectDir);
+    const htmlExtractDir = getHtmlExtractDir(projectId);
+    extractZipToDir(req.file.buffer, htmlExtractDir);
 
-    // 将根目录下的图片移到 __design__
-    const items = fs.readdirSync(projectDir);
+    // 将 __html__ 根目录下的图片移到项目根的 __design__
+    const items = fs.readdirSync(htmlExtractDir);
     let movedCount = 0;
     for (const item of items) {
       const ext = path.extname(item).toLowerCase();
       if (!IMAGE_EXTS.has(ext)) continue;
-      const fullPath = path.join(projectDir, item);
+      const fullPath = path.join(htmlExtractDir, item);
       if (!fs.statSync(fullPath).isFile()) continue;
       const designDir = path.join(projectDir, '__design__');
       if (!fs.existsSync(designDir)) fs.mkdirSync(designDir, { recursive: true });
@@ -107,7 +119,9 @@ router.post('/delete-files', (req, res) => {
       } else {
         const parentDir = path.dirname(absPath);
         const relParent = path.relative(htmlDir, parentDir);
-        const parentIsSubdir = relParent && relParent !== '.' && relParent !== '..' && !relParent.startsWith('..');
+        const relParentPosix = relParent.replace(/\\/g, '/');
+        // __html__ 自身是约定的容器目录，不能整目录删除
+        const parentIsSubdir = relParent && relParent !== '.' && relParent !== '..' && !relParent.startsWith('..') && relParentPosix !== '__html__';
         // 仅当父目录里没有其他 HTML 兄弟时，才整目录删除（兼容"一 HTML 一文件夹"的设计稿导出）
         let siblingHtmlExists = false;
         if (parentIsSubdir) {
@@ -139,11 +153,11 @@ router.get('/scan-html', (req, res) => {
   if (!readable.ok) return sendWriteGuardError(res, readable);
 
   const htmlDir = getHtmlDir(projectId);
-  const htmlRoot = path.resolve(htmlDir);
-  console.log('扫描 HTML 目录:', htmlDir);
+  const htmlExtractDir = getHtmlExtractDir(projectId);
+  console.log('扫描 HTML 目录:', htmlExtractDir);
 
   if (!fs.existsSync(htmlDir)) {
-    res.json({ files: [], htmlPath: htmlDir });
+    res.json({ files: [], htmlPath: htmlExtractDir });
     return;
   }
 
@@ -200,7 +214,8 @@ router.get('/scan-html', (req, res) => {
     } catch { }
   }
 
-  res.json({ files: scanDir(htmlDir), psdFiles, htmlPath: htmlDir });
+  const htmlFiles = fs.existsSync(htmlExtractDir) ? scanDir(htmlExtractDir, '__html__') : [];
+  res.json({ files: htmlFiles, psdFiles, htmlPath: htmlExtractDir });
 });
 
 // 读取 HTML 内容（用于元素选择器）
@@ -416,7 +431,7 @@ router.post('/download-design-zip', (req, res) => {
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', `attachment; filename="design-pack-${projectId}.zip"`);
 
-  const archive = archiver('zip', { zlib: { level: 6 } });
+  const archive = createZipArchive({ zlib: { level: 6 } });
   archive.on('warning', (err) => { if (err.code !== 'ENOENT') console.error('archive warning:', err); });
   archive.on('error', (err) => {
     console.error('archive error:', err);

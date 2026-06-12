@@ -10,11 +10,13 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
   const psdRef = useRef(null);
   const zipRef = useRef(null);
   const showToast = useAppStore((s) => s.showToast);
+  const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
   const [dragover, setDragover] = useState('');
   const dropzoneRef = useRef(null);
   const psdDropzoneRef = useRef(null);
 
   const handleImages = async (files) => {
+    if (!isCurrentEditor) { showToast('当前为只读，不能上传设计图'); return; }
     if (!files?.length) return;
     const res = await api.uploadDesignImages(Array.from(files));
     if (res.error) { showToast(res.error); return; }
@@ -24,6 +26,7 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
   };
 
   const handleZip = async (file) => {
+    if (!isCurrentEditor) { showToast('当前为只读，不能上传 HTML ZIP'); return; }
     if (!file) return;
     const res = await api.uploadHtmlZip(file);
     if (res.error) { showToast(res.error); return; }
@@ -33,6 +36,7 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
   };
 
   const handlePsd = async (files) => {
+    if (!isCurrentEditor) { showToast('当前为只读，不能上传 PSD'); return; }
     if (!files?.length) return;
     showToast('正在上传 PSD...');
     const res = await api.uploadPsd(Array.from(files));
@@ -105,7 +109,7 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
           <button className="modal-close" onClick={onClose}><Icon name="x" /></button>
         </div>
         <div className="modal-body">
-          <div className={`upload-dropzone ${dragover === 'img' ? 'is-dragover' : ''}`}
+          <div className={`upload-dropzone ${dragover === 'img' ? 'is-dragover' : ''} ${!isCurrentEditor ? 'is-disabled' : ''}`}
             ref={dropzoneRef} tabIndex={0}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
             onDragOver={(e) => { e.preventDefault(); setDragover('img'); }}
@@ -115,14 +119,19 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
             <div className="upload-dropzone-title">上传设计图</div>
             <div className="upload-dropzone-sub">拖拽图片到此处 / 点击此区域后粘贴（Ctrl/Cmd + V）</div>
             <button className="btn btn-sm btn-secondary" style={{ marginTop: 8 }}
-              onClick={(e) => { e.stopPropagation(); imgRef.current?.click(); }}>
+              disabled={!isCurrentEditor}
+              title={isCurrentEditor ? '选择图片' : '当前为只读'}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isCurrentEditor) imgRef.current?.click();
+              }}>
               <Icon name="upload" size="sm" /> 选择图片
             </button>
           </div>
           <input type="file" ref={imgRef} accept="image/*" multiple style={{ display: 'none' }}
-            onChange={(e) => handleImages(e.target.files)} />
+            onChange={(e) => handleImages(e.target.files)} disabled={!isCurrentEditor} />
 
-          <div className={`upload-dropzone ${dragover === 'psd' ? 'is-dragover' : ''}`}
+          <div className={`upload-dropzone ${dragover === 'psd' ? 'is-dragover' : ''} ${!isCurrentEditor ? 'is-disabled' : ''}`}
             ref={psdDropzoneRef} tabIndex={0}
             style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center' }}
             onDragOver={(e) => { e.preventDefault(); setDragover('psd'); }}
@@ -132,16 +141,23 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
             <div className="upload-dropzone-title">上传 PSD 文件</div>
             <div className="upload-dropzone-sub">拖拽 .psd 或 ZIP 到此处 / 点击此区域后粘贴（Ctrl/Cmd + V）</div>
             <button className="btn btn-sm btn-secondary" style={{ marginTop: 8 }}
-              onClick={(e) => { e.stopPropagation(); psdRef.current?.click(); }}>
+              disabled={!isCurrentEditor}
+              title={isCurrentEditor ? '选择 PSD' : '当前为只读'}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isCurrentEditor) psdRef.current?.click();
+              }}>
               <Icon name="upload" size="sm" /> 选择 PSD
             </button>
           </div>
           <input type="file" ref={psdRef} accept=".psd,.zip" multiple style={{ display: 'none' }}
-            onChange={(e) => handlePsd(e.target.files)} />
+            onChange={(e) => handlePsd(e.target.files)} disabled={!isCurrentEditor} />
 
-          <div className={`upload-dropzone ${dragover === 'zip' ? 'is-dragover' : ''}`}
+          <div className={`upload-dropzone ${dragover === 'zip' ? 'is-dragover' : ''} ${!isCurrentEditor ? 'is-disabled' : ''}`}
             style={{ marginTop: 12 }}
-            onClick={() => zipRef.current?.click()}
+            onClick={() => {
+              if (isCurrentEditor) zipRef.current?.click();
+            }}
             onDragOver={(e) => { e.preventDefault(); setDragover('zip'); }}
             onDragLeave={() => setDragover('')}
             onDrop={(e) => handleDrop('zip', e)}>
@@ -150,7 +166,7 @@ export function ImageUploadModal({ isOpen, onClose, onSuccess }) {
             <div className="upload-dropzone-sub">点击选择 ZIP / 拖拽 ZIP 到此处</div>
           </div>
           <input type="file" ref={zipRef} accept=".zip" style={{ display: 'none' }}
-            onChange={(e) => handleZip(e.target.files?.[0])} />
+            onChange={(e) => handleZip(e.target.files?.[0])} disabled={!isCurrentEditor} />
 
         </div>
         <div className="modal-footer">

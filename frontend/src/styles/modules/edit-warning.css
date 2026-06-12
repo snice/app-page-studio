@@ -1,0 +1,19 @@
+/* ==================== Edit Warning Banner ==================== */
+.edit-warning {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1002;
+  transform: translateY(-100%); opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+.edit-warning.show { transform: translateY(0); opacity: 1; }
+.edit-warning-content {
+  display: flex; align-items: center; gap: 12px; padding: 12px 24px;
+  background: linear-gradient(135deg, var(--warning) 0%, #f59e0b 100%);
+  color: #000; font-size: 13px; font-weight: 500; box-shadow: var(--shadow-md);
+}
+.edit-warning-text { flex: 1; }
+.edit-warning-text strong { font-weight: 700; }
+.edit-warning-time { font-size: 12px; opacity: 0.8; }
+.edit-warning-content .btn { background: rgba(0,0,0,0.15); color: #000; border: 1px solid rgba(0,0,0,0.2); }
+.edit-warning-content .btn:hover { background: rgba(0,0,0,0.25); }
+.edit-warning-content .btn-icon { padding: 6px; min-width: auto; }
+

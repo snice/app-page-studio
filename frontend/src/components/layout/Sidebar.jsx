@@ -62,15 +62,19 @@ function HighlightText({ text, highlight }) {
 }
 
 /** 分组删除按钮 + 内联确认气泡 */
-function GroupDeleteButton({ isPending, groupName, onRequest, onCancel, onConfirm }) {
+function GroupDeleteButton({ isPending, groupName, onRequest, onCancel, onConfirm, disabled = false }) {
   const btnRef = useRef(null);
   return (
     <>
       <button
         ref={btnRef}
         className="btn btn-sm btn-icon"
-        onClick={(e) => { e.stopPropagation(); onRequest(); }}
-        title="删除"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!disabled) onRequest();
+        }}
+        disabled={disabled}
+        title={disabled ? '当前为只读' : '删除'}
       >
         <Icon name="trash" size="sm" />
       </button>
@@ -136,6 +140,7 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
   const toggleSelectedFile = useAppStore((s) => s.toggleSelectedFile);
   const deleteGroup = useAppStore((s) => s.deleteGroup);
   const setEditingGroupId = useAppStore((s) => s.setEditingGroupId);
+  const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
 
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [pendingDeleteGroupId, setPendingDeleteGroupId] = useState(null);
@@ -215,7 +220,12 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
           >
             <Icon name="mindmap" size="sm" />
           </button>
-          <button className="btn btn-sm btn-secondary" onClick={onCreateGroup}>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={onCreateGroup}
+            disabled={!isCurrentEditor}
+            title={isCurrentEditor ? '新建页面分组' : '当前为只读'}
+          >
             <Icon name="plus" size="sm" />
             新建页面分组
           </button>
@@ -262,7 +272,17 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
               <span className="group-name">{group.name}</span>
               <span className="group-count">{group.files.length}</span>
               <div className="group-actions">
-                <button className="btn btn-sm btn-icon" onClick={(e) => { e.stopPropagation(); setEditingGroupId(group.id); onCreateGroup(); }} title="编辑">
+                <button
+                  className="btn btn-sm btn-icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isCurrentEditor) return;
+                    setEditingGroupId(group.id);
+                    onCreateGroup();
+                  }}
+                  disabled={!isCurrentEditor}
+                  title={isCurrentEditor ? '编辑' : '当前为只读'}
+                >
                   <Icon name="edit" size="sm" />
                 </button>
                 <GroupDeleteButton
@@ -270,7 +290,11 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
                   groupName={group.name}
                   onRequest={() => setPendingDeleteGroupId(group.id)}
                   onCancel={() => setPendingDeleteGroupId(null)}
-                  onConfirm={() => { deleteGroup(group.id); setPendingDeleteGroupId(null); }}
+                  onConfirm={() => {
+                    if (isCurrentEditor) deleteGroup(group.id);
+                    setPendingDeleteGroupId(null);
+                  }}
+                  disabled={!isCurrentEditor}
                 />
               </div>
               <Icon name={collapsedGroups.has(group.id) ? 'chevronDown' : 'chevronUp'} size="sm" />

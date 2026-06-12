@@ -1,0 +1,13 @@
+/* ==================== Toast ==================== */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: linear-gradient(135deg, var(--success) 0%, #10b981 100%);
+  color: white; padding: 14px 24px; border-radius: var(--radius-lg);
+  font-size: 13px; font-weight: 600;
+  transform: translateY(100px); opacity: 0;
+  transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+  z-index: 1001; box-shadow: var(--shadow-md), 0 0 24px var(--success-bg);
+}
+[data-theme="light"] .toast { box-shadow: var(--shadow-md), 0 0 24px rgba(34,197,94,0.15); }
+.toast.show { transform: translateY(0); opacity: 1; }
+

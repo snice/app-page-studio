@@ -1,0 +1,261 @@
+/* ==================== Mind Map ==================== */
+
+.mindmap-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mindmap-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.mindmap-canvas-wrapper {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  cursor: grab;
+  background:
+    radial-gradient(circle at 20px 20px, var(--border-subtle) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.mindmap-canvas-wrapper.is-panning {
+  cursor: grabbing;
+}
+
+.mindmap-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.mindmap-canvas-inner {
+  position: relative;
+}
+
+/* SVG 连线层 */
+.mindmap-connections {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.mindmap-connection-path {
+  fill: none;
+  stroke-width: 2;
+  transition: opacity 0.2s;
+}
+
+/* 节点通用样式 */
+.mindmap-node {
+  position: absolute;
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast);
+  user-select: none;
+  white-space: nowrap;
+  min-width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.mindmap-node:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.mindmap-node-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+/* 文件节点描述文字 */
+.mindmap-node-desc {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  white-space: normal;
+  word-break: break-word;
+  max-width: 200px;
+}
+
+.mindmap-node.is-file.has-description {
+  white-space: normal;
+  min-width: 140px;
+}
+
+.mindmap-node-label {
+  font-size: inherit;
+  font-weight: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* 根节点 (项目名) */
+.mindmap-node.is-project {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 14px 24px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md), 0 0 30px var(--primary-glow);
+  border: none;
+  min-width: 160px;
+  justify-content: center;
+  align-items: center;
+}
+
+.mindmap-node.is-project .mindmap-node-label {
+  max-width: 200px;
+}
+
+/* 分组节点 */
+.mindmap-node.is-group {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 160px;
+  padding-left: 20px;
+  overflow: hidden;
+}
+
+.mindmap-node.is-group .group-color-bar {
+  width: 5px;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.mindmap-node-badge {
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* 文件节点 */
+.mindmap-node.is-file {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text);
+  padding: 8px 12px;
+  min-width: 110px;
+}
+
+.mindmap-node.is-file.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.mindmap-node.is-file.is-dragging {
+  opacity: 0.4;
+}
+
+.mindmap-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mindmap-source-tag {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  margin-left: auto;
+  flex-shrink: 0;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.mindmap-source-tag.html { color: #60a5fa; }
+.mindmap-source-tag.psd { color: #f472b6; }
+.mindmap-source-tag.image { color: #34d399; }
+
+/* 编辑态 */
+.mindmap-node-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.mindmap-node-edit {
+  background: var(--bg);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-glow);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mindmap-node-edit-desc {
+  font-size: 11px;
+  resize: vertical;
+  min-height: 40px;
+  line-height: 1.4;
+}
+
+/* Drop zone highlight */
+.mindmap-node.is-drop-target {
+  border-color: var(--primary) !important;
+  border-style: dashed !important;
+  box-shadow: 0 0 0 4px var(--primary-glow) !important;
+}
+
+/* Zoom control */
+.mindmap-zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.mindmap-zoom-control input[type="range"] {
+  height: 4px;
+  cursor: pointer;
+}

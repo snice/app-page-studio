@@ -14,6 +14,7 @@ export function GroupModal({ isOpen, onClose }) {
   const selectedFiles = useAppStore((s) => s.selectedFiles);
   const assignSelectedFilesToGroup = useAppStore((s) => s.assignSelectedFilesToGroup);
   const showToast = useAppStore((s) => s.showToast);
+  const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -22,6 +23,7 @@ export function GroupModal({ isOpen, onClose }) {
   const [srcFlutter, setSrcFlutter] = useState('');
   const [srcRN, setSrcRN] = useState('');
   const [srcUniapp, setSrcUniapp] = useState('');
+  const readOnly = !isCurrentEditor;
 
   React.useEffect(() => {
     if (isOpen && editingGroupId) {
@@ -40,6 +42,7 @@ export function GroupModal({ isOpen, onClose }) {
   }, [isOpen, editingGroupId]);
 
   const handleConfirm = () => {
+    if (readOnly) { showToast('当前为只读，不能修改页面配置'); return; }
     if (!name.trim()) { showToast('请输入分组名称'); return; }
     const groupData = {
       name, description, route, color,
@@ -69,30 +72,30 @@ export function GroupModal({ isOpen, onClose }) {
         <div className="modal-body">
           <div className="form-group">
             <label className="form-label">分组名称</label>
-            <input className="form-input" placeholder="如：首页、登录页" value={name} onChange={(e) => setName(e.target.value)} />
+            <input className="form-input" placeholder="如：首页、登录页" value={name} onChange={(e) => setName(e.target.value)} readOnly={readOnly} />
           </div>
           <div className="form-group">
             <label className="form-label">页面描述</label>
-            <textarea className="form-textarea" placeholder="描述此页面的功能" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <textarea className="form-textarea" placeholder="描述此页面的功能" value={description} onChange={(e) => setDescription(e.target.value)} readOnly={readOnly} />
           </div>
           <div className="form-group">
             <label className="form-label">App 路由</label>
-            <input className="form-input" placeholder="如：/home" value={route} onChange={(e) => setRoute(e.target.value)} />
+            <input className="form-input" placeholder="如：/home" value={route} onChange={(e) => setRoute(e.target.value)} readOnly={readOnly} />
           </div>
           <div className="form-group">
             <label className="form-label">源码路径</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 80 }}>Flutter</span>
-                <input className="form-input" placeholder="lib/pages/home_page.dart" style={{ flex: 1 }} value={srcFlutter} onChange={(e) => setSrcFlutter(e.target.value)} />
+                <input className="form-input" placeholder="lib/pages/home_page.dart" style={{ flex: 1 }} value={srcFlutter} onChange={(e) => setSrcFlutter(e.target.value)} readOnly={readOnly} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 80 }}>React Native</span>
-                <input className="form-input" placeholder="app/home.tsx" style={{ flex: 1 }} value={srcRN} onChange={(e) => setSrcRN(e.target.value)} />
+                <input className="form-input" placeholder="app/home.tsx" style={{ flex: 1 }} value={srcRN} onChange={(e) => setSrcRN(e.target.value)} readOnly={readOnly} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 80 }}>UniApp</span>
-                <input className="form-input" placeholder="pages/home/home.vue" style={{ flex: 1 }} value={srcUniapp} onChange={(e) => setSrcUniapp(e.target.value)} />
+                <input className="form-input" placeholder="pages/home/home.vue" style={{ flex: 1 }} value={srcUniapp} onChange={(e) => setSrcUniapp(e.target.value)} readOnly={readOnly} />
               </div>
             </div>
           </div>
@@ -101,14 +104,16 @@ export function GroupModal({ isOpen, onClose }) {
             <div className="color-picker-row">
               {groupColors.map((c) => (
                 <div key={c} className={`color-option ${color === c ? 'selected' : ''}`}
-                  style={{ background: c }} onClick={() => setColor(c)} />
+                  style={{ background: c }} onClick={() => {
+                    if (!readOnly) setColor(c);
+                  }} />
               ))}
             </div>
           </div>
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={() => { setEditingGroupId(null); onClose(); }}>取消</button>
-          <button className="btn btn-primary" onClick={handleConfirm}>{editingGroupId ? '更新' : '创建'}</button>
+          <button className="btn btn-primary" onClick={handleConfirm} disabled={readOnly} title={readOnly ? '当前为只读' : undefined}>{editingGroupId ? '更新' : '创建'}</button>
         </div>
       </div>
     </ModalOverlay>

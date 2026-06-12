@@ -5,7 +5,6 @@ import { Toast } from './components/common/Toast';
 import { Icon } from './components/common/Icon';
 import { DesignSystemDrawer } from './components/modals/DesignSystemDrawer';
 import { ConfirmModal } from './components/modals/ConfirmModal';
-import { EditorNameModal } from './components/modals/EditorNameModal';
 import { UserManagementModal } from './components/modals/UserManagementModal';
 import { useAppStore } from './lib/state';
 import { api } from './lib/api';
@@ -20,11 +19,6 @@ export default function App() {
   const setPagesConfig = useAppStore((s) => s.setPagesConfig);
   const loadConfig = useAppStore((s) => s.loadConfig);
   const scanHtmlFiles = useAppStore((s) => s.scanHtmlFiles);
-  const getSessionId = useAppStore((s) => s.getSessionId);
-  const getEditorName = useAppStore((s) => s.getEditorName);
-  const setEditorName = useAppStore((s) => s.setEditorName);
-  const startHeartbeat = useAppStore((s) => s.startHeartbeat);
-  const stopHeartbeat = useAppStore((s) => s.stopHeartbeat);
   const updateSessionStatus = useAppStore((s) => s.updateSessionStatus);
   const modals = useAppStore((s) => s.modals);
   const closeModal = useAppStore((s) => s.closeModal);
@@ -40,7 +34,6 @@ export default function App() {
   const view = location.pathname === '/dashboard' ? 'workspace' : 'home';
 
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
-  const [editorNameRequest, setEditorNameRequest] = useState(null);
   const [confirmRequest, setConfirmRequest] = useState(null);
   const [authState, setAuthState] = useState({ status: 'loading', user: null });
   const [userManagementOpen, setUserManagementOpen] = useState(false);
@@ -48,17 +41,6 @@ export default function App() {
   const projects = useAppStore((s) => s.config.projects || []);
   const storeCurrentProjectId = useAppStore((s) => s.config.currentProject);
   const currentProjectId = routeProjectId || storeCurrentProjectId || getCurrentProjectId();
-
-  const requestEditorName = useCallback((options = {}) => new Promise((resolve) => {
-    setEditorNameRequest({ ...options, resolve });
-  }), []);
-
-  const resolveEditorNameRequest = useCallback((value) => {
-    setEditorNameRequest((request) => {
-      request?.resolve(value);
-      return null;
-    });
-  }, []);
 
   const requestConfirm = useCallback((options = {}) => new Promise((resolve) => {
     setConfirmRequest({ ...options, resolve });
@@ -78,31 +60,14 @@ export default function App() {
     setPagesConfig(res);
   }, []);
 
-  const registerSession = useCallback(async (projectId = getCurrentProjectId()) => {
-    if (!projectId) return;
-    // 编辑者身份直接取登录用户名（服务端也以 session 中的用户名为准）
-    const editorName = authState.user?.username || '';
-    if (editorName && getEditorName() !== editorName) setEditorName(editorName);
-    const sessionId = getSessionId();
-    const res = await api.registerSession(projectId, sessionId, editorName);
-    if (res.isCurrentEditor === false) {
-      const take = await requestConfirm({
-        title: '接管编辑权',
-        message: <>“<b>{res.currentEditor}</b>” 正在编辑此项目。是否接管编辑权？</>,
-        hint: '接管后对方会变为只读状态。',
-        confirmText: '接管编辑',
-      });
-      if (take) {
-        const forceRes = await api.forceAcquireSession(projectId, sessionId, editorName);
-        updateSessionStatus(forceRes);
-      } else {
-        updateSessionStatus(res);
-      }
-    } else {
-      updateSessionStatus(res);
-    }
-    startHeartbeat(api);
-  }, [authState.user, getCurrentProjectId, getEditorName, getSessionId, requestConfirm, setEditorName, startHeartbeat, updateSessionStatus]);
+  const applyProjectWriteAccess = useCallback((project) => {
+    const canWrite = authState.user?.role === 'admin' ||
+      project?.memberRole === 'owner' ||
+      project?.memberRole === 'editor';
+    updateSessionStatus({
+      isCurrentEditor: !!canWrite,
+    });
+  }, [authState.user, updateSessionStatus]);
 
   /** 路由切换时重置工作台的全局状态（纯 store 层，iframe/picker 由工作台自身的副作用响应） */
   const resetWorkspaceUi = useCallback(() => {
@@ -120,16 +85,8 @@ export default function App() {
 
   const releaseCurrentSession = useCallback(async () => {
     const state = useAppStore.getState();
-    const projectId = state.getCurrentProjectId();
-    const sessionId = state.session.sessionId;
-    state.stopHeartbeat();
     resetWorkspaceUi();
     await loadConfig();
-    if (projectId && sessionId) {
-      api.releaseSession(projectId, sessionId).catch((e) => {
-        console.warn('release session failed:', e);
-      });
-    }
   }, [loadConfig, resetWorkspaceUi]);
 
   const loadProjectWorkspace = useCallback(async (projectId) => {
@@ -139,14 +96,15 @@ export default function App() {
 
     try {
       const nextProjects = await loadConfig();
-      if (!nextProjects.some((project) => project.id === projectId)) {
+      const project = nextProjects.find((item) => item.id === projectId);
+      if (!project) {
         showToast('项目不存在');
         navigate('/', { replace: true });
         return;
       }
+      applyProjectWriteAccess(project);
       await loadPages(projectId);
       await scanHtmlFiles({ showResultToast: false, projectId });
-      await registerSession(projectId);
     } catch (e) {
       console.error('loadProjectWorkspace error:', e);
       showToast('打开项目失败: ' + (e.message || '未知错误'));
@@ -154,7 +112,7 @@ export default function App() {
     } finally {
       setWorkspaceLoading(false);
     }
-  }, [loadConfig, loadPages, navigate, registerSession, resetWorkspaceUi, scanHtmlFiles, setCurrentProjectId, showToast]);
+  }, [applyProjectWriteAccess, loadConfig, loadPages, navigate, resetWorkspaceUi, scanHtmlFiles, setCurrentProjectId, showToast]);
 
   const openProjectWorkspace = useCallback((projectOrId) => {
     const rawProjectId = typeof projectOrId === 'object' ? projectOrId?.id : projectOrId;
@@ -184,22 +142,20 @@ export default function App() {
   }, []);
 
   const handleLogout = useCallback(async () => {
-    stopHeartbeat();
     await api.logout().catch(() => {});
     navigate('/', { replace: true });
     setAuthState({ status: 'anon', user: null });
-  }, [navigate, stopHeartbeat]);
+  }, [navigate]);
 
   useEffect(() => {
     const handleExpired = () => {
-      stopHeartbeat();
       setUserManagementOpen(false);
       setAuthState({ status: 'anon', user: null });
       navigate('/', { replace: true });
     };
     window.addEventListener('aps-auth-expired', handleExpired);
     return () => window.removeEventListener('aps-auth-expired', handleExpired);
-  }, [navigate, stopHeartbeat]);
+  }, [navigate]);
 
   // 路由驱动副作用：进入 /dashboard 时加载项目，回到首页时释放会话
   // 仅在已登录后启用
@@ -223,7 +179,7 @@ export default function App() {
   }, [view, routeProjectId, authState.status]);
 
   if (authState.status === 'loading') {
-    return <div style={{ padding: 48, textAlign: 'center', color: '#888' }}>加载中…</div>;
+    return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)', background: 'var(--bg)', minHeight: '100vh' }}>加载中…</div>;
   }
   if (authState.status === 'anon') {
     return <LoginPage onLoggedIn={handleLoggedIn} />;
@@ -231,7 +187,7 @@ export default function App() {
 
   return (
     <>
-      <Suspense fallback={<div style={{ padding: 48, textAlign: 'center', color: '#888' }}>加载中...</div>}>
+      <Suspense fallback={<div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)', background: 'var(--bg)', minHeight: '100vh' }}>加载中...</div>}>
         <Routes>
           <Route
             path="/"
@@ -240,6 +196,7 @@ export default function App() {
                 projects={projects}
                 currentProjectId={currentProjectId}
                 isLoading={workspaceLoading}
+                currentUser={authState.user}
                 onOpenProject={openProjectWorkspace}
               />
             }
@@ -251,7 +208,6 @@ export default function App() {
                 workspaceLoading={workspaceLoading}
                 onGoHome={handleGoHome}
                 onSwitchProject={openProjectWorkspace}
-                onRequestEditorName={requestEditorName}
                 onRequestConfirm={requestConfirm}
               />
             }
@@ -263,6 +219,7 @@ export default function App() {
                 projects={projects}
                 currentProjectId={currentProjectId}
                 isLoading={workspaceLoading}
+                currentUser={authState.user}
                 onOpenProject={openProjectWorkspace}
               />
             }
@@ -293,14 +250,6 @@ export default function App() {
 
       {/* 设计系统抽屉：首页与工作台共用，挂在顶层 */}
       <DesignSystemDrawer isOpen={!!modals.designSystem} onClose={() => closeModal('designSystem')} />
-      <EditorNameModal
-        isOpen={!!editorNameRequest}
-        title={editorNameRequest?.title || '协作编辑标识'}
-        message={editorNameRequest?.message}
-        initialValue={getEditorName() || ''}
-        onClose={() => resolveEditorNameRequest(null)}
-        onSubmit={(name) => resolveEditorNameRequest(name)}
-      />
       <ConfirmModal
         isOpen={!!confirmRequest}
         title={confirmRequest?.title}

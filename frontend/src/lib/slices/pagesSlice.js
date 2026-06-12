@@ -4,6 +4,8 @@
  */
 
 export function createPagesSlice(set, get) {
+  const canEditPages = () => get().session?.isCurrentEditor !== false;
+
   return {
     pagesConfig: {
       projectName: '', targetPlatform: ['flutter'], designSystem: {},
@@ -92,6 +94,7 @@ export function createPagesSlice(set, get) {
     },
 
     updateCurrentFile(updates) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile) return {};
         Object.assign(s.currentFile, updates);
@@ -100,6 +103,7 @@ export function createPagesSlice(set, get) {
     },
 
     setPrimaryState(isPrimary) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile) return {};
         const currentPath = s.currentFile.path;
@@ -114,11 +118,13 @@ export function createPagesSlice(set, get) {
 
     // ====== 分组 ======
     addGroup(group) {
+      if (!canEditPages()) return;
       set((s) => ({
         pagesConfig: { ...s.pagesConfig, pageGroups: [...(s.pagesConfig.pageGroups || []), group] },
       }));
     },
     updateGroup(groupId, updates) {
+      if (!canEditPages()) return;
       set((s) => ({
         pagesConfig: {
           ...s.pagesConfig,
@@ -127,6 +133,7 @@ export function createPagesSlice(set, get) {
       }));
     },
     deleteGroup(groupId) {
+      if (!canEditPages()) return;
       set((s) => ({
         pagesConfig: {
           ...s.pagesConfig,
@@ -136,6 +143,7 @@ export function createPagesSlice(set, get) {
       }));
     },
     assignSelectedFilesToGroup(groupId) {
+      if (!canEditPages()) return;
       set((s) => {
         const htmlFiles = s.pagesConfig.htmlFiles.map((f) =>
           s.selectedFiles.has(f.path) ? { ...f, groupId } : f
@@ -144,6 +152,7 @@ export function createPagesSlice(set, get) {
       });
     },
     moveFileToGroup(filePaths, targetGroupId) {
+      if (!canEditPages()) return;
       set((s) => ({
         pagesConfig: {
           ...s.pagesConfig,
@@ -156,6 +165,7 @@ export function createPagesSlice(set, get) {
 
     // ====== currentFile 子集合：交互 / 切图 / 功能 / 数据源 ======
     addInteraction(interaction) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile) return {};
         if (!s.currentFile.interactions) s.currentFile.interactions = [];
@@ -164,6 +174,7 @@ export function createPagesSlice(set, get) {
       });
     },
     updateInteraction(index, field, value) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile?.interactions) return {};
         s.currentFile.interactions[index][field] = value;
@@ -171,6 +182,7 @@ export function createPagesSlice(set, get) {
       });
     },
     removeInteraction(index) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile?.interactions) return {};
         s.currentFile.interactions.splice(index, 1);
@@ -179,6 +191,7 @@ export function createPagesSlice(set, get) {
     },
 
     addImageReplacement(imageReplacement) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile) return {};
         if (!s.currentFile.imageReplacements) s.currentFile.imageReplacements = [];
@@ -187,6 +200,7 @@ export function createPagesSlice(set, get) {
       });
     },
     updateImageReplacement(index, field, value) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile?.imageReplacements) return {};
         s.currentFile.imageReplacements[index][field] = value;
@@ -194,6 +208,7 @@ export function createPagesSlice(set, get) {
       });
     },
     removeImageReplacement(index) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile?.imageReplacements) return {};
         s.currentFile.imageReplacements.splice(index, 1);
@@ -202,6 +217,7 @@ export function createPagesSlice(set, get) {
     },
 
     addFunctionDescription(fd) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile) return {};
         if (!s.currentFile.functionDescriptions) s.currentFile.functionDescriptions = [];
@@ -210,6 +226,7 @@ export function createPagesSlice(set, get) {
       });
     },
     updateFunctionDescription(index, field, value) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile?.functionDescriptions) return {};
         s.currentFile.functionDescriptions[index][field] = value;
@@ -217,6 +234,7 @@ export function createPagesSlice(set, get) {
       });
     },
     removeFunctionDescription(index) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile?.functionDescriptions) return {};
         s.currentFile.functionDescriptions.splice(index, 1);
@@ -225,6 +243,7 @@ export function createPagesSlice(set, get) {
     },
 
     addDataSource(dataSource) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile) return {};
         if (!s.currentFile.dataSources) s.currentFile.dataSources = [];
@@ -233,6 +252,7 @@ export function createPagesSlice(set, get) {
       });
     },
     updateDataSource(index, field, value) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile?.dataSources) return {};
         s.currentFile.dataSources[index][field] = value;
@@ -240,6 +260,7 @@ export function createPagesSlice(set, get) {
       });
     },
     removeDataSource(index) {
+      if (!canEditPages()) return;
       set((s) => {
         if (!s.currentFile?.dataSources) return {};
         s.currentFile.dataSources.splice(index, 1);

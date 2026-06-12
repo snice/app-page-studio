@@ -27,6 +27,7 @@ function LayerItem({
   checkedIds, onCheck, anyChecked,
   hiddenLayerIds, onToggleVisibility,
   manualSliceLayerIds, slices, onMarkSingle, onUnmarkSlice,
+  readOnly = false,
 }) {
   const [expanded, setExpanded] = useState(depth < 2);
   const isSelected = selected?.id === layer.id;
@@ -65,7 +66,11 @@ function LayerItem({
         {/* Checkbox */}
         <span
           className={`psd-layer-checkbox ${anyChecked ? 'is-visible' : ''}`}
-          onClick={(e) => { e.stopPropagation(); onCheck(layer.id, !isChecked); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!readOnly) onCheck(layer.id, !isChecked);
+          }}
+          title={readOnly ? '当前为只读' : undefined}
         >
           <span className={`psd-layer-checkbox-inner ${isChecked ? 'is-checked' : ''}`}>
             {isChecked && '✓'}
@@ -100,10 +105,11 @@ function LayerItem({
         {/* Slice toggle button */}
         <button
           className={`psd-layer-mark-btn ${isInManual ? 'is-marked' : ''} ${isMergedSlice ? 'is-merged' : ''}`}
-          title={isInManual ? (isMergedSlice ? '合并切图（不可单独取消）' : '取消切图') : '标记切图'}
-          disabled={isMergedSlice}
+          title={readOnly ? '当前为只读' : isInManual ? (isMergedSlice ? '合并切图（不可单独取消）' : '取消切图') : '标记切图'}
+          disabled={readOnly || isMergedSlice}
           onClick={(e) => {
             e.stopPropagation();
+            if (readOnly) return;
             if (isInManual && !isMergedSlice && belongsToSlice) {
               onUnmarkSlice(belongsToSlice.id);
             } else if (!isInManual) {
@@ -131,6 +137,7 @@ function LayerItem({
           slices={slices}
           onMarkSingle={onMarkSingle}
           onUnmarkSlice={onUnmarkSlice}
+          readOnly={readOnly}
         />
       ))}
     </div>
@@ -154,6 +161,7 @@ export function LayerPanel({
   onMergeSlice,
   onMarkSingle,
   onUnmarkSlice,
+  readOnly = false,
 }) {
   const anyChecked = checkedIds.size > 0;
   const isSingle = checkedIds.size === 1;
@@ -187,6 +195,7 @@ export function LayerPanel({
             slices={slices}
             onMarkSingle={onMarkSingle}
             onUnmarkSlice={onUnmarkSlice}
+            readOnly={readOnly}
           />
         ))}
       </div>
@@ -198,7 +207,12 @@ export function LayerPanel({
             <span>已选 {checkedIds.size} 个图层</span>
             <button className="psd-layer-panel-clear" onClick={onClearChecked} title="清除选择">✕</button>
           </div>
-          <button className="psd-layer-panel-merge-btn" onClick={onMergeSlice}>
+          <button
+            className="psd-layer-panel-merge-btn"
+            onClick={onMergeSlice}
+            disabled={readOnly}
+            title={readOnly ? '当前为只读' : undefined}
+          >
             <Icon name="scissors" /> {isSingle ? '标记为切图' : `合并 ${checkedIds.size} 层为切图`}
           </button>
         </div>

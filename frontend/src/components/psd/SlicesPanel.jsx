@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Icon } from '../common/Icon';
+import { AppSelect } from '../common/AppSelect';
 
 const FORMAT_OPTIONS = ['png', 'jpg', 'svg', 'webp'];
 
@@ -20,6 +21,7 @@ export function SlicesPanel({
   onExportAll,
   showSlices,
   onToggleShow,
+  readOnly = false,
 }) {
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -27,10 +29,12 @@ export function SlicesPanel({
 
   const startEdit = (slice, e) => {
     e.stopPropagation();
+    if (readOnly) return;
     setEditingId(slice.id);
     setDraft({ ...slice });
   };
   const saveEdit = () => {
+    if (readOnly) return;
     if (draft) onUpdate(draft.id, draft);
     setEditingId(null);
     setDraft(null);
@@ -170,14 +174,19 @@ export function SlicesPanel({
                   <button
                     className="slice-action-btn"
                     onClick={(e) => startEdit(slice, e)}
-                    title="编辑"
+                    disabled={readOnly}
+                    title={readOnly ? '当前为只读' : '编辑'}
                   >
                     <Icon name="edit" size="sm" />
                   </button>
                   <button
                     className="slice-action-btn slice-action-delete"
-                    onClick={(e) => { e.stopPropagation(); onDelete(slice.id); }}
-                    title="删除"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!readOnly) onDelete(slice.id);
+                    }}
+                    disabled={readOnly}
+                    title={readOnly ? '当前为只读' : '删除'}
                   >
                     <Icon name="trash" size="sm" />
                   </button>
@@ -185,7 +194,7 @@ export function SlicesPanel({
               </div>
 
               {/* Inline editor */}
-              {isEditing && draft && (
+              {isEditing && draft && !readOnly && (
                 <div className="slice-item-editor" onClick={(e) => e.stopPropagation()}>
                   <div className="slice-editor-field">
                     <label>名称</label>
@@ -214,14 +223,13 @@ export function SlicesPanel({
                   </div>
                   <div className="slice-editor-field">
                     <label>导出格式</label>
-                    <select
+                    <AppSelect
+                      ariaLabel="导出格式"
+                      compact
                       value={draft.exportAs || 'png'}
-                      onChange={(e) => setDraft({ ...draft, exportAs: e.target.value })}
-                    >
-                      {FORMAT_OPTIONS.map((f) => (
-                        <option key={f} value={f}>{f.toUpperCase()}</option>
-                      ))}
-                    </select>
+                      options={FORMAT_OPTIONS.map((f) => ({ value: f, label: f.toUpperCase() }))}
+                      onValueChange={(value) => setDraft({ ...draft, exportAs: value })}
+                    />
                   </div>
                   <div className="slice-editor-actions">
                     <button className="slice-editor-btn primary" onClick={saveEdit}>

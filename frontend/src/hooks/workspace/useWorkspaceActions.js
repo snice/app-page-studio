@@ -36,6 +36,10 @@ export function useWorkspaceActions({ iframeRef, setPickerMenu, requestConfirm }
 
   const handleSaveConfig = useCallback(async () => {
     const state = useAppStore.getState();
+    if (state.session?.isCurrentEditor === false) {
+      showToast('当前为只读，不能保存配置');
+      return;
+    }
     if (state.currentFile) {
       const updates = { zoom: state.zoom };
       if (state.currentFile.sourceType === 'psd') updates.psdSlices = state.psdMarkedSlices;
@@ -151,6 +155,10 @@ export function useWorkspaceActions({ iframeRef, setPickerMenu, requestConfirm }
 
   const handleDeleteFiles = useCallback(async () => {
     const state = useAppStore.getState();
+    if (state.session?.isCurrentEditor === false) {
+      showToast('当前为只读，不能删除页面');
+      return;
+    }
     const projectId = state.getCurrentProjectId();
     if (!projectId) { showToast('请先选择项目'); return; }
     const selectedPaths = Array.from(state.selectedFiles);

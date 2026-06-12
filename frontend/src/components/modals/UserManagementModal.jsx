@@ -1,8 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '../common/Icon';
+import { AppSelect } from '../common/AppSelect';
 import { ModalOverlay } from './ModalOverlay';
+import { ConfirmModal } from './ConfirmModal';
 import { api } from '../../lib/api';
 import { useAppStore } from '../../lib/state';
+
+const USER_ROLE_OPTIONS = [
+  { value: 'user', label: '普通用户' },
+  { value: 'admin', label: '管理员' },
+];
 
 export function UserManagementModal({ isOpen, onClose, currentUser }) {
   const showToast = useAppStore((s) => s.showToast);
@@ -11,6 +18,7 @@ export function UserManagementModal({ isOpen, onClose, currentUser }) {
   const [submitting, setSubmitting] = useState(false);
   const [draft, setDraft] = useState({ username: '', password: '', role: 'user' });
   const [passwordDrafts, setPasswordDrafts] = useState({});
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -85,11 +93,10 @@ export function UserManagementModal({ isOpen, onClose, currentUser }) {
     }
   };
 
-  const deleteUser = async (user) => {
-    if (user.id === currentUser?.id) return;
-    if (!window.confirm(`确定删除用户「${user.username}」？`)) return;
+  const confirmDeleteUser = async () => {
+    if (!deleteTarget) return;
     try {
-      const res = await api.deleteUser(user.id);
+      const res = await api.deleteUser(deleteTarget.id);
       if (res.error) throw new Error(res.error);
       showToast('用户已删除');
       await loadUsers();
@@ -122,14 +129,12 @@ export function UserManagementModal({ isOpen, onClose, currentUser }) {
               placeholder="初始密码"
               autoComplete="new-password"
             />
-            <select
-              className="form-select"
+            <AppSelect
+              ariaLabel="新用户角色"
               value={draft.role}
-              onChange={(e) => setDraft((s) => ({ ...s, role: e.target.value }))}
-            >
-              <option value="user">普通用户</option>
-              <option value="admin">管理员</option>
-            </select>
+              options={USER_ROLE_OPTIONS}
+              onValueChange={(value) => setDraft((s) => ({ ...s, role: value }))}
+            />
             <button className="btn btn-primary" type="submit" disabled={submitting}>
               <Icon name="plus" size="sm" />
               新建用户
@@ -158,15 +163,13 @@ export function UserManagementModal({ isOpen, onClose, currentUser }) {
                       {isSelf && <small>当前账号</small>}
                     </div>
                   </div>
-                  <select
-                    className="form-select"
+                  <AppSelect
+                    ariaLabel={`${user.username} 的系统角色`}
                     value={user.role}
                     disabled={isSelf}
-                    onChange={(e) => updateRole(user, e.target.value)}
-                  >
-                    <option value="user">普通用户</option>
-                    <option value="admin">管理员</option>
-                  </select>
+                    options={USER_ROLE_OPTIONS}
+                    onValueChange={(value) => updateRole(user, value)}
+                  />
                   <div className="user-password-reset">
                     <input
                       className="form-input"
@@ -184,7 +187,7 @@ export function UserManagementModal({ isOpen, onClose, currentUser }) {
                     className="btn btn-danger btn-sm"
                     type="button"
                     disabled={isSelf}
-                    onClick={() => deleteUser(user)}
+                    onClick={() => setDeleteTarget(user)}
                   >
                     <Icon name="trash" size="sm" />
                     删除
@@ -198,6 +201,15 @@ export function UserManagementModal({ isOpen, onClose, currentUser }) {
           <button className="btn btn-secondary" onClick={onClose}>关闭</button>
         </div>
       </div>
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        title="删除用户"
+        message={<>确定删除用户「<b>{deleteTarget?.username}</b>」？</>}
+        confirmText="删除"
+        danger
+        onConfirm={confirmDeleteUser}
+        onClose={() => setDeleteTarget(null)}
+      />
     </ModalOverlay>
   );
 }

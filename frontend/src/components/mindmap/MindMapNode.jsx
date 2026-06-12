@@ -17,6 +17,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
   const updateGroup = useAppStore((s) => s.updateGroup);
   const moveFileToGroup = useAppStore((s) => s.moveFileToGroup);
   const currentFile = useAppStore((s) => s.currentFile);
+  const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
 
   const isHorizontalGroups = direction === 'horizontal';
 
@@ -40,7 +41,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
 
   const handleDoubleClick = (e) => {
     e.stopPropagation();
-    if (type === 'project') return;
+    if (type === 'project' || !isCurrentEditor) return;
     setEditName(label);
     setEditDesc(node.description || '');
     setIsEditing(true);
@@ -48,6 +49,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
 
   const commitEdit = () => {
     setIsEditing(false);
+    if (!isCurrentEditor) return;
     if (!editName.trim()) return;
 
     if (type === 'file') {
@@ -81,7 +83,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
   };
 
   const handleDragStart = (e) => {
-    if (type !== 'file') return;
+    if (type !== 'file' || !isCurrentEditor) return;
     setIsDragging(true);
     e.dataTransfer.setData('text/plain', node.path);
     e.dataTransfer.effectAllowed = 'move';
@@ -90,7 +92,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
   const handleDragEnd = () => setIsDragging(false);
 
   const handleDragOver = (e) => {
-    if (type !== 'group') return;
+    if (type !== 'group' || !isCurrentEditor) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setIsDragOver(true);
@@ -101,7 +103,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragOver(false);
-    if (type !== 'group') return;
+    if (type !== 'group' || !isCurrentEditor) return;
     const filePath = e.dataTransfer.getData('text/plain');
     if (!filePath) return;
     moveFileToGroup([filePath], node.groupId);
@@ -124,7 +126,7 @@ export function MindMapNode({ node, direction, onToggleCollapse, onNodeSelect })
       style={nodeStyle}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
-      draggable={type === 'file' && !isEditing}
+      draggable={type === 'file' && !isEditing && isCurrentEditor}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}

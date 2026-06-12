@@ -8,7 +8,6 @@ import { ElementStylesPanel } from '../components/picker/ElementStylesPanel';
 import { DashboardModals } from './DashboardModals';
 import { useWorkspaceController } from '../hooks/useWorkspaceController';
 import { useAppStore } from '../lib/state';
-import { api } from '../lib/api';
 
 // ==================== 选择器动作菜单 ====================
 function PickerActionMenu({ menu, isHtml, onAction, onClose }) {
@@ -56,62 +55,17 @@ function PickerActionMenu({ menu, isHtml, onAction, onClose }) {
   );
 }
 
-function EditWarningBanner({ onRequestEditorName }) {
-  const session = useAppStore((s) => s.session);
-  const showToast = useAppStore((s) => s.showToast);
-
-  if (session.isCurrentEditor) return null;
-
-  const handleForceAcquire = async () => {
-    const state = useAppStore.getState();
-    const projectId = state.getCurrentProjectId();
-    if (!projectId) return;
-
-    let editorName = state.getEditorName();
-    if (!editorName) {
-      editorName = await onRequestEditorName?.({
-        message: '请输入你的名称，用于多人协作时标识当前编辑者。',
-      });
-      if (!editorName) return;
-      state.setEditorName(editorName);
-    }
-
-    const res = await api.forceAcquireSession(projectId, state.getSessionId(), editorName);
-    if (res.error) {
-      showToast(res.error);
-      return;
-    }
-    state.updateSessionStatus(res);
-    state.startHeartbeat(api);
-    showToast('已接管编辑权');
-  };
-
-  return (
-    <div className="edit-warning show">
-      <div className="edit-warning-content">
-        <Icon name="alert" size="md" />
-        <div className="edit-warning-text">
-          <strong>{session.currentEditor || '其他用户'}</strong> 正在编辑此项目，当前为只读状态
-        </div>
-        <button type="button" className="btn btn-sm" onClick={handleForceAcquire}>
-          接管编辑
-        </button>
-      </div>
-    </div>
-  );
-}
-
-export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject, onRequestEditorName, onRequestConfirm }) {
+export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject, onRequestConfirm }) {
   const ctrl = useWorkspaceController({ requestConfirm: onRequestConfirm });
   const openModal = useAppStore((s) => s.openModal);
   const openDesignSystem = useAppStore((s) => s.openDesignSystem);
   const scanHtmlFiles = useAppStore((s) => s.scanHtmlFiles);
   const selectedFilesCount = useAppStore((s) => s.selectedFiles.size);
   const clearSelection = useAppStore((s) => s.clearSelection);
+  const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
 
   return (
     <div className="app">
-      <EditWarningBanner onRequestEditorName={onRequestEditorName} />
       <Header
         onGoHome={onGoHome}
         onSwitchProject={onSwitchProject}
@@ -136,8 +90,21 @@ export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject, onR
             已选择 <span className="selection-count">{selectedFilesCount}</span> 个文件
           </div>
           <div className="selection-toolbar-actions">
-            <button className="btn btn-sm" style={{ background: '#000', color: '#fff' }} onClick={() => openModal('group')}>创建分组</button>
-            <button className="btn btn-sm btn-secondary" onClick={() => openModal('deleteFiles')}>
+            <button
+              className="btn btn-sm"
+              style={{ background: '#000', color: '#fff' }}
+              onClick={() => openModal('group')}
+              disabled={!isCurrentEditor}
+              title={isCurrentEditor ? '创建分组' : '当前为只读'}
+            >
+              创建分组
+            </button>
+            <button
+              className="btn btn-sm btn-secondary"
+              onClick={() => openModal('deleteFiles')}
+              disabled={!isCurrentEditor}
+              title={isCurrentEditor ? '删除' : '当前为只读'}
+            >
               <Icon name="trash" size="sm" /> 删除
             </button>
             <button className="btn btn-sm btn-secondary" onClick={clearSelection}>取消</button>

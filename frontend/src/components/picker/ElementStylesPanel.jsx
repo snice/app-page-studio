@@ -100,20 +100,23 @@ function ColorRow({ label, colorValue, onCopy }) {
   );
 }
 
-function BgImageRow({ bgImage, onPreview }) {
-  if (!bgImage || bgImage === 'none') return null;
-  const m = bgImage.match(/url\(["']?([^"')]+)["']?\)/);
-  if (!m) return null;
-  const url = m[1];
+function ImageRow({ label, url, onPreview }) {
+  if (!url) return null;
   return (
     <div className="styles-row bg-image-row">
-      <span className="styles-label">背景图</span>
+      <span className="styles-label">{label}</span>
       <span className="styles-value bg-image-value" title="点击放大查看" onClick={() => onPreview(url)}>
-        <img src={url} className="bg-image-thumbnail" alt="背景图" onError={e => e.target.style.display = 'none'} />
+        <img src={url} className="bg-image-thumbnail" alt={label} onError={e => e.target.style.display = 'none'} />
         <span className="bg-image-hint">点击放大</span>
       </span>
     </div>
   );
+}
+
+function extractBgImageUrl(bgImage) {
+  if (!bgImage || bgImage === 'none') return null;
+  const m = bgImage.match(/url\(["']?([^"')]+)["']?\)/);
+  return m ? m[1] : null;
 }
 
 function ImagePreviewOverlay({ url, onClose }) {
@@ -157,6 +160,15 @@ export function ElementStylesPanel({ selector, iframeRef, onClose }) {
       isTextEl.current = TEXT_TAGS.has(tagName.current);
       textContent.current = isTextEl.current ? (el.textContent || '').trim().slice(0, 50) : '';
       styleInfo.current = extractElementStyles(el, cs);
+      const resolveUrl = (raw) => {
+        if (!raw) return '';
+        try { return new URL(raw, doc.baseURI).href; } catch { return raw; }
+      };
+      if (tagName.current === 'img') {
+        styleInfo.current.imgSrc = resolveUrl(el.getAttribute('src'));
+      }
+      const bgUrl = extractBgImageUrl(styleInfo.current.backgroundImage);
+      if (bgUrl) styleInfo.current.bgImageUrl = resolveUrl(bgUrl);
     }
   }
 
@@ -169,17 +181,26 @@ export function ElementStylesPanel({ selector, iframeRef, onClose }) {
     const header = panel.querySelector('.styles-panel-header');
     if (!header) return;
 
-    let dragging = false, startX, startY, px, py;
+    let dragging = false, startX, startY, px, py, pw, ph;
+    let pendingX = 0, pendingY = 0, rafId = 0;
+
+    const flush = () => {
+      rafId = 0;
+      panel.style.transform = `translate3d(${pendingX}px, ${pendingY}px, 0)`;
+    };
 
     const onDown = (e) => {
       if (e.target.closest('.modal-close')) return;
       dragging = true;
       startX = e.clientX; startY = e.clientY;
       const r = panel.getBoundingClientRect();
-      px = r.left; py = r.top;
+      px = r.left; py = r.top; pw = r.width; ph = r.height;
       panel.style.right = 'auto';
       panel.style.left = px + 'px';
       panel.style.top = py + 'px';
+      panel.style.transform = 'translate3d(0,0,0)';
+      panel.style.willChange = 'transform';
+      pendingX = 0; pendingY = 0;
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
       e.preventDefault();
@@ -187,17 +208,25 @@ export function ElementStylesPanel({ selector, iframeRef, onClose }) {
 
     const onMove = (e) => {
       if (!dragging) return;
-      const r = panel.getBoundingClientRect();
-      let nx = px + (e.clientX - startX);
-      let ny = py + (e.clientY - startY);
-      nx = Math.max(0, Math.min(nx, window.innerWidth - r.width));
-      ny = Math.max(0, Math.min(ny, window.innerHeight - r.height));
-      panel.style.left = nx + 'px';
-      panel.style.top = ny + 'px';
+      let dx = e.clientX - startX;
+      let dy = e.clientY - startY;
+      const minDx = -px;
+      const maxDx = window.innerWidth - pw - px;
+      const minDy = -py;
+      const maxDy = window.innerHeight - ph - py;
+      pendingX = Math.max(minDx, Math.min(dx, maxDx));
+      pendingY = Math.max(minDy, Math.min(dy, maxDy));
+      if (!rafId) rafId = requestAnimationFrame(flush);
     };
 
     const onUp = () => {
+      if (!dragging) return;
       dragging = false;
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+      panel.style.left = (px + pendingX) + 'px';
+      panel.style.top = (py + pendingY) + 'px';
+      panel.style.transform = '';
+      panel.style.willChange = '';
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -290,7 +319,8 @@ export function ElementStylesPanel({ selector, iframeRef, onClose }) {
               背景与视觉
             </div>
             <ColorRow label="背景色" colorValue={info.backgroundColor} onCopy={copyToClipboard} />
-            <BgImageRow bgImage={info.backgroundImage} onPreview={setPreviewUrl} />
+            <ImageRow label="图片" url={info.imgSrc} onPreview={setPreviewUrl} />
+            <ImageRow label="背景图" url={info.bgImageUrl} onPreview={setPreviewUrl} />
             <StyleRow label="透明度" value={info.opacity} onCopy={copyToClipboard} />
             <StyleRow label="阴影" value={info.boxShadow} onCopy={copyToClipboard} />
           </div>

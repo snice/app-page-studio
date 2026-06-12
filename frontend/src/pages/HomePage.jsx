@@ -16,13 +16,31 @@ function formatProjectDate(value) {
   });
 }
 
-function ProjectCard({ project, isCurrent, isLoading, onOpenProject, onOpenDesignSystem, onEditProject, onDeleteProject }) {
+function ProjectCard({
+  project,
+  isCurrent,
+  isLoading,
+  currentUser,
+  onOpenProject,
+  onOpenDesignSystem,
+  onOpenMembers,
+  onEditProject,
+  onDeleteProject,
+}) {
   const handleKeyDown = (event) => {
     if (isLoading) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     onOpenProject(project);
   };
+
+  const isAdmin = currentUser?.role === 'admin';
+  const canEditProject = isAdmin || project.memberRole === 'owner' || project.memberRole === 'editor';
+  const canManageProject = isAdmin || project.memberRole === 'owner';
+  const manageTitle = canManageProject ? '共创用户' : '只读用户不能管理共创用户';
+  const editTitle = canEditProject ? '编辑项目' : '只读用户不能编辑项目';
+  const designSystemTitle = canEditProject ? '设计系统' : '只读用户不能编辑设计系统';
+  const deleteTitle = canManageProject ? '删除项目' : '只读用户不能删除项目';
 
   return (
     <article
@@ -43,6 +61,7 @@ function ProjectCard({ project, isCurrent, isLoading, onOpenProject, onOpenDesig
         <div className="project-card-badges">
           {isCurrent && <span className="project-badge">最近打开</span>}
           {project.designSystem && <span className="project-badge muted">设计系统</span>}
+          {project.memberRole === 'viewer' && <span className="project-badge muted">只读</span>}
         </div>
       </div>
 
@@ -67,10 +86,11 @@ function ProjectCard({ project, isCurrent, isLoading, onOpenProject, onOpenDesig
           <button
             type="button"
             className="project-card-action"
-            title="设计系统"
-            disabled={isLoading}
+            title={designSystemTitle}
+            disabled={isLoading || !canEditProject}
             onClick={(event) => {
               event.stopPropagation();
+              if (!canEditProject) return;
               onOpenDesignSystem(project.id);
             }}
           >
@@ -79,10 +99,24 @@ function ProjectCard({ project, isCurrent, isLoading, onOpenProject, onOpenDesig
           <button
             type="button"
             className="project-card-action"
-            title="编辑项目"
-            disabled={isLoading}
+            title={manageTitle}
+            disabled={isLoading || !canManageProject}
             onClick={(event) => {
               event.stopPropagation();
+              if (!canManageProject) return;
+              onOpenMembers(project);
+            }}
+          >
+            <Icon name="users" size="sm" />
+          </button>
+          <button
+            type="button"
+            className="project-card-action"
+            title={editTitle}
+            disabled={isLoading || !canEditProject}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!canEditProject) return;
               onEditProject(project);
             }}
           >
@@ -91,10 +125,11 @@ function ProjectCard({ project, isCurrent, isLoading, onOpenProject, onOpenDesig
           <button
             type="button"
             className="project-card-action danger"
-            title="删除项目"
-            disabled={isLoading}
+            title={deleteTitle}
+            disabled={isLoading || !canManageProject}
             onClick={(event) => {
               event.stopPropagation();
+              if (!canManageProject) return;
               onDeleteProject(project);
             }}
           >
@@ -110,6 +145,7 @@ export function HomePage({
   projects,
   currentProjectId,
   isLoading,
+  currentUser,
   onOpenProject,
 }) {
   const { theme, toggleTheme } = useTheme();
@@ -121,6 +157,7 @@ export function HomePage({
   const onCreateProject = () => openModal('project');
   const onEditProject = (project) => openModal('project', { initialEdit: project });
   const onDeleteProject = (project) => openModal('deleteProject', { project });
+  const onOpenMembers = (project) => openModal('projectMembers', { project });
   const onOpenDesignSystem = (projectId) => openDesignSystem(projectId);
 
   return (
@@ -183,8 +220,10 @@ export function HomePage({
                 project={project}
                 isCurrent={project.id === currentProjectId}
                 isLoading={isLoading}
+                currentUser={currentUser}
                 onOpenProject={onOpenProject}
                 onOpenDesignSystem={onOpenDesignSystem}
+                onOpenMembers={onOpenMembers}
                 onEditProject={onEditProject}
                 onDeleteProject={onDeleteProject}
               />

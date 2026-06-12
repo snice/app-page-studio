@@ -14,9 +14,11 @@ const DEVICES = [
 export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, onIframeLoad, onRegionAction }) {
   const currentFile = useAppStore((s) => s.currentFile);
   const currentProjectId = useAppStore((s) => s.config.currentProject ?? s.getCurrentProjectId());
+  const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
   const isPickerActive = useAppStore((s) => s.isPickerActive);
   const isColorPickerActive = useAppStore((s) => s.isColorPickerActive);
   const isImageRegionSelecting = useAppStore((s) => s.isImageRegionSelecting);
+  const setIsImageRegionSelecting = useAppStore((s) => s.setIsImageRegionSelecting);
   const zoom = useAppStore((s) => s.zoom);
   const setZoom = useAppStore((s) => s.setZoom);
   const zoomLockBySourceType = useAppStore((s) => s.zoomLockBySourceType);
@@ -135,6 +137,13 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
     }
   }, [currentFile?.path]);
 
+  useEffect(() => {
+    if (!isCurrentEditor) {
+      setPsdCropMode(false);
+      setIsImageRegionSelecting(false);
+    }
+  }, [isCurrentEditor, setIsImageRegionSelecting]);
+
   // PSD 图层选中回调
   const handlePsdSelectLayer = useCallback((layer) => {
     setPsdSelectedLayer(layer);
@@ -183,7 +192,8 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
             <button
               className={`crop-btn ${psdCropMode ? 'active' : ''}`}
               onClick={() => setPsdCropMode(v => !v)}
-              title={psdCropMode ? '退出框选' : '框选标记切图'}
+              disabled={!isCurrentEditor}
+              title={!isCurrentEditor ? '当前为只读' : psdCropMode ? '退出框选' : '框选标记切图'}
             >
               <Icon name={psdCropMode ? 'x' : 'crop'} size="sm" />
               <span>{psdCropMode ? '取消框选' : '框选切图'}</span>
@@ -235,7 +245,8 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
           <button
             className={`picker-btn ${isPickerActive || isImageRegionSelecting ? 'active' : ''}`}
             onClick={onTogglePicker}
-            disabled={isPsdLayers}
+            disabled={isPsdLayers || !isCurrentEditor}
+            title={!isCurrentEditor ? '当前为只读' : undefined}
           >
             <Icon name="target" />
             <span>{isPickerActive ? '取消选择' : isImageRegionSelecting ? '拖拽选择' : '添加交互'}</span>
@@ -262,6 +273,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
               onClickSlice={handlePsdClickSlice}
               cropMode={psdCropMode}
               onCropDone={(rect) => {
+                if (!isCurrentEditor) return;
                 setPsdCropMode(false);
                 window.dispatchEvent(new CustomEvent('psd-crop-done', { detail: rect }));
               }}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ProjectModal } from '../components/modals/ProjectModal';
+import { ProjectMembersModal } from '../components/modals/ProjectMembersModal';
 import { ConfirmModal } from '../components/modals/ConfirmModal';
 import { useAppStore } from '../lib/state';
 import { api } from '../lib/api';
@@ -20,6 +21,9 @@ export function HomePageModals({ onProjectSelected }) {
   const initialEdit = projectModal && typeof projectModal === 'object' ? projectModal.initialEdit : null;
   const deleteTarget = modals.deleteProject && typeof modals.deleteProject === 'object'
     ? modals.deleteProject.project
+    : null;
+  const membersTarget = modals.projectMembers && typeof modals.projectMembers === 'object'
+    ? modals.projectMembers.project
     : null;
 
   const confirmDeleteProject = async () => {
@@ -53,6 +57,11 @@ export function HomePageModals({ onProjectSelected }) {
         danger
         onConfirm={confirmDeleteProject}
         onClose={() => closeModal('deleteProject')}
+      />
+      <ProjectMembersModal
+        isOpen={!!membersTarget}
+        project={membersTarget}
+        onClose={() => { closeModal('projectMembers'); loadConfig(); }}
       />
     </>
   );

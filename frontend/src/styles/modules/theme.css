@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+/* ==================== HeroUI 主题覆盖 ==================== */
+@layer base {
+  :root {
+    --primary: #818cf8;
+    --primary-dark: #6366f1;
+    --primary-glow: rgba(129, 140, 248, 0.25);
+    --accent: #f472b6;
+    --accent-glow: rgba(244, 114, 182, 0.2);
+    --bg: #0c0f1a;
+    --bg-secondary: #141827;
+    --bg-tertiary: #1e2336;
+    --bg-elevated: #252a3d;
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --text: #f1f5f9;
+    --text-secondary: #8b95a8;
+    --text-muted: #5a6478;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-subtle: rgba(255, 255, 255, 0.04);
+    --success: #34d399;
+    --success-bg: rgba(52, 211, 153, 0.12);
+    --warning: #fbbf24;
+    --warning-bg: rgba(251, 191, 36, 0.12);
+    --error: #f87171;
+    --error-bg: rgba(248, 113, 113, 0.12);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5);
+    --shadow-glow: 0 0 40px var(--primary-glow);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  [data-theme="light"] {
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --primary-glow: rgba(99, 102, 241, 0.15);
+    --accent: #ec4899;
+    --accent-glow: rgba(236, 72, 153, 0.1);
+    --bg: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f1f5f9;
+    --bg-elevated: #e2e8f0;
+    --bg-hover: rgba(0, 0, 0, 0.05);
+    --text: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --border: rgba(0, 0, 0, 0.08);
+    --border-subtle: rgba(0, 0, 0, 0.04);
+    --success: #22c55e;
+    --success-bg: rgba(34, 197, 94, 0.1);
+    --warning: #f59e0b;
+    --warning-bg: rgba(245, 158, 11, 0.1);
+    --error: #ef4444;
+    --error-bg: rgba(239, 68, 68, 0.1);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.16);
+    --shadow-glow: 0 0 40px var(--primary-glow);
+  }
+}
+
+/* ==================== 基础样式 ==================== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, var(--primary-glow), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, var(--accent-glow), transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+
+[data-theme="light"] body::before {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(236, 72, 153, 0.06), transparent);
+}
+
+input[type="range"] { outline: none; }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px; height: 20px; cursor: pointer; border-radius: 50%;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 20px; height: 20px; cursor: pointer; border-radius: 50%;
+}
+
+/* ==================== Intel Mac 性能优化：禁用 backdrop-filter blur ==================== */
+html[data-intel-mac] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+

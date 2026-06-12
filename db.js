@@ -48,16 +48,6 @@ db.exec(`
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
   );
 
-  CREATE TABLE IF NOT EXISTS edit_sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id INTEGER NOT NULL,
-    session_id TEXT NOT NULL,
-    editor_name TEXT,
-    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_heartbeat DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-  );
-
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
@@ -152,6 +142,10 @@ function normalizeUserId(value) {
 
 function isAdminUser(user) {
   return user?.role === 'admin';
+}
+
+function normalizeMemberRole(role) {
+  return ['owner', 'editor', 'viewer'].includes(role) ? role : null;
 }
 
 function buildProject(row) {
@@ -283,6 +277,121 @@ const Projects = {
   },
 
   /**
+   * 检查用户是否可以管理项目成员
+   */
+  userCanManageMembers(projectId, user) {
+    if (!user) return false;
+    if (isAdminUser(user)) {
+      return !!this.getById(projectId);
+    }
+    const userId = normalizeUserId(user.id);
+    if (!userId) return false;
+    return !!db.prepare(`
+      SELECT 1
+      FROM project_members
+      WHERE project_id = ? AND user_id = ? AND role = 'owner'
+    `).get(projectId, userId);
+  },
+
+  /**
+   * 获取项目成员列表
+   */
+  listMembers(projectId) {
+    return db.prepare(`
+      SELECT pm.project_id, pm.user_id, pm.role, pm.created_at,
+             u.username, u.role AS user_role
+      FROM project_members pm
+      INNER JOIN users u ON u.id = pm.user_id
+      WHERE pm.project_id = ?
+      ORDER BY
+        CASE pm.role WHEN 'owner' THEN 1 WHEN 'editor' THEN 2 ELSE 3 END,
+        u.username COLLATE NOCASE
+    `).all(projectId);
+  },
+
+  /**
+   * 添加或更新项目成员
+   */
+  setMember(projectId, userId, role) {
+    const memberUserId = normalizeUserId(userId);
+    const memberRole = normalizeMemberRole(role);
+    if (!memberUserId || !memberRole) return { ok: false, error: '成员或角色无效' };
+
+    const tx = db.transaction(() => {
+      const project = db.prepare(`SELECT id, owner_user_id FROM projects WHERE id = ?`).get(projectId);
+      if (!project) return { ok: false, error: '项目不存在' };
+      const user = db.prepare(`SELECT id FROM users WHERE id = ?`).get(memberUserId);
+      if (!user) return { ok: false, error: '用户不存在' };
+
+      const existing = db.prepare(`
+        SELECT role FROM project_members WHERE project_id = ? AND user_id = ?
+      `).get(projectId, memberUserId);
+      if (existing?.role === 'owner' && memberRole !== 'owner') {
+        const ownerCount = db.prepare(`
+          SELECT COUNT(*) AS n FROM project_members WHERE project_id = ? AND role = 'owner'
+        `).get(projectId).n;
+        if (ownerCount <= 1) return { ok: false, error: '至少保留一名项目 owner' };
+      }
+
+      db.prepare(`
+        INSERT INTO project_members (project_id, user_id, role)
+        VALUES (?, ?, ?)
+        ON CONFLICT(project_id, user_id) DO UPDATE SET role = excluded.role
+      `).run(projectId, memberUserId, memberRole);
+
+      if (memberRole === 'owner' && project.owner_user_id !== memberUserId) {
+        db.prepare(`UPDATE projects SET owner_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+          .run(memberUserId, projectId);
+      }
+
+      return { ok: true };
+    });
+
+    return tx();
+  },
+
+  /**
+   * 移除项目成员
+   */
+  removeMember(projectId, userId) {
+    const memberUserId = normalizeUserId(userId);
+    if (!memberUserId) return { ok: false, error: '成员无效' };
+
+    const tx = db.transaction(() => {
+      const member = db.prepare(`
+        SELECT role FROM project_members WHERE project_id = ? AND user_id = ?
+      `).get(projectId, memberUserId);
+      if (!member) return { ok: false, error: '成员不存在' };
+
+      if (member.role === 'owner') {
+        const ownerCount = db.prepare(`
+          SELECT COUNT(*) AS n FROM project_members WHERE project_id = ? AND role = 'owner'
+        `).get(projectId).n;
+        if (ownerCount <= 1) return { ok: false, error: '至少保留一名项目 owner' };
+      }
+
+      db.prepare(`DELETE FROM project_members WHERE project_id = ? AND user_id = ?`)
+        .run(projectId, memberUserId);
+
+      const project = db.prepare(`SELECT owner_user_id FROM projects WHERE id = ?`).get(projectId);
+      if (project?.owner_user_id === memberUserId) {
+        const nextOwner = db.prepare(`
+          SELECT user_id FROM project_members
+          WHERE project_id = ? AND role = 'owner'
+          ORDER BY created_at, user_id
+          LIMIT 1
+        `).get(projectId);
+        db.prepare(`UPDATE projects SET owner_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+          .run(nextOwner?.user_id || null, projectId);
+      }
+
+      return { ok: true };
+    });
+
+    return tx();
+  },
+
+  /**
    * 升级旧数据：把未归属项目挂到指定用户名下，并补齐 owner 成员关系。
    */
   assignLegacyProjectsToUser(userId) {
@@ -290,6 +399,14 @@ const Projects = {
     if (!ownerId) return 0;
 
     const tx = db.transaction(() => {
+      // 清理指向已删除用户的悬空 owner_user_id（FK 添加前的历史数据可能存在）
+      db.prepare(`
+        UPDATE projects
+        SET owner_user_id = NULL
+        WHERE owner_user_id IS NOT NULL
+          AND owner_user_id NOT IN (SELECT id FROM users)
+      `).run();
+
       const result = db.prepare(`
         UPDATE projects
         SET owner_user_id = ?
@@ -297,9 +414,10 @@ const Projects = {
       `).run(ownerId);
 
       const rows = db.prepare(`
-        SELECT id, owner_user_id
-        FROM projects
-        WHERE owner_user_id IS NOT NULL
+        SELECT p.id, p.owner_user_id
+        FROM projects p
+        INNER JOIN users u ON u.id = p.owner_user_id
+        WHERE p.owner_user_id IS NOT NULL
       `).all();
 
       const insert = db.prepare(`
@@ -552,149 +670,6 @@ const Projects = {
   }
 };
 
-// 会话过期时间（毫秒）
-const SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 分钟
-
-/**
- * 编辑会话管理
- */
-const EditSessions = {
-  /**
-   * 获取项目的活跃编辑会话
-   * @param {number} projectId
-   * @returns {Object|null} 活跃的编辑会话
-   */
-  getActiveSession(projectId) {
-    // 清理过期会话
-    this.cleanExpired();
-
-    return db.prepare(`
-      SELECT session_id, editor_name, started_at, last_heartbeat
-      FROM edit_sessions
-      WHERE project_id = ?
-      ORDER BY last_heartbeat DESC
-      LIMIT 1
-    `).get(projectId);
-  },
-
-  /**
-   * 注册或更新编辑会话
-   * @param {number} projectId
-   * @param {string} sessionId
-   * @param {string} editorName
-   * @returns {Object} { success, isNewEditor, currentEditor }
-   */
-  registerSession(projectId, sessionId, editorName) {
-    // 清理过期会话
-    this.cleanExpired();
-
-    const existing = this.getActiveSession(projectId);
-
-    if (existing && existing.session_id !== sessionId) {
-      // 有其他人在编辑
-      return {
-        success: true,
-        isCurrentEditor: false,
-        currentEditor: existing.editor_name || '其他用户',
-        startedAt: existing.started_at
-      };
-    }
-
-    // 更新或插入会话
-    const existingOwn = db.prepare(`
-      SELECT 1 FROM edit_sessions WHERE project_id = ? AND session_id = ?
-    `).get(projectId, sessionId);
-
-    if (existingOwn) {
-      db.prepare(`
-        UPDATE edit_sessions
-        SET editor_name = ?, last_heartbeat = CURRENT_TIMESTAMP
-        WHERE project_id = ? AND session_id = ?
-      `).run(editorName, projectId, sessionId);
-    } else {
-      // 清除该项目的其他会话，插入新会话
-      db.prepare(`DELETE FROM edit_sessions WHERE project_id = ?`).run(projectId);
-      db.prepare(`
-        INSERT INTO edit_sessions (project_id, session_id, editor_name)
-        VALUES (?, ?, ?)
-      `).run(projectId, sessionId, editorName);
-    }
-
-    return { success: true, isCurrentEditor: true, currentEditor: editorName };
-  },
-
-  /**
-   * 更新心跳
-   * @param {number} projectId
-   * @param {string} sessionId
-   */
-  heartbeat(projectId, sessionId) {
-    db.prepare(`
-      UPDATE edit_sessions
-      SET last_heartbeat = CURRENT_TIMESTAMP
-      WHERE project_id = ? AND session_id = ?
-    `).run(projectId, sessionId);
-  },
-
-  /**
-   * 检查是否是当前编辑者
-   * @param {number} projectId
-   * @param {string} sessionId
-   * @returns {Object} { isCurrentEditor, currentEditor }
-   */
-  checkSession(projectId, sessionId) {
-    this.cleanExpired();
-    const active = this.getActiveSession(projectId);
-
-    if (!active) {
-      return { isCurrentEditor: true, currentEditor: null };
-    }
-
-    return {
-      isCurrentEditor: active.session_id === sessionId,
-      currentEditor: active.editor_name || '其他用户'
-    };
-  },
-
-  /**
-   * 释放编辑会话
-   * @param {number} projectId
-   * @param {string} sessionId
-   */
-  releaseSession(projectId, sessionId) {
-    db.prepare(`
-      DELETE FROM edit_sessions
-      WHERE project_id = ? AND session_id = ?
-    `).run(projectId, sessionId);
-  },
-
-  /**
-   * 清理过期会话
-   */
-  cleanExpired() {
-    const timeoutSeconds = SESSION_TIMEOUT_MS / 1000;
-    db.prepare(`
-      DELETE FROM edit_sessions
-      WHERE datetime(last_heartbeat, '+' || ? || ' seconds') < datetime('now')
-    `).run(timeoutSeconds);
-  },
-
-  /**
-   * 强制接管编辑会话
-   * @param {number} projectId
-   * @param {string} sessionId
-   * @param {string} editorName
-   */
-  forceAcquire(projectId, sessionId, editorName) {
-    db.prepare(`DELETE FROM edit_sessions WHERE project_id = ?`).run(projectId);
-    db.prepare(`
-      INSERT INTO edit_sessions (project_id, session_id, editor_name)
-      VALUES (?, ?, ?)
-    `).run(projectId, sessionId, editorName);
-    return { success: true, isCurrentEditor: true, currentEditor: editorName };
-  }
-};
-
 const crypto = require('crypto');
 
 /**
@@ -756,7 +731,14 @@ const Users = {
     db.prepare(`UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(role, id);
   },
   delete(id) {
-    db.prepare(`DELETE FROM users WHERE id = ?`).run(id);
+    const tx = db.transaction(() => {
+      // 显式清理用户在所有项目中的成员关系（兼容历史上未启用 FK 的数据）
+      db.prepare(`DELETE FROM project_members WHERE user_id = ?`).run(id);
+      // 将该用户拥有的项目 owner 置空（FK 为 SET NULL，这里显式确保）
+      db.prepare(`UPDATE projects SET owner_user_id = NULL WHERE owner_user_id = ?`).run(id);
+      db.prepare(`DELETE FROM users WHERE id = ?`).run(id);
+    });
+    tx();
   },
   verifyPassword,
 };
@@ -764,6 +746,5 @@ const Users = {
 module.exports = {
   db,
   Projects,
-  EditSessions,
   Users,
 };

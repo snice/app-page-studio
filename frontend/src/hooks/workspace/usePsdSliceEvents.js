@@ -19,6 +19,10 @@ export function usePsdSliceEvents() {
   useEffect(() => {
     const handleMergeSlice = () => {
       const state = useAppStore.getState();
+      if (state.session?.isCurrentEditor === false) {
+        showToast('当前为只读，不能修改页面配置');
+        return;
+      }
       const { psdData, psdCheckedLayerIds } = state;
       if (!psdData || psdCheckedLayerIds.size === 0) return;
 
@@ -49,6 +53,10 @@ export function usePsdSliceEvents() {
       const layer = e.detail?.layer;
       if (!layer) return;
       const state = useAppStore.getState();
+      if (state.session?.isCurrentEditor === false) {
+        showToast('当前为只读，不能修改页面配置');
+        return;
+      }
       const { psdMarkedSlices } = state;
 
       const { bbox, layerIds } = layerMarkTargets(layer);
@@ -114,6 +122,11 @@ export function usePsdSliceEvents() {
     };
 
     const handleCropDone = (e) => {
+      const state = useAppStore.getState();
+      if (state.session?.isCurrentEditor === false) {
+        showToast('当前为只读，不能修改页面配置');
+        return;
+      }
       const rect = e.detail;
       if (!rect || rect.width < 3 || rect.height < 3) return;
       const slice = {

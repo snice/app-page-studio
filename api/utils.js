@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
-const { Projects, EditSessions } = require('../db');
+const { Projects } = require('../db');
 
 // HTML 缓存目录
 const HTML_CACHES_DIR = path.join(__dirname, '..', 'html_caches');
@@ -43,12 +43,21 @@ const imageUpload = multer({
 });
 
 /**
- * 获取项目 HTML 目录路径
+ * 获取项目根目录路径（包含 __html__、__design__、__assets__、__psd__ 子目录）
  * @param {number} projectId
  * @returns {string} 项目目录绝对路径（即使不存在也返回，由调用方决定如何处理）
  */
 function getHtmlDir(projectId) {
   return path.join(HTML_CACHES_DIR, String(projectId || ''));
+}
+
+/**
+ * 获取项目 HTML 解压子目录路径（html_caches/<pid>/__html__）
+ * @param {number} projectId
+ * @returns {string}
+ */
+function getHtmlExtractDir(projectId) {
+  return path.join(getHtmlDir(projectId), '__html__');
 }
 
 /**
@@ -123,28 +132,18 @@ function ensureProjectWritable(req, projectId) {
   }
 
   const session = getRequestSessionInfo(req);
-  const status = EditSessions.checkSession(projectId, session.sessionId || '');
-  if (!status.isCurrentEditor) {
-    return {
-      ok: false,
-      status: 423,
-      error: `"${status.currentEditor || '其他用户'}" 正在编辑此项目，请接管后再操作`,
-      currentEditor: status.currentEditor || '其他用户'
-    };
-  }
 
   return {
     ok: true,
     project: readable.project,
     sessionId: session.sessionId || null,
-    editorName: session.editorName || status.currentEditor || null
+    editorName: session.editorName || null
   };
 }
 
 function sendProjectGuardError(res, guard) {
   return res.status(guard.status || 423).json({
-    error: guard.error || '当前项目暂不可写',
-    currentEditor: guard.currentEditor || null
+    error: guard.error || '当前项目暂不可写'
   });
 }
 
@@ -224,6 +223,7 @@ module.exports = {
   upload,
   imageUpload,
   getHtmlDir,
+  getHtmlExtractDir,
   resolveSafe,
   asyncHandler,
   getRequestSessionInfo,

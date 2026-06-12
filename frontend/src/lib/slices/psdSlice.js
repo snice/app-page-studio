@@ -2,6 +2,8 @@
  * PSD 切图状态：模式、图层、选中、已标记切片。
  */
 export function createPsdSlice(set, get) {
+  const canEditPages = () => get().session?.isCurrentEditor !== false;
+
   return {
     psdMode: 'preview', // 'preview' | 'layers'
     psdData: null,
@@ -36,15 +38,18 @@ export function createPsdSlice(set, get) {
     clearPsdCheckedLayers() { set({ psdCheckedLayerIds: new Set() }); },
     setPsdMarkedSlices(slices) { set({ psdMarkedSlices: slices }); },
     addPsdMarkedSlice(slice) {
+      if (!canEditPages()) return;
       set((s) => ({ psdMarkedSlices: [...s.psdMarkedSlices, slice] }));
     },
     removePsdMarkedSlice(id) {
+      if (!canEditPages()) return;
       set((s) => ({
         psdMarkedSlices: s.psdMarkedSlices.filter(x => x.id !== id),
         psdSelectedSliceId: s.psdSelectedSliceId === id ? null : s.psdSelectedSliceId,
       }));
     },
     updatePsdMarkedSlice(id, updates) {
+      if (!canEditPages()) return;
       set((s) => ({
         psdMarkedSlices: s.psdMarkedSlices.map(x => x.id === id ? { ...x, ...updates } : x),
       }));

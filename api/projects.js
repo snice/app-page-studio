@@ -7,11 +7,14 @@ const path = require('path');
 const fs = require('fs');
 const AdmZip = require('adm-zip');
 const router = express.Router();
+const { Users } = require('../db');
 const {
   HTML_CACHES_DIR,
   upload,
   extractZipToDir,
+  getHtmlExtractDir,
   shouldSkipZipEntry,
+  ensureProjectReadable,
   ensureProjectWritable,
   sendWriteGuardError,
   Projects
@@ -60,6 +63,33 @@ function listProjectsResponse(req) {
   return { projects: Projects.getAll(req.authUser).map(serializeProject) };
 }
 
+function serializeMember(m) {
+  return {
+    userId: m.user_id,
+    username: m.username,
+    role: m.role,
+    userRole: m.user_role,
+    createdAt: m.created_at
+  };
+}
+
+function canManageMembers(req, projectId) {
+  return Projects.userCanManageMembers(projectId, req.authUser);
+}
+
+function requireProjectMemberManager(req, res, projectId) {
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) {
+    res.status(readable.status || 404).json({ error: readable.error || '项目不存在' });
+    return null;
+  }
+  if (!canManageMembers(req, projectId)) {
+    res.status(403).json({ error: '需要项目 owner 或管理员权限' });
+    return null;
+  }
+  return readable.project;
+}
+
 // 获取所有项目（/api/config 为历史别名，等价于 /api/projects）
 router.get(['/projects', '/config'], (req, res) => {
   res.json(listProjectsResponse(req));
@@ -72,6 +102,71 @@ router.get('/projects/:id', (req, res) => {
     return res.status(404).json({ error: '项目不存在' });
   }
   res.json(serializeProject(project));
+});
+
+// 获取项目共创成员
+router.get('/projects/:id/members', (req, res) => {
+  const projectId = parseInt(req.params.id, 10);
+  const readable = ensureProjectReadable(req, projectId);
+  if (!readable.ok) {
+    return res.status(readable.status || 404).json({ error: readable.error || '项目不存在' });
+  }
+
+  const canManage = canManageMembers(req, projectId);
+  res.json({
+    members: Projects.listMembers(projectId).map(serializeMember),
+    users: canManage ? Users.list() : [],
+    canManage
+  });
+});
+
+// 添加或更新项目共创成员
+router.post('/projects/:id/members', (req, res) => {
+  const projectId = parseInt(req.params.id, 10);
+  const project = requireProjectMemberManager(req, res, projectId);
+  if (!project) return;
+
+  const userId = Number.parseInt(req.body?.userId, 10);
+  const role = req.body?.role || 'editor';
+  const result = Projects.setMember(projectId, userId, role);
+  if (!result.ok) return res.status(400).json({ error: result.error || '保存成员失败' });
+
+  res.json({
+    success: true,
+    members: Projects.listMembers(projectId).map(serializeMember)
+  });
+});
+
+// 更新项目共创成员角色
+router.put('/projects/:id/members/:userId', (req, res) => {
+  const projectId = parseInt(req.params.id, 10);
+  const project = requireProjectMemberManager(req, res, projectId);
+  if (!project) return;
+
+  const userId = Number.parseInt(req.params.userId, 10);
+  const result = Projects.setMember(projectId, userId, req.body?.role);
+  if (!result.ok) return res.status(400).json({ error: result.error || '更新成员失败' });
+
+  res.json({
+    success: true,
+    members: Projects.listMembers(projectId).map(serializeMember)
+  });
+});
+
+// 移除项目共创成员
+router.delete('/projects/:id/members/:userId', (req, res) => {
+  const projectId = parseInt(req.params.id, 10);
+  const project = requireProjectMemberManager(req, res, projectId);
+  if (!project) return;
+
+  const userId = Number.parseInt(req.params.userId, 10);
+  const result = Projects.removeMember(projectId, userId);
+  if (!result.ok) return res.status(400).json({ error: result.error || '移除成员失败' });
+
+  res.json({
+    success: true,
+    members: Projects.listMembers(projectId).map(serializeMember)
+  });
 });
 
 // 创建项目（带 ZIP 上传）
@@ -96,7 +191,7 @@ router.post('/projects', upload.single('htmlZip'), (req, res, next) => {
       const projectDir = path.join(HTML_CACHES_DIR, String(projectId));
 
       if (zipContents.hasHtml) {
-        extractZipToDir(req.file.buffer, projectDir);
+        extractZipToDir(req.file.buffer, path.join(projectDir, '__html__'));
       } else if (zipContents.hasImages) {
         const designDir = path.join(projectDir, '__design__');
         extractZipToDir(req.file.buffer, designDir);
@@ -150,15 +245,15 @@ router.post('/projects/:id/html', upload.single('htmlZip'), (req, res, next) => 
   if (!guard.ok) return sendWriteGuardError(res, guard);
 
   try {
-    const projectDir = path.join(HTML_CACHES_DIR, String(projectId));
+    const htmlDir = getHtmlExtractDir(projectId);
 
-    // 清空现有目录
-    if (fs.existsSync(projectDir)) {
-      fs.rmSync(projectDir, { recursive: true });
+    // 清空现有 HTML 子目录（保留 __design__/__assets__/__psd__）
+    if (fs.existsSync(htmlDir)) {
+      fs.rmSync(htmlDir, { recursive: true });
     }
 
-    // 解压新的 ZIP
-    extractZipToDir(req.file.buffer, projectDir);
+    // 解压新的 ZIP 到 __html__
+    extractZipToDir(req.file.buffer, htmlDir);
 
     // 更新时间
     Projects.touch(projectId);
@@ -173,8 +268,8 @@ router.post('/projects/:id/html', upload.single('htmlZip'), (req, res, next) => 
 router.delete('/projects/:id', (req, res, next) => {
   const projectId = parseInt(req.params.id);
 
-  const guard = ensureProjectWritable(req, projectId);
-  if (!guard.ok) return sendWriteGuardError(res, guard);
+  const project = requireProjectMemberManager(req, res, projectId);
+  if (!project) return;
 
   try {
     // 删除 HTML 缓存目录

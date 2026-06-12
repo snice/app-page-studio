@@ -8,6 +8,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script>
+      // 在 React 挂载前同步应用主题，避免首屏先 dark 再切 light 的闪烁
+      (function() {
+        try {
+          var saved = localStorage.getItem('theme') || 'dark';
+          document.documentElement.setAttribute('data-theme', saved);
+        } catch(e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+    <script>
       // 检测 Intel Mac，设置 data-intel-mac 属性以禁用 backdrop-filter（避免卡顿）
       (function() {
         if (!/Mac/i.test(navigator.userAgent || navigator.platform)) return;
