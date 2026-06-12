@@ -194,7 +194,7 @@
 .psd-layer-panel-list {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 4px 0 calc(72px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Layer row */
@@ -549,6 +549,7 @@
 .slices-panel-list {
   flex: 1;
   overflow-y: auto;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
 }
 .slices-panel-empty {
   display: flex;
@@ -775,4 +776,3 @@
   border-color: var(--accent);
   color: #fff;
 }
-

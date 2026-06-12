@@ -39,19 +39,30 @@ export function createPsdSlice(set, get) {
     setPsdMarkedSlices(slices) { set({ psdMarkedSlices: slices }); },
     addPsdMarkedSlice(slice) {
       if (!canEditPages()) return;
-      set((s) => ({ psdMarkedSlices: [...s.psdMarkedSlices, slice] }));
+      set((s) => ({
+        psdMarkedSlices: [...s.psdMarkedSlices, slice],
+        ...(s.currentFile?.sourceType === 'psd' ? {
+          dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true },
+        } : {}),
+      }));
     },
     removePsdMarkedSlice(id) {
       if (!canEditPages()) return;
       set((s) => ({
         psdMarkedSlices: s.psdMarkedSlices.filter(x => x.id !== id),
         psdSelectedSliceId: s.psdSelectedSliceId === id ? null : s.psdSelectedSliceId,
+        ...(s.currentFile?.sourceType === 'psd' ? {
+          dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true },
+        } : {}),
       }));
     },
     updatePsdMarkedSlice(id, updates) {
       if (!canEditPages()) return;
       set((s) => ({
         psdMarkedSlices: s.psdMarkedSlices.map(x => x.id === id ? { ...x, ...updates } : x),
+        ...(s.currentFile?.sourceType === 'psd' ? {
+          dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true },
+        } : {}),
       }));
     },
     setPsdSelectedSliceId(id) { set({ psdSelectedSliceId: id, psdSelectedLayer: null }); },

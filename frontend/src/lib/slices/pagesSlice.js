@@ -98,6 +98,7 @@ export function createPagesSlice(set, get) {
         const htmlFiles = [...(s.pagesConfig.htmlFiles || [])];
         const index = htmlFiles.findIndex((file) => file.path === fileConfig.path);
         const existing = index >= 0 ? htmlFiles[index] : null;
+        const isCurrentRemoteFile = s.currentFile?.path === fileConfig.path;
         const nextFile = s.dirtyGroups && existing
           ? {
               ...fileConfig,
@@ -122,6 +123,12 @@ export function createPagesSlice(set, get) {
               ...(meta.fileHash ? { [nextFile.path]: meta.fileHash } : {}),
             },
           },
+          ...(isCurrentRemoteFile && nextFile.sourceType === 'psd' ? {
+            psdMarkedSlices: nextFile.psdSlices || [],
+            psdSelectedSliceId: (nextFile.psdSlices || []).some((slice) => slice.id === s.psdSelectedSliceId)
+              ? s.psdSelectedSliceId
+              : null,
+          } : {}),
         };
       });
     },
@@ -194,6 +201,10 @@ export function createPagesSlice(set, get) {
         const file = s.pagesConfig.htmlFiles.find((f) => f.path === path);
         if (!file) return {};
         const next = { currentFile: file };
+        if (file.sourceType === 'psd') {
+          next.psdMarkedSlices = file.psdSlices || [];
+          next.psdSelectedSliceId = null;
+        }
         if (s.zoomLockBySourceType && file.sourceType) {
           const saved = s.zoomBySourceType[file.sourceType];
           if (typeof saved === 'number') next.zoom = Math.max(25, Math.min(200, saved));
