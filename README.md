@@ -51,6 +51,17 @@ npm start
 
 访问 http://localhost:3000
 
+### 运维脚本
+
+重置指定账号的密码为默认值 `123456`：
+
+```bash
+node tools/reset-password.js -u <username>
+```
+
+参数：
+- `-u, --username` 要重置密码的用户名（必填）
+
 ## 📖 使用流程
 
 ### 1. 创建/选择项目
