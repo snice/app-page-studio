@@ -1,188 +1,299 @@
+@/Users/itfenbao/.codex/RTK.md
+
 # AGENTS.md
 
 This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-App Page Studio is a web-based tool that converts design HTML exports (from tools like 蓝湖/Lanhu) into structured AI prompts for generating Flutter or React Native code.
+App Page Studio is a web tool for turning design inputs into structured AI implementation prompts for Flutter, React Native, and UniApp. It supports HTML exports, raster design images, PSD previews/layers/slices, page grouping, design-system metadata, and multi-user project collaboration.
+
+The active frontend is Vite + React under `frontend/`. The old `public/` HTML/CSS/JS implementation is obsolete and should not be updated.
 
 ## Commands
 
+Agent shell commands in this repo should be run with the `rtk` prefix.
+
 ```bash
-npm install      # Install dependencies
-npm start        # Start server on port 3000
-npm run dev      # Start with auto-open browser
+rtk npm install             # Install dependencies
+rtk npm start               # Start Express server on port 3000
+rtk npm run dev             # Start Express server with auto-open behavior
+rtk npm run dev:frontend    # Start Vite frontend dev server
+rtk npm run build:frontend  # Build frontend to frontend/dist
+rtk npm run dev:all         # Build frontend, then start backend in dev mode
+```
+
+Useful maintenance command:
+
+```bash
+rtk node tools/reset-password.js -u <username>
 ```
 
 ## Architecture
 
 ### Backend Structure
-```
-├── server.js           # Main entry, Express server, WebSocket
-├── db.js               # SQLite database module
+
+```text
+├── server.js           # Express entry, sessions, static frontend, WebSocket, file watcher
+├── db.js               # SQLite schema and data-access modules
 └── api/
-    ├── utils.js        # Shared utilities (upload, extractZip, etc.)
-    ├── projects.js     # Project management APIs
-    ├── pages.js        # Pages config APIs
-    ├── html.js         # HTML scan/analyze APIs
-    └── prompt.js       # Prompt generation API
+    ├── auth.js         # Login/logout/current user/admin user management
+    ├── projects.js     # Project CRUD and project members
+    ├── pages.js        # Pages config save/load/history APIs
+    ├── html.js         # HTML/design file upload, scan, analysis, delete, ZIP download
+    ├── image.js        # Design image and asset upload/list APIs
+    ├── psd.js          # PSD upload/list/preview APIs
+    ├── prompt.js       # Prompt generation route
+    ├── prompt/         # Prompt builders by target platform
+    └── utils.js        # Shared upload, auth guard, path, ZIP, broadcast helpers
 ```
 
 ### Server (`server.js`)
-Lightweight entry point:
-- Express middleware setup
-- Static file serving (`/public`, `/html`)
-- WebSocket server for hot-reload
-- File watcher (chokidar) for HTML changes
-- Mounts API routers from `api/` directory
+
+- Uses Express with JSON payloads up to 50 MB.
+- Uses `express-session` with `better-sqlite3-session-store`; cookie name is `aps.sid`.
+- Bootstraps an admin account on first run. `BOOTSTRAP_ADMIN_USERNAME` and `BOOTSTRAP_ADMIN_PASSWORD` can override defaults.
+- Serves Vite build output from `frontend_dist` first, then `frontend/dist`.
+- Serves project files from `/html/:projectId` after auth and project-access checks.
+- Mounts `/api/auth/*` first; all business API routers are protected by `requireAuth`.
+- Provides SPA fallback to `index.html` for non-API and non-HTML routes.
+- Runs authenticated WebSocket upgrades at `/ws`.
+- Watches `html_caches/` with chokidar and broadcasts `html:changed` for HTML/PSD changes.
+
+### WebSocket Model
+
+WebSocket connections are authenticated through the same Express session as HTTP.
+
+Current event types:
+
+- `session` - server returns session, connection, and user identity.
+- `presence:update` - client reports current project/page/group scope.
+- `presence:list` - server broadcasts current collaborators in a project.
+- `files:changed` - upload/delete changed file list; other clients rescan.
+- `pages:file-saved` - one page config was saved; other clients merge when clean.
+- `pages:groups-saved` - group metadata and file assignments were saved.
+- `pages:full-saved` - whole project config was saved.
+- `html:changed` - watched HTML/PSD file changed on disk.
+
+Presence is advisory: it helps users see possible page/group conflicts before saving. Actual conflict control is enforced by revision/hash checks in `api/pages.js`.
 
 ### Database (`db.js`)
-SQLite database module using `better-sqlite3`:
-- **Tables**:
-  - `projects`: id, name, description, created_at, updated_at, is_current
-  - `project_pages`: id, project_id, pages_json, updated_at
-- **Projects API**: getAll, getCurrent, getById, create, update, delete, setCurrent, getPagesJson, savePagesJson
 
-### API Modules (`api/`)
+SQLite is accessed through `better-sqlite3`.
 
-**utils.js** - Shared utilities:
-- `HTML_CACHES_DIR` - Path to html_caches directory
-- `upload` - Multer middleware for ZIP upload
-- `getCurrentProject()` - Get current project from DB
-- `getHtmlDir()` - Get HTML directory path
-- `extractZipToDir()` - Extract ZIP with hidden file filtering
+Core tables:
 
-**projects.js** - Project management:
-- `GET /api/config` - Get configuration with project list
-- `GET /api/projects` - Get all projects
-- `GET /api/projects/:id` - Get single project
-- `POST /api/projects` - Create project (multipart: name, description, htmlZip)
-- `PUT /api/projects/:id` - Update project info
-- `POST /api/projects/:id/html` - Replace project HTML (multipart: htmlZip)
-- `DELETE /api/projects/:id` - Delete project
-- `POST /api/projects/:id/activate` - Set as current project
-- `GET /api/browse` - Browse filesystem directories
+- `users`: username, password hash, role (`admin` or `user`).
+- `projects`: name, description, design system JSON, owner user.
+- `project_members`: project/user membership with role (`owner`, `editor`, `viewer`).
+- `project_pages`: current pages config JSON, revision, updated actor/session.
+- `project_page_revisions`: historical snapshots for restore.
 
-**pages.js** - Pages configuration:
-- `GET /api/pages` - Get pages.json for current project
-- `POST /api/pages` - Save pages.json for current project
+The session store also persists Express session data in SQLite.
 
-**html.js** - HTML scanning and analysis:
-- `GET /api/scan-html` - Scan HTML files in current project
-- `GET /api/html-content` - Read HTML content
-- `GET /api/analyze-html` - Analyze HTML structure (colors, interactive elements)
-- `GET /api/extract-images` - Extract image paths from HTML
-- `POST /api/copy-images` - Copy images to project assets directory
+Key data modules:
 
-**prompt.js** - Prompt generation:
-- `POST /api/generate-prompt` - Generate AI development prompt
+- `Users`: login/admin user management helpers.
+- `Projects`: project CRUD, access checks, members, page config save/merge/history helpers.
 
-### HTML Storage
-Project HTML files are stored in `html_caches/{project_id}/` directory, uploaded as ZIP files.
+### API Modules
 
-### Frontend Structure
+All business APIs require login unless noted.
 
-> **Note**: `public/` 下的纯 HTML/CSS/JS 版本已废弃，不再更新。当前前端为 Vite + React 实现。
+**auth.js**
 
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `GET /api/auth/users` - admin only
+- `POST /api/auth/users` - admin only
+- `PUT /api/auth/users/:id` - admin only
+- `DELETE /api/auth/users/:id` - admin only
+
+**projects.js**
+
+- `GET /api/projects` and `GET /api/config` - list accessible projects.
+- `GET /api/projects/:id` - get one project.
+- `GET /api/projects/:id/members` - list members and, for managers, users.
+- `POST /api/projects/:id/members` - add/update member.
+- `PUT /api/projects/:id/members/:userId` - update member role.
+- `DELETE /api/projects/:id/members/:userId` - remove member.
+- `POST /api/projects` - create project, optionally with ZIP upload.
+- `PUT /api/projects/:id` - update name, description, design system.
+- `POST /api/projects/:id/html` - replace the project's `__html__` directory.
+- `DELETE /api/projects/:id` - delete project.
+
+**pages.js**
+
+- `GET /api/pages?projectId=` - returns `pagesConfig`, `revision`, `entityHashes`, actor metadata.
+- `POST /api/pages?projectId=` - full config save; requires `expectedRevision`.
+- `PATCH /api/pages/file?projectId=` - save one file config by `path` and `baseHash`.
+- `PATCH /api/pages/groups?projectId=` - save `pageGroups` and group assignments by `baseHash`.
+- `GET /api/pages/history?projectId=&limit=` - list revision snapshots.
+- `POST /api/pages/restore?projectId=` - restore a historical revision.
+
+**html.js**
+
+- `POST /api/upload-html?projectId=` - merge uploaded HTML ZIP into `__html__`.
+- `POST /api/delete-files` - delete selected HTML/image/PSD files.
+- `GET /api/scan-html?projectId=` - scan `__html__` and `__psd__`.
+- `GET /api/html-content?projectId=&path=` - read HTML file content.
+- `GET /api/analyze-html?projectId=&path=` - extract colors, structure, interactive elements.
+- `POST /api/download-design-zip` - package selected design files and PSD slices.
+
+**image.js**
+
+- `POST /api/upload-image?projectId=` - upload design images into `__design__`.
+- `GET /api/list-images?projectId=` - list design images.
+- `POST /api/upload-asset?projectId=` - upload slice assets into `__assets__`.
+
+**psd.js**
+
+- `POST /api/upload-psd?projectId=` - upload PSD files or ZIPs into `__psd__`, generating previews.
+- `GET /api/list-psd?projectId=` - list PSD files.
+- `GET /api/psd-preview?projectId=&path=` - ensure/return PSD preview path.
+
+**prompt.js + prompt/**
+
+- `POST /api/generate-prompt` - prompt generation entry.
+- Builders live in `api/prompt/` and currently cover Flutter, React Native, and UniApp.
+
+### Storage Layout
+
+Project files live under `html_caches/{projectId}/`.
+
+```text
+html_caches/{projectId}/
+├── __html__/    # Extracted HTML exports and their local assets
+├── __design__/  # Uploaded PNG/JPG/WebP design images
+├── __assets__/  # User-uploaded slice/replacement assets
+└── __psd__/     # Uploaded PSD files and generated PNG previews
 ```
+
+Always resolve user-provided file paths with `resolveSafe()` or an equivalent guarded path check before reading/deleting files.
+
+## Pages Config And Save Model
+
+`project_pages.pages_json` stores the whole pages config blob, but the API supports narrow writes to reduce collaboration conflicts.
+
+Top-level config shape:
+
+- `projectName`
+- `targetPlatform`
+- `designSystem`
+- `sharedComponents`
+- `htmlFiles[]`
+- `pageGroups[]`
+
+Important save behavior:
+
+- "保存当前页" saves dirty group data first if needed, then saves only the current file through `PATCH /api/pages/file`.
+- "保存全部" saves the entire config through `POST /api/pages` with `expectedRevision`.
+- Group create/edit/assignment changes are saved through `PATCH /api/pages/groups`.
+- `GET /api/pages` returns `entityHashes.files[path]` and `entityHashes.groups`; these are the bases for per-file and per-group conflict checks.
+- Full saves conflict on revision; file/group saves conflict only when that target hash changed.
+- Every successful write increments the pages revision and snapshots previous config for history/restore.
+
+## Frontend Structure
+
+The current frontend is Vite + React.
+
+```text
 frontend/
-├── index.html                  # Vite 入口 HTML
-├── src/
-│   ├── main.jsx                # React 入口
-│   ├── App.jsx                 # 主应用组件（Picker/ColorPicker 逻辑、动作菜单）
-│   ├── components/
-│   │   ├── common/
-│   │   │   ├── Icon.jsx        # SVG 图标组件（基于 icons.js 数据）
-│   │   │   └── Toast.jsx       # Toast 提示组件
-│   │   ├── layout/
-│   │   │   ├── Header.jsx      # 顶部工具栏
-│   │   │   ├── Sidebar.jsx     # 左侧文件列表（含搜索、分组、筛选）
-│   │   │   ├── PreviewPanel.jsx# 中间预览面板（iframe + 缩放控制）
-│   │   │   └── ConfigPanel.jsx # 右侧配置面板（页面配置、交互/切图/功能描述列表、TabBar）
-│   │   ├── modals/
-│   │   │   └── Modals.jsx      # 弹窗集合（项目、提示词生成等）
-│   │   └── picker/
-│   │       └── ElementStylesPanel.jsx # 元素样式编辑面板
-│   ├── hooks/
-│   │   ├── useTheme.js         # 主题切换 Hook
-│   │   └── useWebSocket.js     # WebSocket 热更新 Hook
-│   ├── lib/
-│   │   ├── api.js              # API 请求封装
-│   │   ├── picker.js           # Picker/ColorPicker（直接操作 iframe.contentDocument）
-│   │   └── state.js            # Zustand 全局状态管理
-│   └── styles/
-│       └── app.css             # 全局样式（含主题变量）
+├── index.html
+├── package.json
+└── src/
+    ├── main.jsx                     # React entry with BrowserRouter
+    ├── App.jsx                      # Auth gate, routes, global user bar/modals
+    ├── pages/
+    │   ├── LoginPage.jsx
+    │   ├── HomePage.jsx             # Project dashboard
+    │   ├── HomePageModals.jsx
+    │   ├── DashboardPage.jsx        # Workspace shell
+    │   └── DashboardModals.jsx
+    ├── components/
+    │   ├── common/                  # Icon, AppSelect, Toast
+    │   ├── layout/                  # Header, Sidebar, PreviewPanel, ConfigPanel
+    │   ├── layout/ConfigPanel/      # Lists and form sections for page config
+    │   ├── modals/                  # Project/member/user/history/prompt/design modals
+    │   ├── picker/                  # HTML element styles and image region selection
+    │   ├── psd/                     # PSDCanvas, LayerPanel, SlicesPanel
+    │   └── mindmap/                 # Page group mind map
+    ├── hooks/
+    │   ├── useTheme.js
+    │   ├── useWebSocket.js
+    │   ├── useWorkspaceController.js
+    │   └── workspace/               # Iframe reload, picker, PSD events, actions
+    ├── lib/
+    │   ├── api/                     # Auth/projects/pages/html/prompt/users API modules
+    │   ├── slices/                  # Zustand state slices
+    │   ├── state.js                 # Store assembly
+    │   ├── picker.js
+    │   ├── psdUtils.js
+    │   └── clipboard.js
+    └── styles/
+        ├── app.css
+        └── modules/                 # Layout, header, sidebar, psd, modals, etc.
 ```
 
-### Key Data Structures
+Routing:
 
-**Projects** (SQLite `projects` table):
-- `id`: Project ID (auto-increment)
-- `name`: Project name
-- `description`: Optional description
-- `is_current`: 1 if this is the active project
+- `/` - project home.
+- `/dashboard?pid=<projectId>` - workspace.
 
-**Pages Config** (SQLite `project_pages` table, stored as JSON):
-- `pageGroups[]`: Groups of HTML files representing one app page's states
-- `htmlFiles[]`: Individual file configs with stateName, description, groupId, interactions
+## Frontend State And Collaboration
 
-### Dependencies
-- `express` - HTTP server
-- `better-sqlite3` - SQLite database
-- `multer` - File upload handling
-- `adm-zip` - ZIP file extraction
-- `cheerio` - HTML parsing for analysis
-- `chokidar` - File watching
-- `ws` - WebSocket for hot reload
-- `open` - Browser opening (ES module, use dynamic import)
+- Global state is Zustand, split into `frontend/src/lib/slices/*`.
+- `useWorkspaceController()` composes workspace behavior from focused hooks:
+  - `useIframeHotReload()` handles WebSocket events, presence, remote merges, iframe reloads.
+  - `useWorkspaceActions()` owns file selection, saves, downloads, and deletion.
+  - `useIframePicker()` owns HTML/image selection flow.
+  - `usePsdSliceEvents()` owns PSD slice state syncing.
+- API wrappers live in `frontend/src/lib/api/*`; prefer adding endpoint wrappers there instead of calling `fetch` directly in components.
+- Components should read/write store state through `useAppStore`.
 
 ## Code Style Guidelines
 
 ### Icons
-**IMPORTANT: Always use SVG icons via `<icon-component>`, never use emoji.**
 
-All icons are defined in `icons.js` as a Web Component. Use:
+Always use SVG icons via the React `<Icon>` component, never emoji for UI icons.
 
-```html
-<!-- In HTML -->
-<icon-component name="check"></icon-component>
-<icon-component name="folder" size="lg"></icon-component>
-```
+Icons are defined in `frontend/src/components/common/Icon.jsx` in the `ICONS` object.
 
-```javascript
-// In JS (dynamic rendering)
-UI.icon('check')           // Returns: <icon-component name="check"></icon-component>
-UI.icon('folder', 'lg')    // Returns: <icon-component name="folder" size="lg"></icon-component>
+```jsx
+import { Icon } from '../common/Icon';
+
+<Icon name="check" />
+<Icon name="folder" size="lg" />
 ```
 
 Size options:
-- (default) - 16x16
-- `sm` - 14x14
-- `md` - 18x18
-- `lg` - 20x20
-- `xl` - 24x24
 
-Available icons (defined in `ICONS` object in `icons.js`):
-- **App**: smartphone
-- **Actions**: refresh, save, sparkles, plus
-- **Theme**: sun, moon
-- **Files**: file, fileEmpty, folder, folderOpen
-- **Navigation**: chevronDown, chevronUp, arrowUp
-- **Editing**: edit, trash, x, check
-- **Functions**: target, copy, download, upload, package
+- default: 16 x 16
+- `sm`: 14 x 14
+- `md`: 18 x 18
+- `lg`: 20 x 20
+- `xl`: 24 x 24
 
-To add new icons:
-1. Add the SVG path to `ICONS` object in `icons.js`
-2. Only include the inner content (no `<svg>` wrapper), e.g.: `newIcon: '<path d="..."/>'`
+To add a new icon, add an entry to `ICONS` with only the SVG inner content, no `<svg>` wrapper.
 
 ### Theme Support
-- Use CSS variables for all colors (defined in `:root` and `[data-theme="light"]`)
-- Test both light and dark themes when adding new UI elements
-- Ensure sufficient contrast in both themes
+
+- Use CSS variables from `frontend/src/styles/modules/theme.css` and `app.css`.
+- Check both dark and light themes when adding UI.
+- Keep controls compact and avoid layout shifts on hover.
 
 ### API Development
-When adding new API endpoints:
-1. Create or update appropriate file in `api/` directory
-2. Use `express.Router()` for route definitions
-3. Import shared utilities from `api/utils.js`
-4. Export router and mount in `server.js`
+
+- Put new routes in the appropriate `api/*.js` router and mount new routers in `server.js`.
+- Use `requireAuth` at router mount level unless the endpoint must be public.
+- Use `ensureProjectReadable()` and `ensureProjectWritable()` for project-scoped access.
+- Use `broadcastProjectEvent()` for file/config changes that other clients should observe.
+- Return structured conflict responses with `conflict: true` when save guards fail.
+
+### Frontend Development
+
+- Keep page/workspace logic in hooks or store slices; avoid growing layout components with business logic.
+- Preserve the per-page/per-group save model unless a change explicitly needs full-config save.
+- For file list changes after upload/delete, rely on `files:changed` plus `scanHtmlFiles()`.
+- PSD slice changes must keep `psdMarkedSlices` and the current file's `psdSlices` in sync.
