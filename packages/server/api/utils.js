@@ -8,9 +8,9 @@ const fs = require('fs');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
 const { Projects } = require('../db');
+const { HTML_CACHES_DIR } = require('../paths');
 
 // HTML 缓存目录
-const HTML_CACHES_DIR = path.join(__dirname, '..', 'html_caches');
 if (!fs.existsSync(HTML_CACHES_DIR)) {
   fs.mkdirSync(HTML_CACHES_DIR, { recursive: true });
 }

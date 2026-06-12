@@ -23,6 +23,7 @@ const authRouter = require('./api/auth');
 const { requireAuth } = authRouter;
 const { HTML_CACHES_DIR } = require('./api/utils');
 const { db, Users, Projects } = require('./db');
+const { CLIENT_DIST_DIRS } = require('./paths');
 
 const app = express();
 const PORT = 3000;
@@ -74,16 +75,13 @@ app.use(sessionMiddleware);
   Projects.assignLegacyProjectsToUser(adminId);
 })();
 
-// 前端静态服务：使用 Vite 构建产物（frontend_dist 优先，回退 frontend/dist）
-const frontendDist = [
-  path.join(__dirname, 'frontend_dist'),
-  path.join(__dirname, 'frontend', 'dist'),
-].find(d => fs.existsSync(d));
+// 前端静态服务：使用 Vite 构建产物（打包目录优先，回退 workspace client/dist）
+const frontendDist = CLIENT_DIST_DIRS.find(d => fs.existsSync(d));
 
 if (frontendDist) {
   app.use(express.static(frontendDist));
 } else {
-  console.warn('⚠️  未找到前端构建产物，请先运行 npm run build:frontend（或开发模式用 npm run dev:frontend 起 Vite）');
+  console.warn('⚠️  未找到前端构建产物，请先运行 pnpm run build（或开发模式用 pnpm run dev 起 Vite）');
 }
 
 // 动态 HTML 静态服务（根据 URL 中的项目 ID 提供文件）
@@ -315,7 +313,7 @@ setupWatcher();
 if (process.argv.includes('--dev')) {
   import('open').then(({ default: open }) => {
     // 开发模式打开 Vite 前端，生产模式打开后端
-    const url = fs.existsSync(frontendDist)
+    const url = frontendDist
       ? `http://localhost:${PORT}`
       : `http://localhost:5173`;
     open(url);

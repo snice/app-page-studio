@@ -1,15 +1,15 @@
 {
   "name": "app-page-studio",
   "version": "1.0.0",
+  "private": true,
   "description": "App页面开发工具 - 从HTML设计稿生成AI提示词，帮助Flutter/RN还原页面",
-  "main": "server.js",
+  "packageManager": "pnpm@10.17.1",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js --dev",
-    "dev:frontend": "cd frontend && npx vite",
-    "build:frontend": "cd frontend && npx vite build",
-    "dev:all": "npm run build:frontend && npm run dev",
-    "postinstall": "npm rebuild better-sqlite3"
+    "dev": "pnpm install && concurrently -n server,client -c cyan,magenta \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
+    "build": "pnpm install && ./pack.sh"
   },
   "keywords": [
     "app",
@@ -18,20 +18,9 @@
     "design-to-code",
     "ai-prompt"
   ],
-  "author": "",
+  "author": "zhuzhe",
   "license": "MIT",
-  "dependencies": {
-    "adm-zip": "^0.5.16",
-    "archiver": "^8.0.0",
-    "better-sqlite3": "^12.5.0",
-    "better-sqlite3-session-store": "^0.1.0",
-    "cheerio": "^1.0.0-rc.12",
-    "chokidar": "^3.5.3",
-    "express": "^4.18.2",
-    "express-session": "^1.19.0",
-    "multer": "^2.0.2",
-    "open": "^9.1.0",
-    "psd": "^3.4.0",
-    "ws": "^8.14.2"
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

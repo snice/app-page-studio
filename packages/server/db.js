@@ -4,10 +4,8 @@
  */
 
 const Database = require('better-sqlite3');
-const path = require('path');
 const crypto = require('crypto');
-
-const DB_PATH = path.join(__dirname, 'studio.db');
+const { DB_PATH } = require('./paths');
 
 // 初始化数据库
 const db = new Database(DB_PATH);

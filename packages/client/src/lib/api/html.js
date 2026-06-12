@@ -51,12 +51,6 @@ export const htmlApi = {
     return readJson(res);
   },
 
-  async analyzeHtml(path) {
-    const projectId = getProjectId();
-    const res = await fetch(`/api/analyze-html?projectId=${projectId}&path=${encodeURIComponent(path)}`);
-    return readJson(res);
-  },
-
   async deleteFiles(payload) {
     const res = await fetch('/api/delete-files', {
       method: 'POST',

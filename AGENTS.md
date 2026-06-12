@@ -8,25 +8,21 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 App Page Studio is a web tool for turning design inputs into structured AI implementation prompts for Flutter, React Native, and UniApp. It supports HTML exports, raster design images, PSD previews/layers/slices, page grouping, design-system metadata, and multi-user project collaboration.
 
-The active frontend is Vite + React under `frontend/`. The old `public/` HTML/CSS/JS implementation is obsolete and should not be updated.
+The active frontend is Vite + React under `packages/client/`. The backend is under `packages/server/`. The old root-level `public/` HTML/CSS/JS implementation is obsolete and should not be updated.
 
 ## Commands
 
 Agent shell commands in this repo should be run with the `rtk` prefix.
 
 ```bash
-rtk npm install             # Install dependencies
-rtk npm start               # Start Express server on port 3000
-rtk npm run dev             # Start Express server with auto-open behavior
-rtk npm run dev:frontend    # Start Vite frontend dev server
-rtk npm run build:frontend  # Build frontend to frontend/dist
-rtk npm run dev:all         # Build frontend, then start backend in dev mode
+rtk pnpm run dev    # Install dependencies, then start Express and Vite concurrently
+rtk pnpm run build  # Install dependencies, build client, and create release ZIP
 ```
 
 Useful maintenance command:
 
 ```bash
-rtk node tools/reset-password.js -u <username>
+rtk pnpm --filter server reset-password -- -u <username>
 ```
 
 ## Architecture
@@ -34,13 +30,15 @@ rtk node tools/reset-password.js -u <username>
 ### Backend Structure
 
 ```text
+packages/server/
 ├── server.js           # Express entry, sessions, static frontend, WebSocket, file watcher
 ├── db.js               # SQLite schema and data-access modules
+├── paths.js            # Workspace/data/build output paths
 └── api/
     ├── auth.js         # Login/logout/current user/admin user management
     ├── projects.js     # Project CRUD and project members
     ├── pages.js        # Pages config save/load/history APIs
-    ├── html.js         # HTML/design file upload, scan, analysis, delete, ZIP download
+    ├── html.js         # HTML/design file upload, scan, delete, ZIP download
     ├── image.js        # Design image and asset upload/list APIs
     ├── psd.js          # PSD upload/list/preview APIs
     ├── prompt.js       # Prompt generation route
@@ -53,7 +51,7 @@ rtk node tools/reset-password.js -u <username>
 - Uses Express with JSON payloads up to 50 MB.
 - Uses `express-session` with `better-sqlite3-session-store`; cookie name is `aps.sid`.
 - Bootstraps an admin account on first run. `BOOTSTRAP_ADMIN_USERNAME` and `BOOTSTRAP_ADMIN_PASSWORD` can override defaults.
-- Serves Vite build output from `frontend_dist` first, then `frontend/dist`.
+- Serves Vite build output from `frontend_dist` first, then `packages/client/dist`.
 - Serves project files from `/html/:projectId` after auth and project-access checks.
 - Mounts `/api/auth/*` first; all business API routers are protected by `requireAuth`.
 - Provides SPA fallback to `index.html` for non-API and non-HTML routes.
@@ -138,7 +136,6 @@ All business APIs require login unless noted.
 - `POST /api/delete-files` - delete selected HTML/image/PSD files.
 - `GET /api/scan-html?projectId=` - scan `__html__` and `__psd__`.
 - `GET /api/html-content?projectId=&path=` - read HTML file content.
-- `GET /api/analyze-html?projectId=&path=` - extract colors, structure, interactive elements.
 - `POST /api/download-design-zip` - package selected design files and PSD slices.
 
 **image.js**
@@ -199,7 +196,7 @@ Important save behavior:
 The current frontend is Vite + React.
 
 ```text
-frontend/
+packages/client/
 ├── index.html
 ├── package.json
 └── src/
@@ -243,13 +240,13 @@ Routing:
 
 ## Frontend State And Collaboration
 
-- Global state is Zustand, split into `frontend/src/lib/slices/*`.
+- Global state is Zustand, split into `packages/client/src/lib/slices/*`.
 - `useWorkspaceController()` composes workspace behavior from focused hooks:
   - `useIframeHotReload()` handles WebSocket events, presence, remote merges, iframe reloads.
   - `useWorkspaceActions()` owns file selection, saves, downloads, and deletion.
   - `useIframePicker()` owns HTML/image selection flow.
   - `usePsdSliceEvents()` owns PSD slice state syncing.
-- API wrappers live in `frontend/src/lib/api/*`; prefer adding endpoint wrappers there instead of calling `fetch` directly in components.
+- API wrappers live in `packages/client/src/lib/api/*`; prefer adding endpoint wrappers there instead of calling `fetch` directly in components.
 - Components should read/write store state through `useAppStore`.
 
 ## Code Style Guidelines
@@ -258,7 +255,7 @@ Routing:
 
 Always use SVG icons via the React `<Icon>` component, never emoji for UI icons.
 
-Icons are defined in `frontend/src/components/common/Icon.jsx` in the `ICONS` object.
+Icons are defined in `packages/client/src/components/common/Icon.jsx` in the `ICONS` object.
 
 ```jsx
 import { Icon } from '../common/Icon';
@@ -279,13 +276,13 @@ To add a new icon, add an entry to `ICONS` with only the SVG inner content, no `
 
 ### Theme Support
 
-- Use CSS variables from `frontend/src/styles/modules/theme.css` and `app.css`.
+- Use CSS variables from `packages/client/src/styles/modules/theme.css` and `app.css`.
 - Check both dark and light themes when adding UI.
 - Keep controls compact and avoid layout shifts on hover.
 
 ### API Development
 
-- Put new routes in the appropriate `api/*.js` router and mount new routers in `server.js`.
+- Put new routes in the appropriate `packages/server/api/*.js` router and mount new routers in `packages/server/server.js`.
 - Use `requireAuth` at router mount level unless the endpoint must be public.
 - Use `ensureProjectReadable()` and `ensureProjectWritable()` for project-scoped access.
 - Use `broadcastProjectEvent()` for file/config changes that other clients should observe.

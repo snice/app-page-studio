@@ -12,7 +12,7 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (!username) {
-  console.error('Usage: node tools/reset-password.js -u <username>');
+  console.error('Usage: pnpm reset-password -- -u <username>');
   process.exit(1);
 }
 

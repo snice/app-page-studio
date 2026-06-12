@@ -1,11 +1,10 @@
 /**
- * HTML 扫描和分析 API 路由
+ * HTML 扫描 API 路由
  */
 
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const cheerio = require('cheerio');
 const AdmZip = require('adm-zip');
 const archiverModule = require('archiver');
 const router = express.Router();
@@ -254,79 +253,6 @@ router.get('/html-content', (req, res) => {
   res.json({ html });
 });
 
-// 分析 HTML 结构
-router.get('/analyze-html', (req, res) => {
-  const projectId = parseInt(req.query.projectId);
-  const readable = ensureProjectReadable(req, projectId);
-  if (!readable.ok) return sendWriteGuardError(res, readable);
-
-  const htmlDir = getHtmlDir(projectId);
-  const htmlPath = resolveSafe(htmlDir, req.query.path);
-
-  if (!htmlPath) {
-    res.status(400).json({ error: 'Invalid path' });
-    return;
-  }
-
-  if (!fs.existsSync(htmlPath)) {
-    res.status(404).json({ error: 'File not found' });
-    return;
-  }
-
-  const html = fs.readFileSync(htmlPath, 'utf-8');
-  const $ = cheerio.load(html);
-
-  // 提取颜色
-  const colors = new Set();
-  const colorRegex = /#[0-9a-fA-F]{3,8}|rgb\([^)]+\)|rgba\([^)]+\)/g;
-
-  $('[style]').each((_, el) => {
-    const style = $(el).attr('style') || '';
-    const matches = style.match(colorRegex);
-    if (matches) matches.forEach(c => colors.add(c));
-  });
-
-  // 从 style 标签提取
-  $('style').each((_, el) => {
-    const css = $(el).html() || '';
-    const matches = css.match(colorRegex);
-    if (matches) matches.forEach(c => colors.add(c));
-  });
-
-  // 提取可交互元素
-  const interactiveElements = [];
-  $('button, a, input, textarea, select, [onclick], [role="button"], [class*="btn"], [class*="button"], [class*="link"], [class*="tab"], [class*="nav"]').each((_, el) => {
-    const $el = $(el);
-    const classes = ($el.attr('class') || '').split(' ').filter(Boolean);
-
-    interactiveElements.push({
-      tag: el.tagName.toLowerCase(),
-      text: $el.text().trim().substring(0, 50),
-      class: $el.attr('class'),
-      id: $el.attr('id'),
-      selector: generateSelector($, el),
-      type: getElementType(el.tagName.toLowerCase(), classes)
-    });
-  });
-
-  // 页面结构分析
-  const structure = {
-    hasHeader: $('header, [class*="header"], [class*="nav"]').length > 0,
-    hasFooter: $('footer, [class*="footer"], [class*="tabbar"], [class*="tab-bar"]').length > 0,
-    hasList: $('ul, ol, [class*="list"]').length > 0,
-    hasForm: $('form, input, textarea').length > 0,
-    hasModal: $('[class*="modal"], [class*="dialog"], [class*="popup"]').length > 0,
-    hasCard: $('[class*="card"]').length > 0
-  };
-
-  res.json({
-    colors: Array.from(colors),
-    interactiveElements,
-    structure,
-    title: $('title').text() || path.basename(htmlPath, '.html')
-  });
-});
-
 // 打包下载设计稿（HTML + 设计图 + PSD + 切图）
 router.post('/download-design-zip', (req, res) => {
   const projectId = parseInt(req.body.projectId);
@@ -462,34 +388,5 @@ router.post('/download-design-zip', (req, res) => {
   }
   archive.finalize();
 });
-
-// 生成 CSS 选择器
-function generateSelector($, el) {
-  const $el = $(el);
-  const id = $el.attr('id');
-  if (id) return `#${id}`;
-
-  const classes = ($el.attr('class') || '').trim().split(/\s+/).filter(Boolean);
-  if (classes.length > 0) {
-    return `.${classes.slice(0, 2).join('.')}`;
-  }
-
-  return el.tagName.toLowerCase();
-}
-
-// 获取元素类型
-function getElementType(tag, classes) {
-  const classStr = classes.join(' ').toLowerCase();
-
-  if (tag === 'button' || classStr.includes('btn') || classStr.includes('button')) return 'button';
-  if (tag === 'a' || classStr.includes('link')) return 'link';
-  if (tag === 'input' || tag === 'textarea' || tag === 'select') return 'input';
-  if (classStr.includes('tab')) return 'tab';
-  if (classStr.includes('nav')) return 'navigation';
-  if (classStr.includes('card')) return 'card';
-  if (classStr.includes('list') || classStr.includes('item')) return 'list-item';
-
-  return 'interactive';
-}
 
 module.exports = router;
