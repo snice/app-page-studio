@@ -24,8 +24,8 @@ export function createFilesSlice(set, get) {
       const pid = projectId || state.getCurrentProjectId();
       if (!pid) { state.showToast('请先选择项目'); return; }
       const [htmlData, imageData] = await Promise.all([
-        api.scanHtmlFiles(),
-        api.listDesignImages(),
+        api.scanHtmlFiles(pid),
+        api.listDesignImages(pid),
       ]);
       const htmlFiles = (htmlData.files || []).map((f) => ({ ...f, sourceType: 'html' }));
       const imageFiles = (imageData.files || []).map((f) => ({ ...f, sourceType: 'image' }));

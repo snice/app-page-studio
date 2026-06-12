@@ -1,17 +1,17 @@
 import { readJson, getProjectId, getSessionHeaders } from './_http';
 
 export const htmlApi = {
-  async scanHtmlFiles() {
-    const projectId = getProjectId();
+  async scanHtmlFiles(projectIdOverride = null) {
+    const projectId = projectIdOverride || getProjectId();
     if (!projectId) return { files: [], htmlPath: '' };
-    const res = await fetch(`/api/scan-html?projectId=${projectId}`);
+    const res = await fetch(`/api/scan-html?projectId=${projectId}&_=${Date.now()}`, { cache: 'no-store' });
     return readJson(res);
   },
 
-  async listDesignImages() {
-    const projectId = getProjectId();
+  async listDesignImages(projectIdOverride = null) {
+    const projectId = projectIdOverride || getProjectId();
     if (!projectId) return { files: [] };
-    const res = await fetch(`/api/list-images?projectId=${projectId}`);
+    const res = await fetch(`/api/list-images?projectId=${projectId}&_=${Date.now()}`, { cache: 'no-store' });
     return readJson(res);
   },
 

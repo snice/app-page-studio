@@ -11,7 +11,8 @@ const {
   HTML_CACHES_DIR,
   ensureProjectReadable,
   ensureProjectWritable,
-  sendWriteGuardError
+  sendWriteGuardError,
+  broadcastProjectEvent
 } = require('./utils');
 
 function ensureProjectImageDir(projectId) {
@@ -63,7 +64,13 @@ router.post('/upload-image', imageUpload.array('images', 20), (req, res) => {
     });
   }
 
-  res.json({ files: saved });
+  broadcastProjectEvent(req, projectId, {
+    type: 'files:changed',
+    reason: 'image-uploaded',
+    files: saved
+  });
+
+  res.json({ files: saved, count: saved.length });
 });
 
 // 列出已上传的设计图

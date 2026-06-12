@@ -7,6 +7,7 @@ import { useEffect, useRef, useCallback } from 'react';
 export function useWebSocket(onRefresh) {
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
+  const queueRef = useRef([]);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -16,15 +17,15 @@ export function useWebSocket(onRefresh) {
 
     ws.onopen = () => {
       console.log('[WS] Connected');
+      const queued = queueRef.current;
+      queueRef.current = [];
+      queued.forEach((payload) => ws.send(JSON.stringify(payload)));
     };
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'html-changed') {
-          console.log('[WS] HTML changed:', data.file);
-          onRefresh?.(data);
-        }
+        onRefresh?.(data);
       } catch (e) {
         // ignore
       }
@@ -42,6 +43,16 @@ export function useWebSocket(onRefresh) {
     wsRef.current = ws;
   }, [onRefresh]);
 
+  const send = useCallback((payload) => {
+    if (!payload) return;
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(payload));
+      return;
+    }
+    queueRef.current.push(payload);
+  }, []);
+
   useEffect(() => {
     connect();
     return () => {
@@ -49,4 +60,6 @@ export function useWebSocket(onRefresh) {
       if (wsRef.current) wsRef.current.close();
     };
   }, [connect]);
+
+  return send;
 }

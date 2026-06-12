@@ -1,4 +1,4 @@
-import { readJson, getProjectId, getSessionHeaders, getStoredSessionId, getStoredEditorName } from './_http';
+import { readJson, getProjectId, getSessionHeaders } from './_http';
 
 export const pagesApi = {
   async getPages() {
@@ -16,12 +16,32 @@ export const pagesApi = {
   async savePages(pagesConfig, expectedRevision) {
     const projectId = getProjectId();
     if (!projectId) return { error: '请先选择项目' };
-    const sessionId = getStoredSessionId();
-    const editorName = getStoredEditorName();
     const res = await fetch(`/api/pages?projectId=${projectId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getSessionHeaders() },
-      body: JSON.stringify({ pagesConfig, expectedRevision, sessionId, editorName }),
+      body: JSON.stringify({ pagesConfig, expectedRevision }),
+    });
+    return readJson(res);
+  },
+
+  async savePageFile(path, fileConfig, baseHash) {
+    const projectId = getProjectId();
+    if (!projectId) return { error: '请先选择项目' };
+    const res = await fetch(`/api/pages/file?projectId=${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...getSessionHeaders() },
+      body: JSON.stringify({ path, fileConfig, baseHash }),
+    });
+    return readJson(res);
+  },
+
+  async savePageGroups(pageGroups, assignments, baseHash) {
+    const projectId = getProjectId();
+    if (!projectId) return { error: '请先选择项目' };
+    const res = await fetch(`/api/pages/groups?projectId=${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...getSessionHeaders() },
+      body: JSON.stringify({ pageGroups, assignments, baseHash }),
     });
     return readJson(res);
   },
@@ -36,12 +56,10 @@ export const pagesApi = {
   async restorePagesRevision(revision, expectedRevision) {
     const projectId = getProjectId();
     if (!projectId) return { error: '请先选择项目' };
-    const sessionId = getStoredSessionId();
-    const editorName = getStoredEditorName();
     const res = await fetch(`/api/pages/restore?projectId=${projectId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getSessionHeaders() },
-      body: JSON.stringify({ revision, expectedRevision, sessionId, editorName }),
+      body: JSON.stringify({ revision, expectedRevision }),
     });
     return readJson(res);
   },

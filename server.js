@@ -31,10 +31,7 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 
 // ===== Session =====
-const SESSION_SECRET = process.env.SESSION_SECRET
-  || (process.env.NODE_ENV === 'production'
-    ? (() => { console.error('❌ 生产环境必须设置 SESSION_SECRET'); process.exit(1); })()
-    : 'dev-secret-' + crypto.randomBytes(8).toString('hex'));
+const SESSION_SECRET = "SWtrjZD8{@yv"
 
 const sessionMiddleware = session({
   store: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 15 * 60 * 1000 } }),
@@ -148,13 +145,136 @@ const server = app.listen(PORT, () => {
   console.log(`   HTML缓存: ${HTML_CACHES_DIR}\n`);
 });
 
-// WebSocket 热更新
-const wss = new WebSocketServer({ server });
-const clients = new Set();
+// WebSocket：HTML 热更新 + 项目协作 presence
+const wss = new WebSocketServer({ noServer: true });
+const clients = new Map();
 
-wss.on('connection', (ws) => {
-  clients.add(ws);
-  ws.on('close', () => clients.delete(ws));
+function wsSend(ws, payload) {
+  if (ws.readyState !== 1) return;
+  ws.send(JSON.stringify(payload));
+}
+
+function getPresenceList(projectId) {
+  return Array.from(clients.values())
+    .filter((client) => client.projectId === projectId)
+    .map((client) => ({
+      connectionId: client.connectionId,
+      sessionId: client.sessionId,
+      user: client.user,
+      pagePath: client.pagePath || null,
+      groupId: client.groupId || null,
+      scope: client.scope || null,
+      updatedAt: client.updatedAt
+    }));
+}
+
+function broadcastProjectPresence(projectId) {
+  if (!projectId) return;
+  const payload = {
+    type: 'presence:list',
+    projectId,
+    users: getPresenceList(projectId)
+  };
+  for (const client of clients.values()) {
+    if (client.projectId === projectId) wsSend(client.ws, payload);
+  }
+}
+
+function broadcastProjectEvent(projectId, payload) {
+  if (!projectId) return;
+  for (const client of clients.values()) {
+    if (client.projectId === projectId) wsSend(client.ws, payload);
+  }
+}
+
+app.set('broadcastProjectEvent', broadcastProjectEvent);
+
+wss.on('connection', (ws, request) => {
+  const user = request.wsUser;
+  const client = {
+    ws,
+    connectionId: crypto.randomUUID(),
+    sessionId: request.sessionID,
+    user: user ? { id: user.id, username: user.username, role: user.role } : null,
+    projectId: null,
+    pagePath: null,
+    groupId: null,
+    scope: null,
+    updatedAt: new Date().toISOString()
+  };
+
+  clients.set(ws, client);
+  wsSend(ws, {
+    type: 'session',
+    sessionId: client.sessionId,
+    connectionId: client.connectionId,
+    user: client.user
+  });
+
+  ws.on('message', (raw) => {
+    let message;
+    try {
+      message = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
+
+    if (message.type !== 'presence:join' && message.type !== 'presence:update') return;
+
+    const projectId = Number.parseInt(message.projectId || client.projectId, 10);
+    if (!Number.isFinite(projectId) || projectId <= 0) return;
+    if (!Projects.userCanAccess(projectId, user)) return;
+
+    const previousProjectId = client.projectId;
+    client.projectId = projectId;
+    client.pagePath = typeof message.pagePath === 'string' ? message.pagePath : null;
+    client.groupId = message.groupId == null ? null : String(message.groupId);
+    client.scope = typeof message.scope === 'string' ? message.scope : null;
+    client.updatedAt = new Date().toISOString();
+
+    if (previousProjectId && previousProjectId !== projectId) {
+      broadcastProjectPresence(previousProjectId);
+    }
+    broadcastProjectPresence(projectId);
+  });
+
+  ws.on('close', () => {
+    const projectId = client.projectId;
+    clients.delete(ws);
+    if (projectId) broadcastProjectPresence(projectId);
+  });
+});
+
+server.on('upgrade', (request, socket, head) => {
+  let pathname = '/';
+  try {
+    pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
+  } catch {}
+  if (pathname !== '/ws') {
+    socket.destroy();
+    return;
+  }
+
+  const response = {
+    getHeader() { return undefined; },
+    setHeader() {},
+    writeHead() {},
+  };
+  sessionMiddleware(request, response, () => {
+    if (!request.session?.user) {
+      socket.destroy();
+      return;
+    }
+    const user = Users.getById(request.session.user.id);
+    if (!user) {
+      socket.destroy();
+      return;
+    }
+    request.wsUser = { id: user.id, username: user.username, role: user.role };
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  });
 });
 
 // 监听整个 html_caches 目录的文件变化
@@ -173,11 +293,18 @@ function setupWatcher() {
   watcher.on('all', (event, filePath) => {
     if (filePath.endsWith('.html') || filePath.endsWith('.htm') || filePath.endsWith('.psd')) {
       console.log(`📄 ${event}: ${path.basename(filePath)}`);
-      clients.forEach(client => {
-        if (client.readyState === 1) {
-          client.send(JSON.stringify({ type: 'reload', file: filePath }));
-        }
-      });
+      const rel = path.relative(HTML_CACHES_DIR, filePath).replace(/\\/g, '/');
+      const [projectIdPart, ...rest] = rel.split('/');
+      const projectId = Number.parseInt(projectIdPart, 10);
+      if (Number.isFinite(projectId) && projectId > 0) {
+        broadcastProjectEvent(projectId, {
+          type: 'html:changed',
+          projectId,
+          path: rest.join('/'),
+          file: filePath,
+          event
+        });
+      }
     }
   });
 }

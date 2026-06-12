@@ -60,14 +60,18 @@ export function createUiSlice(set, get) {
     },
     applyZoomToAllSameSourceType(sourceType, zoom) {
       if (!sourceType) return;
-      set((s) => ({
-        pagesConfig: {
-          ...s.pagesConfig,
-          htmlFiles: s.pagesConfig.htmlFiles.map((f) =>
-            f.sourceType === sourceType ? { ...f, zoom } : f
-          ),
-        },
-      }));
+      set((s) => {
+        const dirtyFiles = { ...s.dirtyFiles };
+        const htmlFiles = s.pagesConfig.htmlFiles.map((f) => {
+          if (f.sourceType !== sourceType) return f;
+          dirtyFiles[f.path] = true;
+          return { ...f, zoom };
+        });
+        return {
+          pagesConfig: { ...s.pagesConfig, htmlFiles },
+          dirtyFiles,
+        };
+      });
     },
     toggleZoomLockBySourceType() {
       set((s) => {

@@ -19,7 +19,8 @@ const {
   resolveSafe,
   ensureProjectReadable,
   ensureProjectWritable,
-  sendWriteGuardError
+  sendWriteGuardError,
+  broadcastProjectEvent
 } = require('./utils');
 
 function createZipArchive(options) {
@@ -71,6 +72,12 @@ router.post('/upload-html', upload.single('htmlZip'), (req, res, next) => {
       fs.renameSync(fullPath, targetPath);
       movedCount++;
     }
+
+    broadcastProjectEvent(req, projectId, {
+      type: 'files:changed',
+      reason: 'html-uploaded',
+      movedImages: movedCount
+    });
 
     res.json({ success: true, movedImages: movedCount });
   } catch (e) {
@@ -142,6 +149,12 @@ router.post('/delete-files', (req, res) => {
       deletedCount += 1;
     } catch { }
   }
+
+  broadcastProjectEvent(req, projectId, {
+    type: 'files:changed',
+    reason: 'files-deleted',
+    deletedCount
+  });
 
   res.json({ success: true, deletedCount });
 });

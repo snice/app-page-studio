@@ -14,6 +14,9 @@ export function createPagesSlice(set, get) {
     pagesMeta: {
       revision: 0, updatedAt: null, updatedBy: null, updatedBySession: null, projectId: null,
     },
+    pagesEntityHashes: { files: {}, groups: null },
+    dirtyFiles: {},
+    dirtyGroups: false,
 
     currentFile: null,
 
@@ -28,7 +31,7 @@ export function createPagesSlice(set, get) {
         projectId: wrapped.projectId || null,
       } : null);
 
-      set({
+      const nextState = {
         pagesConfig: {
           projectName: pagesConfig?.projectName || 'My App',
           targetPlatform: pagesConfig?.targetPlatform || ['flutter'],
@@ -38,7 +41,15 @@ export function createPagesSlice(set, get) {
           pageGroups: pagesConfig?.pageGroups || [],
         },
         ...(nextMeta ? { pagesMeta: nextMeta } : {}),
-      });
+      };
+      if (wrapped?.entityHashes || meta?.entityHashes) {
+        nextState.pagesEntityHashes = wrapped?.entityHashes || meta.entityHashes;
+      }
+      if (wrapped || meta) {
+        nextState.dirtyFiles = {};
+        nextState.dirtyGroups = false;
+      }
+      set(nextState);
     },
 
     setPagesMeta(meta) {
@@ -51,7 +62,105 @@ export function createPagesSlice(set, get) {
           updatedBySession: meta?.updatedBySession ?? s.pagesMeta.updatedBySession,
           projectId: meta?.projectId ?? s.pagesMeta.projectId,
         },
+        ...(meta?.entityHashes ? { pagesEntityHashes: meta.entityHashes } : {}),
       }));
+    },
+
+    setPagesEntityHashes(entityHashes) {
+      set({ pagesEntityHashes: entityHashes || { files: {}, groups: null } });
+    },
+
+    markFileDirty(path) {
+      if (!path) return;
+      set((s) => ({ dirtyFiles: { ...s.dirtyFiles, [path]: true } }));
+    },
+
+    clearDirtyFile(path) {
+      if (!path) return;
+      set((s) => {
+        const next = { ...s.dirtyFiles };
+        delete next[path];
+        return { dirtyFiles: next };
+      });
+    },
+
+    clearDirtyGroups() {
+      set({ dirtyGroups: false });
+    },
+
+    clearAllDirty() {
+      set({ dirtyFiles: {}, dirtyGroups: false });
+    },
+
+    mergeRemoteFile(fileConfig, meta = {}) {
+      if (!fileConfig?.path) return;
+      set((s) => {
+        const htmlFiles = [...(s.pagesConfig.htmlFiles || [])];
+        const index = htmlFiles.findIndex((file) => file.path === fileConfig.path);
+        const existing = index >= 0 ? htmlFiles[index] : null;
+        const nextFile = s.dirtyGroups && existing
+          ? {
+              ...fileConfig,
+              groupId: existing.groupId ?? null,
+              isPrimaryState: !!existing.isPrimaryState,
+            }
+          : fileConfig;
+        if (index >= 0) htmlFiles[index] = nextFile;
+        else htmlFiles.push(nextFile);
+        return {
+          pagesConfig: { ...s.pagesConfig, htmlFiles },
+          currentFile: s.currentFile?.path === nextFile.path ? nextFile : s.currentFile,
+          pagesMeta: {
+            ...s.pagesMeta,
+            revision: meta.revision ?? s.pagesMeta.revision,
+            updatedAt: meta.updatedAt ?? s.pagesMeta.updatedAt,
+          },
+          pagesEntityHashes: meta.entityHashes || {
+            ...s.pagesEntityHashes,
+            files: {
+              ...(s.pagesEntityHashes.files || {}),
+              ...(meta.fileHash ? { [nextFile.path]: meta.fileHash } : {}),
+            },
+          },
+        };
+      });
+    },
+
+    mergeRemoteGroups(pageGroups, assignments = [], meta = {}) {
+      set((s) => {
+        const assignmentMap = new Map(
+          (assignments || []).filter((item) => item?.path).map((item) => [item.path, item])
+        );
+        const htmlFiles = (s.pagesConfig.htmlFiles || []).map((file) => {
+          const item = assignmentMap.get(file.path);
+          if (!item) return file;
+          return {
+            ...file,
+            groupId: item.groupId ?? null,
+            isPrimaryState: !!item.isPrimaryState,
+          };
+        });
+        const currentFile = s.currentFile
+          ? htmlFiles.find((file) => file.path === s.currentFile.path) || s.currentFile
+          : null;
+        return {
+          pagesConfig: {
+            ...s.pagesConfig,
+            pageGroups: Array.isArray(pageGroups) ? pageGroups : [],
+            htmlFiles,
+          },
+          currentFile,
+          pagesMeta: {
+            ...s.pagesMeta,
+            revision: meta.revision ?? s.pagesMeta.revision,
+            updatedAt: meta.updatedAt ?? s.pagesMeta.updatedAt,
+          },
+          pagesEntityHashes: meta.entityHashes || {
+            ...s.pagesEntityHashes,
+            ...(meta.groupsHash ? { groups: meta.groupsHash } : {}),
+          },
+        };
+      });
     },
 
     syncFilesToConfig() {
@@ -98,7 +207,10 @@ export function createPagesSlice(set, get) {
       set((s) => {
         if (!s.currentFile) return {};
         Object.assign(s.currentFile, updates);
-        return { pagesConfig: { ...s.pagesConfig } };
+        return {
+          pagesConfig: { ...s.pagesConfig },
+          dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true },
+        };
       });
     },
 
@@ -112,7 +224,7 @@ export function createPagesSlice(set, get) {
           if (f.path === currentPath) f.isPrimaryState = !!isPrimary;
           else if (isPrimary && groupId && f.groupId === groupId) f.isPrimaryState = false;
         }
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyGroups: true };
       });
     },
 
@@ -121,6 +233,7 @@ export function createPagesSlice(set, get) {
       if (!canEditPages()) return;
       set((s) => ({
         pagesConfig: { ...s.pagesConfig, pageGroups: [...(s.pagesConfig.pageGroups || []), group] },
+        dirtyGroups: true,
       }));
     },
     updateGroup(groupId, updates) {
@@ -130,6 +243,7 @@ export function createPagesSlice(set, get) {
           ...s.pagesConfig,
           pageGroups: s.pagesConfig.pageGroups.map((g) => g.id === groupId ? { ...g, ...updates } : g),
         },
+        dirtyGroups: true,
       }));
     },
     deleteGroup(groupId) {
@@ -140,6 +254,7 @@ export function createPagesSlice(set, get) {
           pageGroups: s.pagesConfig.pageGroups.filter((g) => g.id !== groupId),
           htmlFiles: s.pagesConfig.htmlFiles.map((f) => f.groupId === groupId ? { ...f, groupId: null } : f),
         },
+        dirtyGroups: true,
       }));
     },
     assignSelectedFilesToGroup(groupId) {
@@ -148,7 +263,7 @@ export function createPagesSlice(set, get) {
         const htmlFiles = s.pagesConfig.htmlFiles.map((f) =>
           s.selectedFiles.has(f.path) ? { ...f, groupId } : f
         );
-        return { pagesConfig: { ...s.pagesConfig, htmlFiles }, selectedFiles: new Set() };
+        return { pagesConfig: { ...s.pagesConfig, htmlFiles }, selectedFiles: new Set(), dirtyGroups: true };
       });
     },
     moveFileToGroup(filePaths, targetGroupId) {
@@ -160,6 +275,7 @@ export function createPagesSlice(set, get) {
             filePaths.includes(f.path) ? { ...f, groupId: targetGroupId } : f
           ),
         },
+        dirtyGroups: true,
       }));
     },
 
@@ -170,7 +286,7 @@ export function createPagesSlice(set, get) {
         if (!s.currentFile) return {};
         if (!s.currentFile.interactions) s.currentFile.interactions = [];
         s.currentFile.interactions.push(interaction);
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
     updateInteraction(index, field, value) {
@@ -178,7 +294,7 @@ export function createPagesSlice(set, get) {
       set((s) => {
         if (!s.currentFile?.interactions) return {};
         s.currentFile.interactions[index][field] = value;
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
     removeInteraction(index) {
@@ -186,7 +302,7 @@ export function createPagesSlice(set, get) {
       set((s) => {
         if (!s.currentFile?.interactions) return {};
         s.currentFile.interactions.splice(index, 1);
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
 
@@ -196,7 +312,7 @@ export function createPagesSlice(set, get) {
         if (!s.currentFile) return {};
         if (!s.currentFile.imageReplacements) s.currentFile.imageReplacements = [];
         s.currentFile.imageReplacements.push(imageReplacement);
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
     updateImageReplacement(index, field, value) {
@@ -204,7 +320,7 @@ export function createPagesSlice(set, get) {
       set((s) => {
         if (!s.currentFile?.imageReplacements) return {};
         s.currentFile.imageReplacements[index][field] = value;
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
     removeImageReplacement(index) {
@@ -212,7 +328,7 @@ export function createPagesSlice(set, get) {
       set((s) => {
         if (!s.currentFile?.imageReplacements) return {};
         s.currentFile.imageReplacements.splice(index, 1);
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
 
@@ -222,7 +338,7 @@ export function createPagesSlice(set, get) {
         if (!s.currentFile) return {};
         if (!s.currentFile.functionDescriptions) s.currentFile.functionDescriptions = [];
         s.currentFile.functionDescriptions.push(fd);
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
     updateFunctionDescription(index, field, value) {
@@ -230,7 +346,7 @@ export function createPagesSlice(set, get) {
       set((s) => {
         if (!s.currentFile?.functionDescriptions) return {};
         s.currentFile.functionDescriptions[index][field] = value;
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
     removeFunctionDescription(index) {
@@ -238,7 +354,7 @@ export function createPagesSlice(set, get) {
       set((s) => {
         if (!s.currentFile?.functionDescriptions) return {};
         s.currentFile.functionDescriptions.splice(index, 1);
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
 
@@ -248,7 +364,7 @@ export function createPagesSlice(set, get) {
         if (!s.currentFile) return {};
         if (!s.currentFile.dataSources) s.currentFile.dataSources = [];
         s.currentFile.dataSources.push(dataSource);
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
     updateDataSource(index, field, value) {
@@ -256,7 +372,7 @@ export function createPagesSlice(set, get) {
       set((s) => {
         if (!s.currentFile?.dataSources) return {};
         s.currentFile.dataSources[index][field] = value;
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
     removeDataSource(index) {
@@ -264,7 +380,7 @@ export function createPagesSlice(set, get) {
       set((s) => {
         if (!s.currentFile?.dataSources) return {};
         s.currentFile.dataSources.splice(index, 1);
-        return { pagesConfig: { ...s.pagesConfig } };
+        return { pagesConfig: { ...s.pagesConfig }, dirtyFiles: { ...s.dirtyFiles, [s.currentFile.path]: true } };
       });
     },
   };

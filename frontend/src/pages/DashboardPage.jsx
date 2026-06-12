@@ -74,7 +74,8 @@ export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject, onR
         onDownloadDesigns={ctrl.handleDownloadDesigns}
         onScanHtml={scanHtmlFiles}
         onOpenImageUpload={() => openModal('imageUpload')}
-        onSaveConfig={ctrl.handleSaveConfig}
+        onSaveCurrentPage={ctrl.handleSaveCurrentPage}
+        onSaveAllConfig={ctrl.handleSaveAllConfig}
         onDownloadConfig={ctrl.handleDownloadConfig}
         onShowPageHistory={() => openModal('pageHistory')}
         onShowPromptModal={() => openModal('prompt')}

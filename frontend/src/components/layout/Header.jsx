@@ -3,14 +3,16 @@ import { Icon } from '../common/Icon';
 import { useTheme } from '../../hooks/useTheme';
 import { useAppStore } from '../../lib/state';
 
-export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownloadDesigns, onScanHtml, onOpenImageUpload, onSaveConfig, onDownloadConfig, onShowPageHistory, onShowPromptModal }) {
+export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownloadDesigns, onScanHtml, onOpenImageUpload, onSaveCurrentPage, onSaveAllConfig, onDownloadConfig, onShowPageHistory, onShowPromptModal }) {
   const { theme, toggleTheme } = useTheme();
   const currentProject = useAppStore((s) => s.getCurrentProject());
   const projects = useAppStore((s) => s.config.projects);
   const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
+  const presenceUsers = useAppStore((s) => s.session.presenceUsers);
   const showToast = useAppStore((s) => s.showToast);
 
   const projectDisplay = currentProject ? currentProject.name : '未选择';
+  const onlineCount = new Set((presenceUsers || []).map((user) => user.sessionId || user.connectionId)).size;
 
   const [menuOpen, setMenuOpen] = useState(false);
   const switcherRef = useRef(null);
@@ -88,11 +90,18 @@ export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownlo
         下载设计稿
       </button>
 
+      {onlineCount > 0 && (
+        <div className="presence-pill" title="当前项目在线协作者">
+          <Icon name="users" size="sm" />
+          {onlineCount}
+        </div>
+      )}
+
       <div className="header-actions">
         <button className="btn btn-icon btn-secondary" onClick={() => { toggleTheme(); showToast(theme === 'light' ? '已切换到深色主题' : '已切换到浅色主题'); }} title="切换主题">
           <Icon name={theme === 'light' ? 'sun' : 'moon'} size="md" />
         </button>
-        <button className="btn btn-secondary" onClick={onScanHtml}>
+        <button className="btn btn-secondary" onClick={() => onScanHtml?.()}>
           <Icon name="refresh" />
           刷新
         </button>
@@ -100,9 +109,13 @@ export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownlo
           <Icon name="image" />
           上传设计图
         </button>
-        <button className="btn btn-secondary" onClick={onSaveConfig} disabled={!isCurrentEditor} title={isCurrentEditor ? '保存' : '当前为只读'}>
+        <button className="btn btn-secondary" onClick={onSaveCurrentPage} disabled={!isCurrentEditor} title={isCurrentEditor ? '保存当前页' : '当前为只读'}>
           <Icon name="save" />
-          保存
+          保存当前页
+        </button>
+        <button className="btn btn-secondary" onClick={onSaveAllConfig} disabled={!isCurrentEditor} title={isCurrentEditor ? '保存全部配置' : '当前为只读'}>
+          <Icon name="save" />
+          保存全部
         </button>
         <button className="btn btn-secondary" onClick={onShowPageHistory}>
           <Icon name="clock" />

@@ -5,6 +5,7 @@
 
 const Database = require('better-sqlite3');
 const path = require('path');
+const crypto = require('crypto');
 
 const DB_PATH = path.join(__dirname, 'studio.db');
 
@@ -116,6 +117,75 @@ function buildPagesRecord(row) {
     updatedAt: row.updated_at,
     updatedBy: row.updated_by || null,
     updatedBySession: row.updated_by_session || null
+  };
+}
+
+function defaultPagesConfig(projectName = 'My App') {
+  return {
+    projectName,
+    targetPlatform: ['flutter'],
+    designSystem: {},
+    sharedComponents: [],
+    htmlFiles: [],
+    pageGroups: []
+  };
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .filter((key) => value[key] !== undefined)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function entityHash(value) {
+  return crypto.createHash('sha256').update(stableJson(value)).digest('hex');
+}
+
+function normalizePagesConfig(pagesConfig, projectName = 'My App') {
+  const fallback = defaultPagesConfig(projectName);
+  return {
+    ...fallback,
+    ...(pagesConfig || {}),
+    targetPlatform: pagesConfig?.targetPlatform || fallback.targetPlatform,
+    designSystem: pagesConfig?.designSystem || fallback.designSystem,
+    sharedComponents: pagesConfig?.sharedComponents || fallback.sharedComponents,
+    htmlFiles: Array.isArray(pagesConfig?.htmlFiles) ? pagesConfig.htmlFiles : [],
+    pageGroups: Array.isArray(pagesConfig?.pageGroups) ? pagesConfig.pageGroups : []
+  };
+}
+
+function buildGroupEntity(pagesConfig) {
+  const normalized = normalizePagesConfig(pagesConfig);
+  return {
+    pageGroups: normalized.pageGroups,
+    assignments: normalized.htmlFiles
+      .map((file) => ({
+        path: file.path,
+        groupId: file.groupId ?? null,
+        isPrimaryState: !!file.isPrimaryState
+      }))
+      .filter((item) => item.path)
+      .sort((a, b) => String(a.path).localeCompare(String(b.path)))
+  };
+}
+
+function buildPagesHashes(pagesConfig) {
+  const normalized = normalizePagesConfig(pagesConfig);
+  const files = {};
+  for (const file of normalized.htmlFiles) {
+    if (file?.path) files[file.path] = entityHash(file);
+  }
+  return {
+    files,
+    groups: entityHash(buildGroupEntity(normalized))
   };
 }
 
@@ -485,6 +555,10 @@ const Projects = {
     return buildPagesRecord(row);
   },
 
+  getPagesHashes(pagesConfig) {
+    return buildPagesHashes(pagesConfig);
+  },
+
   /**
    * 保存项目的 pages.json
    */
@@ -598,6 +672,157 @@ const Projects = {
   },
 
   /**
+   * 按单页 hash 保存一个 htmlFiles 项；只有目标页面变更时才冲突。
+   */
+  savePageFileIfHash(projectId, filePath, fileConfig, expectedHash, meta = {}, fallbackConfig = null) {
+    const tx = db.transaction(() => {
+      const current = db.prepare(`
+        SELECT pages_json, revision, updated_at, updated_by, updated_by_session
+        FROM project_pages
+        WHERE project_id = ?
+      `).get(projectId);
+
+      const pagesConfig = normalizePagesConfig(
+        current ? safeParsePagesJson(current.pages_json) : fallbackConfig,
+        fallbackConfig?.projectName
+      );
+      const files = pagesConfig.htmlFiles || [];
+      const index = files.findIndex((file) => file?.path === filePath);
+      const currentFile = index >= 0 ? files[index] : null;
+      const currentHash = currentFile ? entityHash(currentFile) : null;
+      const requestedHash = expectedHash || null;
+
+      if (requestedHash !== currentHash) {
+        return {
+          ok: false,
+          conflict: true,
+          current: current ? buildPagesRecord(current) : {
+            pagesConfig,
+            revision: 0,
+            updatedAt: null,
+            updatedBy: null,
+            updatedBySession: null
+          },
+          currentFile,
+          currentHash
+        };
+      }
+
+      const nextFile = { ...(fileConfig || {}), path: filePath };
+      if (index >= 0) files[index] = nextFile;
+      else files.push(nextFile);
+      const nextConfig = { ...pagesConfig, htmlFiles: files };
+
+      if (current) {
+        snapshotPagesRevision(projectId, current);
+        db.prepare(`
+          UPDATE project_pages
+          SET pages_json = ?,
+              revision = COALESCE(revision, 1) + 1,
+              updated_by = ?,
+              updated_by_session = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE project_id = ?
+        `).run(JSON.stringify(nextConfig), meta.editorName || null, meta.sessionId || null, projectId);
+      } else {
+        db.prepare(`
+          INSERT INTO project_pages (project_id, pages_json, revision, updated_by, updated_by_session)
+          VALUES (?, ?, 1, ?, ?)
+        `).run(projectId, JSON.stringify(nextConfig), meta.editorName || null, meta.sessionId || null);
+      }
+
+      return {
+        ok: true,
+        record: this.getPagesRecord(projectId),
+        fileHash: entityHash(nextFile)
+      };
+    });
+
+    return tx();
+  },
+
+  /**
+   * 按分组结构 hash 保存 pageGroups 与文件分组归属。
+   */
+  savePageGroupsIfHash(projectId, pageGroups, assignments, expectedHash, meta = {}, fallbackConfig = null) {
+    const tx = db.transaction(() => {
+      const current = db.prepare(`
+        SELECT pages_json, revision, updated_at, updated_by, updated_by_session
+        FROM project_pages
+        WHERE project_id = ?
+      `).get(projectId);
+
+      const pagesConfig = normalizePagesConfig(
+        current ? safeParsePagesJson(current.pages_json) : fallbackConfig,
+        fallbackConfig?.projectName
+      );
+      const currentHash = entityHash(buildGroupEntity(pagesConfig));
+      const requestedHash = expectedHash || null;
+
+      if (requestedHash !== currentHash) {
+        return {
+          ok: false,
+          conflict: true,
+          current: current ? buildPagesRecord(current) : {
+            pagesConfig,
+            revision: 0,
+            updatedAt: null,
+            updatedBy: null,
+            updatedBySession: null
+          },
+          currentHash
+        };
+      }
+
+      const assignmentMap = new Map(
+        (Array.isArray(assignments) ? assignments : [])
+          .filter((item) => item?.path)
+          .map((item) => [item.path, item])
+      );
+      const nextFiles = pagesConfig.htmlFiles.map((file) => {
+        const item = assignmentMap.get(file.path);
+        if (!item) return file;
+        return {
+          ...file,
+          groupId: item.groupId ?? null,
+          isPrimaryState: !!item.isPrimaryState
+        };
+      });
+      const nextConfig = {
+        ...pagesConfig,
+        pageGroups: Array.isArray(pageGroups) ? pageGroups : [],
+        htmlFiles: nextFiles
+      };
+
+      if (current) {
+        snapshotPagesRevision(projectId, current);
+        db.prepare(`
+          UPDATE project_pages
+          SET pages_json = ?,
+              revision = COALESCE(revision, 1) + 1,
+              updated_by = ?,
+              updated_by_session = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE project_id = ?
+        `).run(JSON.stringify(nextConfig), meta.editorName || null, meta.sessionId || null, projectId);
+      } else {
+        db.prepare(`
+          INSERT INTO project_pages (project_id, pages_json, revision, updated_by, updated_by_session)
+          VALUES (?, ?, 1, ?, ?)
+        `).run(projectId, JSON.stringify(nextConfig), meta.editorName || null, meta.sessionId || null);
+      }
+
+      return {
+        ok: true,
+        record: this.getPagesRecord(projectId),
+        groupsHash: entityHash(buildGroupEntity(nextConfig))
+      };
+    });
+
+    return tx();
+  },
+
+  /**
    * 获取历史版本列表
    */
   getPageRevisions(projectId, limit = 30) {
@@ -669,8 +894,6 @@ const Projects = {
     return tx();
   }
 };
-
-const crypto = require('crypto');
 
 /**
  * scrypt 密码哈希；存储格式 `scrypt$N$r$p$saltHex$hashHex`

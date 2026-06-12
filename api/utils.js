@@ -91,9 +91,9 @@ function getRequestSessionInfo(req) {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const query = req.query && typeof req.query === 'object' ? req.query : {};
 
-  // sessionId 仍由客户端提供（区分多 tab），editorName 一律取登录用户名（防伪造）
+  // 保存/协作身份使用 express-session。用户名一律取登录态，避免客户端伪造。
   return {
-    sessionId: req.get('x-session-id') || body.sessionId || query.sessionId || '',
+    sessionId: req.sessionID || req.get('x-session-id') || body.sessionId || query.sessionId || '',
     editorName: req.authUser?.username || req.session?.user?.username || null
   };
 }
@@ -148,6 +148,16 @@ function sendProjectGuardError(res, guard) {
 }
 
 const sendWriteGuardError = sendProjectGuardError;
+
+function broadcastProjectEvent(req, projectId, payload) {
+  const broadcast = req.app?.get('broadcastProjectEvent');
+  if (typeof broadcast !== 'function') return;
+  broadcast(projectId, {
+    ...payload,
+    projectId,
+    actor: payload.actor || getRequestSessionInfo(req)
+  });
+}
 
 /**
  * 是否应跳过 ZIP 条目（macOS 元数据 / 隐藏文件）
@@ -233,6 +243,7 @@ module.exports = {
   ensureProjectWritable,
   sendProjectGuardError,
   sendWriteGuardError,
+  broadcastProjectEvent,
   extractZipToDir,
   shouldSkipZipEntry,
   Projects

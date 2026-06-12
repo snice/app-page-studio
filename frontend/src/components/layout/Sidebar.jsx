@@ -91,10 +91,11 @@ function GroupDeleteButton({ isPending, groupName, onRequest, onCancel, onConfir
 }
 
 /** 单个文件项 */
-function FileItem({ file, isActive, isSelected, search, onSelect, onToggleSelect }) {
+function FileItem({ file, isActive, isSelected, search, collaborators = [], onSelect, onToggleSelect }) {
   const devStatus = file.devStatus || 'pending';
   const devStatusLabels = { pending: '待开发', developing: '开发中', completed: '已完成' };
   const sourceLabel = file.sourceType === 'html' ? 'HTML' : (file.sourceType === 'psd' ? 'PSD' : '设计图');
+  const collaboratorTitle = collaborators.map((item) => item.user?.username).filter(Boolean).join('、');
 
   return (
     <div
@@ -123,6 +124,12 @@ function FileItem({ file, isActive, isSelected, search, onSelect, onToggleSelect
         <div className="file-path">{file.path}</div>
       </div>
       <div className="file-tags">
+        {collaborators.length > 0 && (
+          <span className="collab-badge" title={collaboratorTitle || '当前页面协作者'}>
+            <Icon name="users" size="sm" />
+            {collaborators.length}
+          </span>
+        )}
         <span className={`dev-status-badge ${devStatus}`}>{devStatusLabels[devStatus]}</span>
         <span className={`file-source-tag ${file.sourceType === 'image' ? 'image' : ''}`}>{sourceLabel}</span>
       </div>
@@ -141,6 +148,8 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
   const deleteGroup = useAppStore((s) => s.deleteGroup);
   const setEditingGroupId = useAppStore((s) => s.setEditingGroupId);
   const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
+  const presenceUsers = useAppStore((s) => s.session.presenceUsers);
+  const wsConnectionId = useAppStore((s) => s.session.wsConnectionId);
 
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [pendingDeleteGroupId, setPendingDeleteGroupId] = useState(null);
@@ -195,6 +204,23 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
     const total = groupedFiles.reduce((sum, g) => sum + g.files.length, 0) + ungroupedFiles.length;
     return { groupCount: visibleGroups, pageCount: total };
   }, [groupedFiles, ungroupedFiles]);
+
+  const { presenceByPath, presenceByGroup } = useMemo(() => {
+    const byPath = new Map();
+    const byGroup = new Map();
+    for (const item of presenceUsers || []) {
+      if (item.connectionId === wsConnectionId) continue;
+      if (item.pagePath) {
+        if (!byPath.has(item.pagePath)) byPath.set(item.pagePath, []);
+        byPath.get(item.pagePath).push(item);
+      }
+      if (item.groupId) {
+        if (!byGroup.has(String(item.groupId))) byGroup.set(String(item.groupId), []);
+        byGroup.get(String(item.groupId)).push(item);
+      }
+    }
+    return { presenceByPath: byPath, presenceByGroup: byGroup };
+  }, [presenceUsers, wsConnectionId]);
 
   const toggleGroup = (groupId) => {
     setCollapsedGroups((prev) => {
@@ -271,6 +297,15 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
               <span className="group-color" style={{ color: group.color, background: group.color }} />
               <span className="group-name">{group.name}</span>
               <span className="group-count">{group.files.length}</span>
+              {(presenceByGroup.get(String(group.id)) || []).length > 0 && (
+                <span
+                  className="collab-badge group-collab-badge"
+                  title={(presenceByGroup.get(String(group.id)) || []).map((item) => item.user?.username).filter(Boolean).join('、') || '分组协作者'}
+                >
+                  <Icon name="users" size="sm" />
+                  {(presenceByGroup.get(String(group.id)) || []).length}
+                </span>
+              )}
               <div className="group-actions">
                 <button
                   className="btn btn-sm btn-icon"
@@ -308,6 +343,7 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
                     isActive={currentFile?.path === file.path}
                     isSelected={selectedFiles.has(file.path)}
                     search={search}
+                    collaborators={presenceByPath.get(file.path) || []}
                     onSelect={onFileSelected}
                     onToggleSelect={toggleSelectedFile}
                   />
@@ -327,6 +363,7 @@ export function Sidebar({ onCreateGroup, onGroupSelected, onFileSelected, onTogg
                 isActive={currentFile?.path === file.path}
                 isSelected={selectedFiles.has(file.path)}
                 search={search}
+                collaborators={presenceByPath.get(file.path) || []}
                 onSelect={onFileSelected}
                 onToggleSelect={toggleSelectedFile}
               />

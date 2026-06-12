@@ -4,6 +4,14 @@ import { api } from '../../lib/api';
 import { Picker, ColorPickerModule } from '../../lib/picker';
 import { exportSlice, parsePSD } from '../../lib/psdUtils';
 
+function buildGroupAssignments(pagesConfig) {
+  return (pagesConfig.htmlFiles || []).map((file) => ({
+    path: file.path,
+    groupId: file.groupId ?? null,
+    isPrimaryState: !!file.isPrimaryState,
+  }));
+}
+
 /**
  * 工作台业务动作：选择文件、保存、下载配置/设计稿、删除。
  * 与 picker / PSD 切片事件无关，所以单独抽出。
@@ -34,44 +42,116 @@ export function useWorkspaceActions({ iframeRef, setPickerMenu, requestConfirm }
     }
   }, [iframeRef, setPickerMenu, resetPsdState, setCurrentFile, setIsImageRegionSelecting]);
 
-  const handleSaveConfig = useCallback(async () => {
+  const handleSaveConflict = useCallback(async (res) => {
+    const shouldReload = await requestConfirm?.({
+      title: '保存冲突',
+      message: res.error || '配置已被其他编辑者更新。',
+      hint: '加载最新版本会替换当前工作台内容；取消后本地修改仍保留。',
+      confirmText: '加载最新',
+    });
+    if (shouldReload && res.latest?.pagesConfig) {
+      const currentPath = useAppStore.getState().currentFile?.path;
+      setPagesConfig(res.latest);
+      await useAppStore.getState().scanHtmlFiles({ showResultToast: false });
+      if (currentPath) useAppStore.getState().setCurrentFile(currentPath);
+      showToast('已加载最新配置');
+    } else {
+      showToast('保存被拒绝，本地修改仍保留');
+    }
+  }, [requestConfirm, setPagesConfig, showToast]);
+
+  const prepareCurrentFileForSave = useCallback((applyZoomLock = false) => {
+    const state = useAppStore.getState();
+    if (!state.currentFile) return null;
+    const updates = { zoom: state.zoom };
+    if (state.currentFile.sourceType === 'psd') updates.psdSlices = state.psdMarkedSlices;
+    state.updateCurrentFile(updates);
+    const nextState = useAppStore.getState();
+    if (applyZoomLock && nextState.zoomLockBySourceType && nextState.currentFile?.sourceType) {
+      nextState.applyZoomToAllSameSourceType(nextState.currentFile.sourceType, nextState.zoom);
+    }
+    return useAppStore.getState().currentFile;
+  }, []);
+
+  const handleSaveGroups = useCallback(async ({ silent = false } = {}) => {
+    const state = useAppStore.getState();
+    if (state.session?.isCurrentEditor === false) {
+      showToast('当前为只读，不能保存页面分组');
+      return false;
+    }
+    const baseHash = state.pagesEntityHashes.groups || null;
+    const res = await api.savePageGroups(
+      state.pagesConfig.pageGroups || [],
+      buildGroupAssignments(state.pagesConfig),
+      baseHash
+    );
+    if (res.conflict) {
+      await handleSaveConflict(res);
+      return false;
+    }
+    if (res.error) { showToast(res.error); return false; }
+    setPagesMeta(res);
+    useAppStore.getState().clearDirtyGroups();
+    if (!silent) showToast('页面分组已保存');
+    return true;
+  }, [handleSaveConflict, setPagesMeta, showToast]);
+
+  const handleSaveCurrentPage = useCallback(async () => {
     const state = useAppStore.getState();
     if (state.session?.isCurrentEditor === false) {
       showToast('当前为只读，不能保存配置');
       return;
     }
-    if (state.currentFile) {
-      const updates = { zoom: state.zoom };
-      if (state.currentFile.sourceType === 'psd') updates.psdSlices = state.psdMarkedSlices;
-      state.updateCurrentFile(updates);
-      if (state.zoomLockBySourceType && state.currentFile.sourceType) {
-        state.applyZoomToAllSameSourceType(state.currentFile.sourceType, state.zoom);
-      }
+    if (!state.currentFile) {
+      showToast('请先选择页面');
+      return;
     }
+    if (state.dirtyGroups) {
+      const groupsSaved = await handleSaveGroups({ silent: true });
+      if (!groupsSaved) return;
+    }
+
+    const currentFile = prepareCurrentFileForSave(false);
     const latestState = useAppStore.getState();
-    const res = await api.savePages(latestState.pagesConfig, latestState.pagesMeta.revision);
+    const file = latestState.pagesConfig.htmlFiles.find((item) => item.path === currentFile.path);
+    if (!file) {
+      showToast('当前页面不存在');
+      return;
+    }
+    const baseHash = latestState.pagesEntityHashes.files?.[file.path] || null;
+    const res = await api.savePageFile(file.path, file, baseHash);
     if (res.conflict) {
-      const shouldReload = await requestConfirm?.({
-        title: '保存冲突',
-        message: res.error || '配置已被其他编辑者更新。',
-        hint: '加载最新版本会替换当前工作台内容；取消后本地修改仍保留。',
-        confirmText: '加载最新',
-      });
-      if (shouldReload && res.latest?.pagesConfig) {
-        const currentPath = useAppStore.getState().currentFile?.path;
-        setPagesConfig(res.latest);
-        await useAppStore.getState().scanHtmlFiles({ showResultToast: false });
-        if (currentPath) useAppStore.getState().setCurrentFile(currentPath);
-        showToast('已加载最新配置');
-      } else {
-        showToast('保存被拒绝，本地修改仍保留');
-      }
+      await handleSaveConflict(res);
       return;
     }
     if (res.error) { showToast(res.error); return; }
     setPagesMeta(res);
+    useAppStore.getState().clearDirtyFile(file.path);
+    showToast(state.dirtyGroups ? '当前页和页面分组已保存' : '当前页已保存');
+  }, [handleSaveConflict, handleSaveGroups, prepareCurrentFileForSave, setPagesMeta, showToast]);
+
+  const handleSaveAllConfig = useCallback(async () => {
+    const state = useAppStore.getState();
+    if (state.session?.isCurrentEditor === false) {
+      showToast('当前为只读，不能保存配置');
+      return;
+    }
+    if (state.dirtyGroups && Object.keys(state.dirtyFiles || {}).length === 0) {
+      await handleSaveGroups();
+      return;
+    }
+    prepareCurrentFileForSave(true);
+    const latestState = useAppStore.getState();
+    const res = await api.savePages(latestState.pagesConfig, latestState.pagesMeta.revision);
+    if (res.conflict) {
+      await handleSaveConflict(res);
+      return;
+    }
+    if (res.error) { showToast(res.error); return; }
+    setPagesMeta(res);
+    useAppStore.getState().clearAllDirty();
     showToast('配置已保存');
-  }, [requestConfirm, setPagesConfig, setPagesMeta, showToast]);
+  }, [handleSaveConflict, handleSaveGroups, prepareCurrentFileForSave, setPagesMeta, showToast]);
 
   const handleDownloadConfig = useCallback(() => {
     const blob = new Blob([JSON.stringify(useAppStore.getState().pagesConfig, null, 2)], { type: 'application/json' });
@@ -188,7 +268,9 @@ export function useWorkspaceActions({ iframeRef, setPickerMenu, requestConfirm }
 
   return {
     handleFileSelected,
-    handleSaveConfig,
+    handleSaveCurrentPage,
+    handleSaveGroups,
+    handleSaveAllConfig,
     handleDownloadConfig,
     handleDownloadDesigns,
     handleDeleteFiles,

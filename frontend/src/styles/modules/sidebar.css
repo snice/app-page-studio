@@ -58,16 +58,31 @@
 }
 .file-group:hover { border-color: rgba(255,255,255,0.12); }
 .file-group-header {
-  display: flex; align-items: center; padding: 12px 14px; cursor: pointer; gap: 10px;
+  display: flex; align-items: center; padding: 0 14px; cursor: pointer; gap: 8px;
+  min-height: 48px;
   border-left: 3px solid var(--primary); transition: all var(--transition-normal);
+  min-width: 0;
 }
 .file-group-header:hover { background: var(--bg-tertiary); }
 .group-color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 8px currentColor; }
-.group-name { flex: 1; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
-.group-count { font-size: 11px; color: var(--text-muted); background: var(--bg-tertiary); padding: 3px 8px; border-radius: var(--radius-sm); font-weight: 500; }
-.group-actions { display: flex; gap: 4px; opacity: 0; transition: opacity var(--transition-fast); }
+.group-name {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 13px; font-weight: 600; letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.group-count { flex-shrink: 0; font-size: 11px; color: var(--text-muted); background: var(--bg-tertiary); padding: 3px 8px; border-radius: var(--radius-sm); font-weight: 500; }
+.group-actions {
+  display: flex; flex-shrink: 0; gap: 2px;
+  width: 46px; opacity: 0; pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
 .file-group-header:hover .group-actions,
-.file-group-header.confirming .group-actions { opacity: 1; }
+.file-group-header.confirming .group-actions { opacity: 1; pointer-events: auto; }
+.group-actions .btn-icon {
+  width: 22px; height: 22px; min-width: 22px;
+  padding: 0; border-radius: 6px;
+}
+.group-collab-badge { flex-shrink: 0; }
 
 /* 内联删除确认气泡（portal 到 body，使用 fixed 定位避免被 overflow 裁剪） */
 .inline-confirm {
@@ -128,6 +143,16 @@
 .primary-state-badge { display: inline-block; font-size: 9px; line-height: 1; padding: 2px 4px; margin-right: 5px; border-radius: 3px; background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%); color: white; font-weight: 700; vertical-align: middle; }
 .file-item.active .primary-state-badge { background: rgba(255,255,255,0.25); }
 .file-tags { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.collab-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  min-height: 18px; padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(20,184,166,0.14); color: #14b8a6;
+  font-size: 10px; font-weight: 700; white-space: nowrap;
+}
+.file-item.active .collab-badge {
+  background: rgba(255,255,255,0.22); color: white;
+}
 
 /* ==================== Dev Status Badge ==================== */
 .dev-status-badge { font-size: 10px; padding: 2px 6px; border-radius: var(--radius-sm); font-weight: 500; white-space: nowrap; flex-shrink: 0; }
@@ -177,4 +202,3 @@
 /* ==================== Ungrouped Files ==================== */
 .ungrouped-section { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
 .ungrouped-title { font-size: 10px; color: var(--text-muted); padding: 6px 14px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
-

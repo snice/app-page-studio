@@ -21,6 +21,19 @@
 .panel-content::-webkit-scrollbar-track { background: transparent; }
 .panel-content::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 3px; }
 .panel-section { margin-bottom: 24px; }
+.panel-presence {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; margin-bottom: 16px;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg); color: var(--text-secondary);
+  font-size: 12px;
+}
+.panel-presence-users { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.panel-presence-user {
+  padding: 2px 6px; border-radius: var(--radius-sm);
+  background: rgba(20,184,166,0.14); color: #14b8a6;
+  font-weight: 600;
+}
 .panel-section-title {
   font-family: 'Outfit', sans-serif; font-size: 10px; font-weight: 700;
   color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;
@@ -335,5 +348,4 @@
 .picker-menu-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--text); transition: all var(--transition-fast); }
 .picker-menu-item:hover { background: var(--bg-tertiary); }
 .picker-menu-item:active { background: rgba(99,102,241,0.16); }
-
 

@@ -11,7 +11,8 @@ const {
   asyncHandler,
   ensureProjectReadable,
   ensureProjectWritable,
-  sendWriteGuardError
+  sendWriteGuardError,
+  broadcastProjectEvent
 } = require('./utils');
 
 const psdUpload = multer({
@@ -104,6 +105,12 @@ router.post('/upload-psd', psdUpload.array('psdFiles', 20), asyncHandler(async (
       await savePsd(file.buffer, file.originalname);
     }
   }
+
+  broadcastProjectEvent(req, projectId, {
+    type: 'files:changed',
+    reason: 'psd-uploaded',
+    files: saved
+  });
 
   res.json({ files: saved });
 }));

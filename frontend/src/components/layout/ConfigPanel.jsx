@@ -14,6 +14,8 @@ export function ConfigPanel({ iframeRef }) {
   const currentFile = useAppStore((s) => s.currentFile);
   const pagesConfig = useAppStore((s) => s.pagesConfig);
   const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
+  const presenceUsers = useAppStore((s) => s.session.presenceUsers);
+  const wsConnectionId = useAppStore((s) => s.session.wsConnectionId);
   const activePanelTab = useAppStore((s) => s.activePanelTab);
   const setActivePanelTab = useAppStore((s) => s.setActivePanelTab);
   const updateCurrentFile = useAppStore((s) => s.updateCurrentFile);
@@ -41,6 +43,9 @@ export function ConfigPanel({ iframeRef }) {
   const isPsdLayers = isPsdFile && psdMode === 'layers';
   const groups = pagesConfig.pageGroups || [];
   const readOnly = !isCurrentEditor;
+  const currentPageCollaborators = (presenceUsers || []).filter((item) =>
+    item.connectionId !== wsConnectionId && item.pagePath && item.pagePath === currentFile?.path
+  );
 
   const handleFileFieldChange = (field, value) => {
     if (readOnly) return;
@@ -72,6 +77,19 @@ export function ConfigPanel({ iframeRef }) {
 
       {activePanelTab === 'file' && (
         <div className="panel-content">
+          {currentPageCollaborators.length > 0 && (
+            <div className="panel-presence">
+              <Icon name="users" size="sm" />
+              <span>当前页协作者</span>
+              <div className="panel-presence-users">
+                {currentPageCollaborators.map((item) => (
+                  <span className="panel-presence-user" key={item.connectionId || item.sessionId}>
+                    {item.user?.username || '用户'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="panel-section">
             <div className="panel-section-title">基本信息</div>
             <div className="form-group">

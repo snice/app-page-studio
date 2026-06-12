@@ -96,5 +96,13 @@
 .project-switcher-item.active { background: var(--primary-glow); color: var(--primary); }
 .project-switcher-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.header-actions { margin-left: auto; display: flex; gap: 10px; }
+.presence-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-tertiary); color: var(--text-secondary);
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+}
 
+.header-actions { margin-left: auto; display: flex; gap: 10px; }
