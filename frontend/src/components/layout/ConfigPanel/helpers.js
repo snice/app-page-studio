@@ -1,4 +1,4 @@
-import { highlightElement } from '../../../lib/picker';
+import { highlightElement, highlightElements } from '../../../lib/picker';
 
 export const UNGROUPED_KEY = '__ungrouped__';
 
@@ -65,5 +65,42 @@ export function highlightItem(item, iframeRef) {
     highlightImageRegion(item.region);
   } else if (item.selector && item.selector !== '区域') {
     highlightElement(iframeRef?.current, item.selector);
+  }
+}
+
+/** 同时高亮多个交互项（区域 + 元素） */
+export function highlightItems(items, iframeRef) {
+  if (!Array.isArray(items) || items.length === 0) return;
+  const selectors = items
+    .filter(it => !it.region && it.selector && it.selector !== '区域')
+    .map(it => it.selector);
+  highlightElements(iframeRef?.current, selectors);
+
+  const screen = document.querySelector('.phone-screen');
+  const img = document.querySelector('.design-image');
+  if (!screen || !img) return;
+  screen.querySelectorAll('.image-region-highlight').forEach(el => el.remove());
+  const rect = img.getBoundingClientRect();
+  const imageW = img.naturalWidth || rect.width;
+  const imageH = img.naturalHeight || rect.height;
+  if (!imageW || !imageH) return;
+  const scale = Math.min(rect.width / imageW, rect.height / imageH);
+  const offsetX = (rect.width - imageW * scale) / 2;
+  const offsetY = (rect.height - imageH * scale) / 2;
+  const created = [];
+  for (const it of items) {
+    const r = it.region?.image;
+    if (!r) continue;
+    const div = document.createElement('div');
+    div.className = 'image-region-highlight';
+    div.style.left = `${r.x * scale + offsetX}px`;
+    div.style.top = `${r.y * scale + offsetY}px`;
+    div.style.width = `${r.width * scale}px`;
+    div.style.height = `${r.height * scale}px`;
+    screen.appendChild(div);
+    created.push(div);
+  }
+  if (created.length > 0) {
+    setTimeout(() => created.forEach(el => el.remove()), 3000);
   }
 }

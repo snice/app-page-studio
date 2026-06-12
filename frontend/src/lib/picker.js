@@ -379,3 +379,40 @@ export function highlightElement(iframe, selector) {
   }
   return false;
 }
+
+/**
+ * 同时高亮多个元素（不滚动）。
+ * @param {HTMLIFrameElement} iframe
+ * @param {string[]} selectors
+ * @returns {number} 实际高亮成功的元素数量
+ */
+export function highlightElements(iframe, selectors) {
+  if (!iframe?.contentDocument || !Array.isArray(selectors)) return 0;
+  const doc = iframe.contentDocument;
+  doc.querySelectorAll('.element-highlight').forEach(el => el.classList.remove('element-highlight'));
+  injectPickerStyles(doc);
+  const highlighted = [];
+  for (const sel of selectors) {
+    if (!sel) continue;
+    const cleaned = String(sel).replace(
+      /\.(picker-hover|picker-selected|color-picker-hover|element-highlight)(?![\w-])/g,
+      ''
+    ).trim();
+    if (!cleaned) continue;
+    try {
+      const el = cleaned.startsWith('#')
+        ? doc.querySelector(`[id="${cleaned.slice(1)}"]`)
+        : doc.querySelector(cleaned);
+      if (el) {
+        el.classList.add('element-highlight');
+        highlighted.push(el);
+      }
+    } catch (e) { /* ignore invalid selector */ }
+  }
+  if (highlighted.length > 0) {
+    setTimeout(() => {
+      highlighted.forEach(el => el.classList.remove('element-highlight'));
+    }, 3000);
+  }
+  return highlighted.length;
+}

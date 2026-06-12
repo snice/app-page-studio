@@ -8,6 +8,7 @@ import { FunctionDescriptionList } from './ConfigPanel/FunctionDescriptionList';
 import { PageGroupComboBox } from './ConfigPanel/PageGroupComboBox';
 import { TabBarConfig } from './ConfigPanel/TabBarConfig';
 import { DataSourceList } from './ConfigPanel/DataSourceList';
+import { highlightItems } from './ConfigPanel/helpers';
 
 export function ConfigPanel({ iframeRef }) {
   const currentFile = useAppStore((s) => s.currentFile);
@@ -149,12 +150,34 @@ export function ConfigPanel({ iframeRef }) {
           </div>
 
           <div className="panel-section">
-            <div className="panel-section-title">切图标记</div>
+            <div className="panel-section-title">
+              切图标记
+              {(currentFile?.imageReplacements?.length > 0) && (
+                <button
+                  className="btn-icon"
+                  onClick={() => highlightItems(currentFile.imageReplacements, iframeRef)}
+                  title="高亮所有切图标记"
+                >
+                  <Icon name="target" size="sm" />
+                </button>
+              )}
+            </div>
             <ImageReplacementList iframeRef={iframeRef} readOnly={readOnly} />
           </div>
 
           <div className="panel-section">
-            <div className="panel-section-title">功能描述</div>
+            <div className="panel-section-title">
+              功能描述
+              {(currentFile?.functionDescriptions?.length > 0) && (
+                <button
+                  className="btn-icon"
+                  onClick={() => highlightItems(currentFile.functionDescriptions, iframeRef)}
+                  title="高亮所有功能描述"
+                >
+                  <Icon name="target" size="sm" />
+                </button>
+              )}
+            </div>
             <FunctionDescriptionList iframeRef={iframeRef} readOnly={readOnly} />
           </div>
         </div>

@@ -34,7 +34,21 @@ export function useIframePicker({ iframeRef }) {
     const zoom = iframeRect.width / iframe.offsetWidth || 1;
     const menuX = iframeRect.left + mouseEvent.clientX * zoom;
     const menuY = iframeRect.top + mouseEvent.clientY * zoom;
-    setPickerMenu({ x: menuX, y: menuY, selector, eventType });
+    let imgSrc = '';
+    try {
+      const doc = iframe.contentDocument;
+      const el = doc?.querySelector(selector);
+      if (el && el.tagName === 'IMG') {
+        const raw = (el.getAttribute('src') || '').trim();
+        if (raw) {
+          let resolved = raw;
+          try { resolved = new URL(raw, doc.baseURI).href; } catch (_) {}
+          const m = resolved.match(/__html__\/.+$/);
+          imgSrc = m ? m[0] : raw;
+        }
+      }
+    } catch (_) { /* invalid selector */ }
+    setPickerMenu({ x: menuX, y: menuY, selector, eventType, imgSrc });
   }, [iframeRef]);
 
   const handleColorPicked = useCallback((hex, copied = true) => {
@@ -45,7 +59,7 @@ export function useIframePicker({ iframeRef }) {
     showToast(copied ? `已复制: ${hex}` : `已取色: ${hex}（剪贴板写入失败，请手动复制）`);
   }, [setPickedColors, showToast]);
 
-  const handlePickerAction = useCallback((action, selector, eventType) => {
+  const handlePickerAction = useCallback((action, selector, eventType, extra) => {
     setPickerMenu(null);
     const iframe = iframeRef.current;
     if (iframe) {
@@ -62,6 +76,9 @@ export function useIframePicker({ iframeRef }) {
     } else if (action === 'image') {
       addImageReplacement({ selector, imagePath: '', description: '' });
       showToast(`已添加切图标记: ${selector}`);
+    } else if (action === 'auto-image') {
+      addImageReplacement({ selector, imagePath: extra?.imgSrc || '', description: '' });
+      showToast(`已自动切图: ${selector}`);
     } else if (action === 'function') {
       addFunctionDescription({ selector, description: '' });
       showToast(`已添加功能描述: ${selector}`);

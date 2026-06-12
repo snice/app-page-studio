@@ -23,6 +23,7 @@ function PickerActionMenu({ menu, isHtml, onAction, onClose }) {
   const items = [
     { key: 'interaction', icon: 'target', label: '添加交互' },
     { key: 'image', icon: 'image', label: '切图标记' },
+    ...(menu.imgSrc ? [{ key: 'auto-image', icon: 'image', label: '自动切图' }] : []),
     { key: 'function', icon: 'info', label: '功能描述' },
     ...(isHtml ? [{ key: 'styles', icon: 'code', label: '查看样式' }] : []),
   ];
@@ -45,7 +46,7 @@ function PickerActionMenu({ menu, isHtml, onAction, onClose }) {
           style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, borderRadius: 4 }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
           onMouseLeave={(e) => e.currentTarget.style.background = ''}
-          onClick={() => onAction(key, menu.selector, menu.eventType)}
+          onClick={() => onAction(key, menu.selector, menu.eventType, { imgSrc: menu.imgSrc })}
         >
           <Icon name={icon} size="sm" />
           <span>{label}</span>
