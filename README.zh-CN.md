@@ -8,6 +8,12 @@ Flutter、React Native 和 UniApp 页面还原。
 它支持 HTML 设计稿、PNG/JPG/WebP 设计图、PSD
 文件预览与图层切图，并提供页面分组、交互/切图/功能描述、设计系统、多人协作和版本历史。
 
+## 在线演示
+
+- 地址：https://studio.itfenbao.com
+- 用户名：`admin`
+- 密码：`123456`
+
 ## 功能特性
 
 - **多源设计稿**：支持 HTML ZIP、设计图 ZIP/图片上传、PSD/PSD ZIP 上传。

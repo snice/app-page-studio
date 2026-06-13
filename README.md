@@ -6,6 +6,12 @@ App Page Studio is a workspace for turning design inputs into structured AI impl
 
 It supports HTML exports, PNG/JPG/WebP design images, PSD previews and layer slicing, page grouping, interaction/slice/feature annotations, design-system metadata, multi-user collaboration, and revision history.
 
+## Demo Site
+
+- URL: https://studio.itfenbao.com
+- Username: `admin`
+- Password: `123456`
+
 ## Features
 
 - **Multi-source design input**: Upload HTML ZIP files, image ZIP files or standalone images, and PSD or PSD ZIP files.

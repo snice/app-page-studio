@@ -107,7 +107,9 @@ input[type="range"]::-moz-range-thumb {
 
 /* ==================== Intel Mac 性能优化：禁用 backdrop-filter blur ==================== */
 html[data-intel-mac] * {
-  backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
 
+html[data-intel-mac] :where(*) {
+  backdrop-filter: none !important;
+}
