@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
-    "archiver": "^8.0.0",
+    "archiver": "7.0.1",
     "better-sqlite3": "^12.5.0",
     "better-sqlite3-session-store": "^0.1.0",
     "chokidar": "^3.5.3",
