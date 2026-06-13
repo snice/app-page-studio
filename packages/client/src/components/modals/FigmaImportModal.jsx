@@ -58,6 +58,43 @@ function formatScope(token) {
   return `${token?.projectCount ?? token?.allowedProjectIds?.length ?? 0} 个项目`;
 }
 
+function isLocalBackendUrl(url) {
+  return url?.protocol === 'http:'
+    && url?.port === '3000'
+    && ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+}
+
+function isLocalBrowserHost(hostname) {
+  return ['localhost', '127.0.0.1', '::1'].includes(hostname)
+    || /^10\./.test(hostname)
+    || /^192\.168\./.test(hostname)
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname);
+}
+
+function getFigmaServerUrl(apiServerUrl = '') {
+  if (typeof window === 'undefined') return apiServerUrl;
+
+  try {
+    const browserUrl = new URL(window.location.href);
+    const apiUrl = apiServerUrl ? new URL(apiServerUrl) : null;
+    const usesViteDevServer = browserUrl.protocol === 'http:' && browserUrl.port === '5173';
+    const shouldUseLocalBackendPort = isLocalBrowserHost(browserUrl.hostname)
+      && (usesViteDevServer || isLocalBackendUrl(apiUrl));
+
+    browserUrl.pathname = '';
+    browserUrl.search = '';
+    browserUrl.hash = '';
+
+    if (shouldUseLocalBackendPort) {
+      browserUrl.port = '3000';
+    }
+
+    return browserUrl.origin;
+  } catch {
+    return apiServerUrl || window.location.origin;
+  }
+}
+
 function TokenStatus({ token }) {
   const status = token?.status || 'expired';
   const label = status === 'active' ? '有效' : status === 'revoked' ? '已吊销' : '已过期';
@@ -101,7 +138,7 @@ export function FigmaImportModal({ isOpen, onClose }) {
         showToast(res.error);
         return;
       }
-      setServerUrl(res.serverUrl || window.location.origin);
+      setServerUrl(getFigmaServerUrl(res.serverUrl));
       setTokens(res.tokens || []);
     } finally {
       setListLoading(false);
@@ -137,7 +174,7 @@ export function FigmaImportModal({ isOpen, onClose }) {
       }
       writeLocalToken(res);
       setLocalTokens(readLocalTokenCache());
-      setServerUrl(res.serverUrl || window.location.origin);
+      setServerUrl(getFigmaServerUrl(res.serverUrl));
       setTokenData(res);
       showToast('Figma 上传令牌已生成');
       await loadTokens();
@@ -173,7 +210,7 @@ export function FigmaImportModal({ isOpen, onClose }) {
 
   const activeCount = tokens.filter((token) => token.status === 'active').length;
   const latestExpiry = tokenData?.expiresAt ? formatDate(tokenData.expiresAt) : '';
-  const effectiveServerUrl = serverUrl || window.location.origin;
+  const effectiveServerUrl = serverUrl || getFigmaServerUrl();
 
   return (
     <ModalOverlay isOpen={isOpen} onClose={onClose}>

@@ -436,7 +436,7 @@
     <div id="mainView" class="view active">
       <main class="content">
         <div class="field-row">
-          <div class="label">设计倍数 <span class="hint">?</span></div>
+          <div class="label">切图倍数 <span class="hint">?</span></div>
           <select id="platformSelect">
             <option value="ios">iOS</option>
             <option value="android">Android</option>
@@ -771,8 +771,8 @@
     function getOptions() {
       return {
         scope: state.scope,
-        pageScale: Number(els.scaleSelect.value) || 1,
-        sliceScale: 1,
+        pageScale: 1,
+        sliceScale: Number(els.scaleSelect.value) || 1,
         includeExportSettings: true,
         includeNamedSlices: true
       };
