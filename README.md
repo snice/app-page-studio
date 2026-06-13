@@ -14,7 +14,7 @@ It supports HTML exports, PNG/JPG/WebP design images, PSD previews and layer sli
 
 ## Features
 
-- **Multi-source design input**: Upload HTML ZIP files, image ZIP files or standalone images, and PSD or PSD ZIP files.
+- **Multi-source design input**: Upload HTML ZIP files, image ZIP files or standalone images, PSD or PSD ZIP files, and imports from the Figma plugin.
 - **Page workspace**: Use a left file list, center phone preview or PSD canvas, and right page configuration panel.
 - **Page grouping**: Group default, loading, empty, and other states of the same page.
 - **Page configuration**: Configure state name, development status, route, source path, tab bar, data sources, and more.
@@ -98,6 +98,13 @@ When creating a project, you can upload a ZIP:
 - PSD files are extracted to `__psd__/`
 
 You can also create an empty project first, then upload HTML, design images, or PSD files in the workspace.
+
+Figma import:
+
+- The plugin lives in `packages/figma-plugin/`; load `manifest.json` in Figma.
+- In the workspace, click `Figma`, generate an upload token, then paste both the server URL and token into the plugin settings.
+- The plugin reads the token scope and lets you choose the target project and page group.
+- The plugin imports page PNGs into the selected project's `__design__/`, slice PNGs into `__assets__/`, and writes slice regions into page config.
 
 ### 2. Open the Workspace and Refresh Files
 
@@ -240,6 +247,8 @@ Business APIs require login. Login state is stored through `express-session`.
 - `POST /api/upload-html`, `GET /api/scan-html`, `GET /api/html-content`
 - `POST /api/upload-image`, `GET /api/list-images`, `POST /api/upload-asset`
 - `POST /api/upload-psd`, `GET /api/list-psd`, `GET /api/psd-preview`
+- `POST /api/figma/token`: create a Figma upload token
+- `POST /api/figma/verify`, `POST /api/figma/import`: Figma plugin verification and import
 - `POST /api/download-design-zip`
 - `POST /api/generate-prompt`
 

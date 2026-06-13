@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { useAppStore } from '../../lib/state';
 import { useWebSocket } from '../useWebSocket';
 import { Picker, ColorPickerModule } from '../../lib/picker';
+import { api } from '../../lib/api';
 
 /**
  * WebSocket 热更新：服务端 chokidar 监听到当前文件变更时，刷新 iframe。
@@ -12,7 +13,7 @@ export function useIframeHotReload({ iframeRef }) {
   const currentPath = useAppStore((s) => s.currentFile?.path || null);
   const currentGroupId = useAppStore((s) => s.currentFile?.groupId ?? null);
 
-  const send = useWebSocket(useCallback((data) => {
+  const send = useWebSocket(useCallback(async (data) => {
     const state = useAppStore.getState();
     if (data.type === 'session') {
       state.setRealtimeSession(data);
@@ -58,7 +59,22 @@ export function useIframeHotReload({ iframeRef }) {
     }
     if (data.type === 'pages:full-saved') {
       if (data.savedBy?.sessionId && data.savedBy.sessionId === state.session.wsSessionId) return;
-      state.showToast(`${data.savedBy?.editorName || '其他用户'} 已保存项目配置`);
+      const hasDirtyFiles = Object.keys(state.dirtyFiles || {}).length > 0;
+      if (hasDirtyFiles || state.dirtyGroups) {
+        state.showToast(`${data.savedBy?.editorName || '其他用户'} 已保存项目配置，请处理本地修改后再同步`);
+        return;
+      }
+      const currentPath = state.currentFile?.path || null;
+      try {
+        const latest = await api.getPages();
+        if (latest.error) throw new Error(latest.error);
+        state.setPagesConfig(latest);
+        await state.scanHtmlFiles({ showResultToast: false });
+        if (currentPath) useAppStore.getState().setCurrentFile(currentPath);
+        state.showToast(`${data.savedBy?.editorName || '其他用户'} 已保存项目配置，已同步最新版本`);
+      } catch (e) {
+        state.showToast('项目配置已更新，请手动刷新');
+      }
       return;
     }
     if (data.type !== 'html:changed' && data.type !== 'html-changed') return;

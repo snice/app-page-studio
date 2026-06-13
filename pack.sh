@@ -42,6 +42,7 @@ node -e "
 cp packages/server/package-lock.json "${DIST_DIR}/package-lock.json"
 cp -r packages/server/api "${DIST_DIR}/api"
 cp -r packages/server/schemas "${DIST_DIR}/schemas" 2>/dev/null || true
+cp -r packages/figma-plugin "${DIST_DIR}/figma-plugin"
 
 # 前端文件
 echo "  构建 React 前端..."

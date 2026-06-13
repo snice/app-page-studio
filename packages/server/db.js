@@ -11,6 +11,16 @@ const { DB_PATH } = require('./paths');
 const db = new Database(DB_PATH);
 db.pragma('foreign_keys = ON');
 
+const existingFigmaTokenTable = db.prepare(`
+  SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'figma_import_tokens'
+`).get();
+if (existingFigmaTokenTable) {
+  const tokenColumns = new Set(db.prepare(`PRAGMA table_info(figma_import_tokens)`).all().map((column) => column.name));
+  if (!tokenColumns.has('token_id') || !tokenColumns.has('token_secret_hash')) {
+    db.exec(`DROP TABLE IF EXISTS figma_import_tokens`);
+  }
+}
+
 // 创建表
 db.exec(`
   CREATE TABLE IF NOT EXISTS projects (
@@ -67,8 +77,28 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS figma_import_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_id TEXT NOT NULL UNIQUE,
+    token_secret_hash TEXT NOT NULL,
+    token_preview TEXT,
+    project_scope TEXT NOT NULL DEFAULT 'selected',
+    allowed_project_ids TEXT,
+    created_by_user_id INTEGER,
+    created_by_name TEXT,
+    expires_at TEXT NOT NULL,
+    revoked_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME,
+    last_used_project_id INTEGER,
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_project_members_user_id ON project_members(user_id);
   CREATE INDEX IF NOT EXISTS idx_project_members_project_id ON project_members(project_id);
+  CREATE INDEX IF NOT EXISTS idx_figma_import_tokens_token_id ON figma_import_tokens(token_id);
+  CREATE INDEX IF NOT EXISTS idx_figma_import_tokens_created_by ON figma_import_tokens(created_by_user_id);
+  CREATE INDEX IF NOT EXISTS idx_figma_import_tokens_expires_at ON figma_import_tokens(expires_at);
 `);
 
 // 添加 design_system 字段（如果不存在）
@@ -893,6 +923,225 @@ const Projects = {
   }
 };
 
+function hashFigmaImportSecret(secret) {
+  return crypto.createHash('sha256').update(String(secret || '')).digest('hex');
+}
+
+function timingSafeHexEqual(left, right) {
+  if (!left || !right || left.length !== right.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+function safeParseJsonArray(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function buildFigmaTokenStatus(row) {
+  const expiresAtMs = Date.parse(row.expires_at);
+  const isExpired = !Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now();
+  if (row.revoked_at) return 'revoked';
+  return isExpired ? 'expired' : 'active';
+}
+
+function buildFigmaImportToken(row) {
+  if (!row) return null;
+  const allowedProjectIds = safeParseJsonArray(row.allowed_project_ids)
+    .map((id) => Number.parseInt(id, 10))
+    .filter((id) => Number.isFinite(id) && id > 0);
+  const status = buildFigmaTokenStatus(row);
+  return {
+    id: row.id,
+    tokenId: row.token_id,
+    tokenPreview: row.token_preview || (row.token_id ? `aps1.${row.token_id}` : ''),
+    projectScope: row.project_scope || 'selected',
+    allowedProjectIds,
+    projectCount: row.project_scope === 'all' ? null : allowedProjectIds.length,
+    createdByUserId: row.created_by_user_id || null,
+    createdByName: row.created_by_name || null,
+    username: row.created_by_name || row.username || null,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    revokedAt: row.revoked_at || null,
+    lastUsedAt: row.last_used_at || null,
+    lastUsedProjectId: row.last_used_project_id || null,
+    status,
+    isExpired: status === 'expired',
+    isRevoked: status === 'revoked'
+  };
+}
+
+function decodeFigmaTokenPayload(raw) {
+  try {
+    return JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function parseFigmaImportToken(token) {
+  const value = String(token || '').trim();
+  const parts = value.split('.');
+  if (parts.length !== 3 || parts[0] !== 'aps1') return null;
+  if (!parts[1] || !parts[2]) return null;
+  const payload = decodeFigmaTokenPayload(parts[1]);
+  const tokenId = payload && payload.tid ? String(payload.tid) : parts[1];
+  return {
+    tokenId,
+    secret: parts[2]
+  };
+}
+
+function projectIdsForToken(tokenRecord) {
+  if (!tokenRecord) return [];
+  if (tokenRecord.projectScope === 'all') {
+    return Projects.getAll().map((project) => project.id);
+  }
+  return tokenRecord.allowedProjectIds || [];
+}
+
+function tokenCanAccessProject(tokenRecord, projectId) {
+  const pid = Number.parseInt(projectId, 10);
+  if (!Number.isFinite(pid) || pid <= 0 || !tokenRecord) return false;
+  if (tokenRecord.projectScope === 'all') return !!Projects.getById(pid);
+  return (tokenRecord.allowedProjectIds || []).includes(pid);
+}
+
+const FigmaImportTokens = {
+  create({ createdByUser = null, allowedProjectIds = [], projectScope = 'selected', ttlMinutes = 720 } = {}) {
+    const ttl = Math.max(5, Math.min(Number.parseInt(ttlMinutes, 10) || 720, 30 * 24 * 60));
+    const tokenId = crypto.randomBytes(9).toString('base64url');
+    const secret = crypto.randomBytes(32).toString('base64url');
+    const token = `aps1.${tokenId}.${secret}`;
+    const tokenSecretHash = hashFigmaImportSecret(secret);
+    const tokenPreview = `aps1.${tokenId}...${secret.slice(-4)}`;
+    const expiresAt = new Date(Date.now() + ttl * 60 * 1000).toISOString();
+    const creatorId = normalizeUserId(createdByUser?.id);
+    const createdByName = createdByUser?.username || null;
+    const normalizedScope = projectScope === 'all' ? 'all' : 'selected';
+    const normalizedProjectIds = [...new Set((allowedProjectIds || [])
+      .map((id) => Number.parseInt(id, 10))
+      .filter((id) => Number.isFinite(id) && id > 0))];
+
+    const result = db.prepare(`
+      INSERT INTO figma_import_tokens (
+        token_id, token_secret_hash, token_preview, project_scope, allowed_project_ids,
+        created_by_user_id, created_by_name, expires_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      tokenId,
+      tokenSecretHash,
+      tokenPreview,
+      normalizedScope,
+      normalizedScope === 'all' ? null : JSON.stringify(normalizedProjectIds),
+      creatorId,
+      createdByName,
+      expiresAt
+    );
+
+    return {
+      id: result.lastInsertRowid,
+      token,
+      tokenId,
+      tokenPreview,
+      projectScope: normalizedScope,
+      allowedProjectIds: normalizedProjectIds,
+      projectCount: normalizedScope === 'all' ? null : normalizedProjectIds.length,
+      createdByUserId: creatorId,
+      createdByName,
+      expiresAt
+    };
+  },
+
+  verify(token) {
+    const parsed = parseFigmaImportToken(token);
+    if (!parsed) return null;
+    const row = db.prepare(`
+      SELECT t.id, t.token_id, t.token_secret_hash, t.token_preview, t.project_scope,
+             t.allowed_project_ids, t.created_by_user_id, t.created_by_name, t.expires_at,
+             t.revoked_at, t.created_at, t.last_used_at, t.last_used_project_id, u.username
+      FROM figma_import_tokens t
+      LEFT JOIN users u ON u.id = t.created_by_user_id
+      WHERE t.token_id = ?
+    `).get(parsed.tokenId);
+    if (!row) return null;
+    if (!timingSafeHexEqual(hashFigmaImportSecret(parsed.secret), row.token_secret_hash)) return null;
+
+    const record = buildFigmaImportToken(row);
+    if (!record || record.status !== 'active') return null;
+    return record;
+  },
+
+  markUsed(tokenId, projectId) {
+    if (!tokenId) return;
+    const pid = Number.parseInt(projectId, 10) || null;
+    db.prepare(`
+      UPDATE figma_import_tokens
+      SET last_used_at = CURRENT_TIMESTAMP,
+          last_used_project_id = ?
+      WHERE token_id = ?
+    `).run(pid, tokenId);
+  },
+
+  listForUser(user) {
+    const isAdmin = isAdminUser(user);
+    const userId = normalizeUserId(user?.id);
+    const sql = `
+      SELECT t.id, t.token_id, t.token_preview, t.project_scope, t.allowed_project_ids,
+             t.created_by_user_id, t.created_by_name, t.expires_at, t.revoked_at,
+             t.created_at, t.last_used_at, t.last_used_project_id, u.username
+      FROM figma_import_tokens t
+      LEFT JOIN users u ON u.id = t.created_by_user_id
+      ${isAdmin ? '' : 'WHERE t.created_by_user_id = ?'}
+      ORDER BY t.created_at DESC, t.id DESC
+      LIMIT 50
+    `;
+    const rows = isAdmin ? db.prepare(sql).all() : db.prepare(sql).all(userId || -1);
+    return rows.map(buildFigmaImportToken);
+  },
+
+  revokeForUser(tokenId, user) {
+    const id = Number.parseInt(tokenId, 10);
+    if (!Number.isFinite(id) || id <= 0) return 0;
+    const isAdmin = isAdminUser(user);
+    const userId = normalizeUserId(user?.id);
+    const result = isAdmin
+      ? db.prepare(`
+          UPDATE figma_import_tokens
+          SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP)
+          WHERE id = ?
+        `).run(id)
+      : db.prepare(`
+          UPDATE figma_import_tokens
+          SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP)
+          WHERE id = ? AND created_by_user_id = ?
+        `).run(id, userId || -1);
+    return result.changes || 0;
+  },
+
+  projectsForToken(tokenRecord) {
+    const ids = projectIdsForToken(tokenRecord);
+    const projects = [];
+    for (const id of ids) {
+      const project = Projects.getById(id);
+      if (project) projects.push(project);
+    }
+    return projects;
+  },
+
+  tokenCanAccessProject
+};
+
 /**
  * scrypt 密码哈希；存储格式 `scrypt$N$r$p$saltHex$hashHex`
  */
@@ -968,4 +1217,5 @@ module.exports = {
   db,
   Projects,
   Users,
+  FigmaImportTokens,
 };

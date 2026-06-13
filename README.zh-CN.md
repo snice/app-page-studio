@@ -16,7 +16,7 @@ Flutter、React Native 和 UniApp 页面还原。
 
 ## 功能特性
 
-- **多源设计稿**：支持 HTML ZIP、设计图 ZIP/图片上传、PSD/PSD ZIP 上传。
+- **多源设计稿**：支持 HTML ZIP、设计图 ZIP/图片上传、PSD/PSD ZIP 上传，以及 Figma 插件导入。
 - **页面工作台**：左侧文件列表，中间手机预览/PSD 画布，右侧页面配置面板。
 - **页面分组**：把同一页面的默认、加载中、空数据等状态归为一个页面组。
 - **页面配置**：配置状态名称、开发状态、路由、源码路径、Tabbar、数据源等。
@@ -103,6 +103,13 @@ pnpm --filter server reset-password -- -u <username>
 - 包含 PSD 时会解压到 `__psd__/`
 
 也可以先创建空项目，再在工作台上传 HTML、设计图或 PSD。
+
+Figma 导入：
+
+- 插件位于 `packages/figma-plugin/`，在 Figma 中加载 `manifest.json`。
+- 工作台顶部点击“Figma”生成上传令牌，把服务器地址和 token 填到插件右下角“设置”中。
+- 插件会自动读取 token 授权范围，支持选择项目和页面分组。
+- 插件会把整页 PNG 导入所选项目的 `__design__/`，把切图导入 `__assets__/`，并写入页面配置。
 
 ### 2. 打开工作台并刷新文件
 
@@ -248,6 +255,8 @@ app-page-studio/
 - `POST /api/upload-html`、`GET /api/scan-html`、`GET /api/html-content`
 - `POST /api/upload-image`、`GET /api/list-images`、`POST /api/upload-asset`
 - `POST /api/upload-psd`、`GET /api/list-psd`、`GET /api/psd-preview`
+- `POST /api/figma/token`：生成 Figma 上传令牌
+- `POST /api/figma/verify`、`POST /api/figma/import`：Figma 插件校验与导入
 - `POST /api/download-design-zip`
 - `POST /api/generate-prompt`
 

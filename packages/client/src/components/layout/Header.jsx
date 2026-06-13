@@ -3,7 +3,7 @@ import { Icon } from '../common/Icon';
 import { useTheme } from '../../hooks/useTheme';
 import { useAppStore } from '../../lib/state';
 
-export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownloadDesigns, onScanHtml, onOpenImageUpload, onSaveCurrentPage, onSaveAllConfig, onDownloadConfig, onShowPageHistory, onShowPromptModal }) {
+export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownloadDesigns, onScanHtml, onOpenImageUpload, onOpenFigmaImport, onSaveCurrentPage, onSaveAllConfig, onDownloadConfig, onShowPageHistory, onShowPromptModal }) {
   const { theme, toggleTheme } = useTheme();
   const currentProject = useAppStore((s) => s.getCurrentProject());
   const projects = useAppStore((s) => s.config.projects);
@@ -108,6 +108,10 @@ export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownlo
         <button className="btn btn-secondary" onClick={onOpenImageUpload} disabled={!isCurrentEditor} title={isCurrentEditor ? '上传设计图' : '当前为只读'}>
           <Icon name="image" />
           上传设计图
+        </button>
+        <button className="btn btn-secondary" onClick={onOpenFigmaImport} disabled={!isCurrentEditor} title={isCurrentEditor ? 'Figma 导入' : '当前为只读'}>
+          <Icon name="layers" />
+          Figma
         </button>
         <button className="btn btn-secondary" onClick={onSaveCurrentPage} disabled={!isCurrentEditor} title={isCurrentEditor ? '保存当前页' : '当前为只读'}>
           <Icon name="save" />

@@ -19,6 +19,7 @@ const htmlRouter = require('./api/html');
 const promptRouter = require('./api/prompt');
 const imageRouter = require('./api/image');
 const psdRouter = require('./api/psd');
+const figmaRouter = require('./api/figma');
 const authRouter = require('./api/auth');
 const { requireAuth } = authRouter;
 const { HTML_CACHES_DIR } = require('./api/utils');
@@ -101,6 +102,7 @@ app.use('/html/:projectId', requireAuth, (req, res, next) => {
 
 // 鉴权路由（公开 /auth/login、/auth/me；其余在 router 内部 requireAdmin）
 app.use('/api', authRouter);
+app.use('/api', figmaRouter);
 
 // 业务 API 全部要求登录
 app.use('/api', requireAuth, projectsRouter);
