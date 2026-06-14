@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 App Page Studio is a workspace for turning design inputs into structured AI implementation prompts for Flutter, React Native, and UniApp page restoration.
 
-It supports HTML exports, PNG/JPG/WebP design images, PSD previews and layer slicing, page grouping, interaction/slice/feature annotations, design-system metadata, multi-user collaboration, and revision history.
+It supports HTML exports, PNG/JPG/WebP design images, PSD previews and layer slicing, page grouping, interaction/slice/feature annotations, design-system metadata, and multi-user collaboration.
 
 ## Demo Site
 
@@ -28,7 +28,6 @@ It supports HTML exports, PNG/JPG/WebP design images, PSD previews and layer sli
 - **Login and permissions**: Support admins, users, project members, and owner/editor/viewer roles.
 - **Multi-user collaboration**: Use WebSocket presence and synchronization for uploads, deletes, and saves.
 - **Fine-grained saves**: Save the current page or the full project config to reduce collaboration conflicts.
-- **Revision history**: Every save can create a pages-config revision that can be viewed and restored.
 - **Dark and light themes**: Switch between UI themes.
 
 ## Architecture
@@ -176,11 +175,9 @@ Conflict control:
 
 When another user saves the same page or group, WebSocket notifies the client and auto-merges when the local state is clean.
 
-### 7. View Revision History
+Every successful save advances the pages-config revision used by collaboration conflict guards.
 
-Every successful save advances the pages-config revision and stores a historical snapshot. You can view and restore snapshots from "Revision history".
-
-### 8. Generate Prompts
+### 7. Generate Prompts
 
 Click "Generate prompt" and choose a target platform:
 
@@ -243,7 +240,6 @@ Business APIs require login. Login state is stored through `express-session`.
 - `POST /api/pages`: save the full config
 - `PATCH /api/pages/file`: save one page config
 - `PATCH /api/pages/groups`: save page groups and file assignments
-- `GET /api/pages/history`, `POST /api/pages/restore`: revision history
 - `POST /api/upload-html`, `GET /api/scan-html`, `GET /api/html-content`
 - `POST /api/upload-image`, `GET /api/list-images`, `POST /api/upload-asset`
 - `POST /api/upload-psd`, `GET /api/list-psd`, `GET /api/psd-preview`

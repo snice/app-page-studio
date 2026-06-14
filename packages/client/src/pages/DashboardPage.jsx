@@ -78,7 +78,6 @@ export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject, onR
         onSaveCurrentPage={ctrl.handleSaveCurrentPage}
         onSaveAllConfig={ctrl.handleSaveAllConfig}
         onDownloadConfig={ctrl.handleDownloadConfig}
-        onShowPageHistory={() => openModal('pageHistory')}
         onShowPromptModal={() => openModal('prompt')}
       />
       <Sidebar
@@ -147,7 +146,6 @@ export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject, onR
         onDeleteFiles={ctrl.handleDeleteFiles}
         mindMapOpen={ctrl.mindMapOpen}
         onCloseMindMap={() => ctrl.setMindMapOpen(false)}
-        onRequestConfirm={onRequestConfirm}
       />
     </div>
   );

@@ -3,7 +3,6 @@ import { ImageUploadModal } from '../components/modals/ImageUploadModal';
 import { GroupModal } from '../components/modals/GroupModal';
 import { DeleteConfirmModal } from '../components/modals/DeleteConfirmModal';
 import { PromptModal } from '../components/modals/PromptModal';
-import { PageHistoryModal } from '../components/modals/PageHistoryModal';
 import { FigmaImportModal } from '../components/modals/FigmaImportModal';
 import { MindMapOverlay } from '../components/mindmap/MindMapOverlay';
 import { useAppStore } from '../lib/state';
@@ -12,7 +11,7 @@ import { useAppStore } from '../lib/state';
  * 工作台（DashboardPage）自己的弹窗集合。
  * 打开/关闭统一通过 store 的 modals 接口，谁的弹窗谁渲染。
  */
-export function DashboardModals({ onDeleteFiles, mindMapOpen, onCloseMindMap, onRequestConfirm }) {
+export function DashboardModals({ onDeleteFiles, mindMapOpen, onCloseMindMap }) {
   const modals = useAppStore((s) => s.modals);
   const closeModal = useAppStore((s) => s.closeModal);
   const scanHtmlFiles = useAppStore((s) => s.scanHtmlFiles);
@@ -34,11 +33,6 @@ export function DashboardModals({ onDeleteFiles, mindMapOpen, onCloseMindMap, on
       />
       <PromptModal isOpen={!!modals.prompt} onClose={() => closeModal('prompt')} />
       <FigmaImportModal isOpen={!!modals.figmaImport} onClose={() => closeModal('figmaImport')} />
-      <PageHistoryModal
-        isOpen={!!modals.pageHistory}
-        onClose={() => closeModal('pageHistory')}
-        onRequestConfirm={onRequestConfirm}
-      />
       {mindMapOpen && <MindMapOverlay onClose={onCloseMindMap} />}
     </>
   );
