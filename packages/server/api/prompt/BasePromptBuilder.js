@@ -191,7 +191,11 @@ ${JSON.stringify(this.designSystem, null, 2)}
     out += `${subIndent}- 描述: ${file.description || emptyDescription}\n`;
 
     if (isDesignRef) {
-      out += `${subIndent}- 说明: 先根据设计图生成 UI IR(HTML)，再基于 UI IR 实现代码\n`;
+      if (file.generatedHtmlPath) {
+        out += `${subIndent}- UI IR(HTML): \`${file.generatedHtmlPath}\`（已生成，后续实现必须以此为视觉真源）\n`;
+      } else {
+        out += `${subIndent}- 说明: 先根据设计图生成 UI IR(HTML)，再基于 UI IR 实现代码\n`;
+      }
     }
 
     // PSD 切图

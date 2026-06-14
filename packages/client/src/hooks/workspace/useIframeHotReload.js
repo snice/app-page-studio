@@ -72,18 +72,28 @@ export function useIframeHotReload({ iframeRef }) {
         await state.scanHtmlFiles({ showResultToast: false });
         if (currentPath) useAppStore.getState().setCurrentFile(currentPath);
         state.showToast(`${data.savedBy?.editorName || '其他用户'} 已保存项目配置，已同步最新版本`);
-      } catch (e) {
+      } catch {
         state.showToast('项目配置已更新，请手动刷新');
       }
       return;
     }
     if (data.type !== 'html:changed' && data.type !== 'html-changed') return;
     const cf = useAppStore.getState().currentFile;
-    if (!cf || (data.path !== cf.path && (!data.file || !data.file.includes(cf.path)))) return;
+    const generatedPath = cf?.generatedHtmlPath || null;
+    if (!cf) return;
+    const dataFile = data.file || '';
+    const isCurrentPath = data.path === cf.path || dataFile.includes(cf.path);
+    const isCurrentIrPath = generatedPath && (data.path === generatedPath || dataFile.includes(generatedPath));
+    if (!isCurrentPath && !isCurrentIrPath) return;
     if (!iframeRef.current) return;
     if (state.isPickerActive) Picker.disable(iframeRef.current);
     if (state.isColorPickerActive) ColorPickerModule.disable(iframeRef.current);
-    iframeRef.current.src = iframeRef.current.src;
+    try {
+      iframeRef.current.contentWindow?.location.reload();
+    } catch {
+      const src = iframeRef.current.getAttribute('src');
+      if (src) iframeRef.current.setAttribute('src', src);
+    }
   }, [iframeRef]));
 
   useEffect(() => {

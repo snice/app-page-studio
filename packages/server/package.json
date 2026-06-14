@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "reset-password": "node tools/reset-password.js"
+    "reset-password": "node tools/reset-password.js",
+    "test-ai-html-agent": "node tools/test-ai-html-agent-generate.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
@@ -19,6 +20,7 @@
     "express-session": "^1.19.0",
     "multer": "^2.0.2",
     "open": "^9.1.0",
+    "openai": "4.89.1",
     "psd": "^3.4.0",
     "ws": "^8.14.2"
   },

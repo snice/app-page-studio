@@ -15,10 +15,11 @@
    - 先根据本规范，**只输出一份严格 HTML 的 UI IR**，不写平台代码。  
    - HTML 中必须包含布局、样式（尽量像素级）、文本、图片等信息。
 2. **将 UI IR 保存为 HTML 文件**  
-   - 文件名需与设计图一致：`__design__/xxx.png` → `__design__/xxx.html`；`__psd__/xxx.png` → `__psd__/xxx.html`。  
+   - 文件名需与设计图一致并使用独立预览目录：`__design__/xxx.png` → `__design__/xxx/index.html`；`__psd__/xxx.png` → `__psd__/xxx/index.html`。  
+   - 预览目录可包含资源子目录：`img/`、`css/`、`js/`；若当前流程只输出单文件 HTML，则 CSS/JS 必须内联，避免引用不存在的资源。  
    - 若文件已存在，则在充分比对后**更新**该 HTML，而不是重新发明结构。
 3. **HTML 像素级检测（截图 + 对比 + 至少 1 轮修正）**  
-   - **优先**使用工具内部提供的网页 Preview 截图功能对 `xxx.html` 截图到 `__html_snapshot/xxx-html.png`，无需额外启动 MCP 或 HTTP 服务。  
+   - **优先**使用工具内部提供的网页 Preview 截图功能对 `xxx/index.html` 截图到 `__html_snapshot/xxx-html.png`，无需额外启动 MCP 或 HTTP 服务。  
    - 若无内置 Preview 截图能力，则使用 **Playwright MCP**（Cursor MCP 服务名：`user-playwright`），需先在项目根启动本地 HTTP 服务（详见「像素级检测」章节）。  
    - 若 HTML 内容可上下滚动（高于视口高度），**必须使用全页截图**（`fullPage: true`），保证整个页面完整可见，便于与设计图进行像素级对比。  
    - 将截图与设计图对比，**至少 1 轮**修改 HTML 与样式，直到布局（横向或竖向）、边框、背景、圆角、阴影、间距、字体等足够接近。  
@@ -211,7 +212,8 @@ __psd__/
 
 ### 1. 生成 HTML
 
-- 直接输出与设计图**同名**的 HTML 文件（如设计图为 `__design__/xxx.png`，则生成 `__design__/xxx.html`）。
+- 直接输出与设计图**同名目录**下的 HTML 文件（如设计图为 `__design__/xxx.png`，则生成 `__design__/xxx/index.html`）。
+- 预览目录可包含 `img/`、`css/`、`js/`；若当前调用只支持返回单个 HTML，则 CSS/JS 必须内联，不要引用未创建的外部文件。
 - 视口与设备尺寸一致（如 `width=375, height=812`），布局、字号、颜色、圆角、内边距等按设计图实现。
 
 ### 2. 截图
@@ -246,9 +248,9 @@ python3 -m http.server 8765
    - `height`: 812（示例）
 
 2. **`browser_navigate`**：通过 HTTP 打开 HTML IR  
-   - `url`: `http://127.0.0.1:<端口>/__design__/xxx.html`  
-   - 示例：`http://127.0.0.1:8765/__design__/1%E7%99%BB%E5%BD%95.html`  
-   - 中文文件名须 **URL 编码**（如 `1登录.html` → `1%E7%99%BB%E5%BD%95.html`）  
+   - `url`: `http://127.0.0.1:<端口>/__design__/xxx/index.html`  
+   - 示例：`http://127.0.0.1:8765/__design__/1%E7%99%BB%E5%BD%95/index.html`  
+   - 中文路径段须 **URL 编码**（如 `1登录/index.html` → `1%E7%99%BB%E5%BD%95/index.html`）  
    - HTML 内资源引用须使用相对路径（如 `../static/images/xxx.png`），以便 HTTP 服务正常加载
 
 3. **`browser_take_screenshot`**：保存全页截图  

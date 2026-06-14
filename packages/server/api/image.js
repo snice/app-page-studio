@@ -87,7 +87,15 @@ router.get('/list-images', (req, res) => {
   const dir = ensureProjectImageDir(projectId);
   const files = fs.readdirSync(dir)
     .filter(name => /\.(png|jpg|jpeg|webp)$/i.test(name))
-    .map(name => ({ name, path: `__design__/${name}` }));
+    .map(name => {
+      const bundleName = name.replace(/\.(png|jpe?g|webp)$/i, '');
+      const htmlPath = path.join(dir, bundleName, 'index.html');
+      return {
+        name,
+        path: `__design__/${name}`,
+        generatedHtmlPath: fs.existsSync(htmlPath) ? `__design__/${bundleName}/index.html` : null
+      };
+    });
 
   res.json({ files });
 });

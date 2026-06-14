@@ -5,6 +5,7 @@ import { promptApi } from './prompt';
 import { projectsApi } from './projects';
 import { usersApi } from './users';
 import { figmaApi } from './figma';
+import { aiHtmlAgentApi } from './aiHtmlAgent';
 
 export const api = {
   ...authApi,
@@ -14,6 +15,7 @@ export const api = {
   ...projectsApi,
   ...usersApi,
   ...figmaApi,
+  ...aiHtmlAgentApi,
 };
 
-export { authApi, pagesApi, htmlApi, promptApi, projectsApi, usersApi, figmaApi };
+export { authApi, pagesApi, htmlApi, promptApi, projectsApi, usersApi, figmaApi, aiHtmlAgentApi };

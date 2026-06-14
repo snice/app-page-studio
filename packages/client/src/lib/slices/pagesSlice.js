@@ -179,6 +179,7 @@ export function createPagesSlice(set, get) {
           if (existing) {
             if (!existing.sourceType && file.sourceType) existing.sourceType = file.sourceType;
             if (file.sourceType === 'image' && !existing.imagePath) existing.imagePath = file.path;
+            if (file.generatedHtmlPath) existing.generatedHtmlPath = file.generatedHtmlPath;
             updatedFiles.push(existing);
           } else {
             updatedFiles.push({
@@ -186,6 +187,7 @@ export function createPagesSlice(set, get) {
               sourceType: file.sourceType || 'html',
               imagePath: file.sourceType === 'image' ? file.path : null,
               previewPath: file.sourceType === 'psd' ? file.previewPath : null,
+              generatedHtmlPath: file.generatedHtmlPath || null,
               stateName: '', description: '', groupId: null,
               devStatus: 'pending', interactions: [],
             });

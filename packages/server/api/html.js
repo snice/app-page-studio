@@ -106,6 +106,25 @@ router.post('/delete-files', (req, res) => {
   const htmlRoot = path.resolve(htmlDir);
   let deletedCount = 0;
 
+  const deleteGeneratedHtmlBundle = (relPath) => {
+    const cleanRelPath = String(relPath || '').replace(/^[/\\]+/, '');
+    if (!cleanRelPath) return false;
+    const absPath = path.resolve(htmlDir, cleanRelPath);
+    if (absPath !== htmlRoot && !absPath.startsWith(htmlRoot + path.sep)) return false;
+    if (!fs.existsSync(absPath)) return false;
+    const relPosix = cleanRelPath.replace(/\\/g, '/');
+    if (/^__(design|psd)__\/.+\/index\.html?$/i.test(relPosix)) {
+      const bundleDir = path.dirname(absPath);
+      if (bundleDir !== htmlRoot && bundleDir.startsWith(htmlRoot + path.sep)) {
+        fs.rmSync(bundleDir, { recursive: true, force: true });
+        return true;
+      }
+    }
+    if (fs.statSync(absPath).isDirectory()) return false;
+    fs.unlinkSync(absPath);
+    return true;
+  };
+
   for (const item of files) {
     if (!item || !item.path) continue;
     const relPath = String(item.path).replace(/^[/\\]+/, '');
@@ -144,6 +163,9 @@ router.post('/delete-files', (req, res) => {
         } else {
           fs.unlinkSync(absPath);
         }
+      }
+      if (item.generatedHtmlPath && deleteGeneratedHtmlBundle(item.generatedHtmlPath)) {
+        deletedCount += 1;
       }
       deletedCount += 1;
     } catch { }
@@ -213,13 +235,16 @@ router.get('/scan-html', (req, res) => {
           const stat = fs.statSync(fullPath);
           const previewName = item.replace(/\.psd$/i, '.png');
           const hasPreview = fs.existsSync(path.join(psdDir, previewName));
+          const bundleName = previewName.replace(/\.png$/i, '');
+          const hasHtmlIr = fs.existsSync(path.join(psdDir, bundleName, 'index.html'));
           psdFiles.push({
             name: item,
             path: `__psd__/${item}`,
             size: stat.size,
             modified: stat.mtime,
             sourceType: 'psd',
-            previewPath: hasPreview ? `__psd__/${previewName}` : null
+            previewPath: hasPreview ? `__psd__/${previewName}` : null,
+            generatedHtmlPath: hasHtmlIr ? `__psd__/${bundleName}/index.html` : null
           });
         } catch { }
       }
@@ -343,6 +368,18 @@ router.post('/download-design-zip', (req, res) => {
           if (!slice.data) continue;
           const sliceZipPath = `${slicesPrefix}/${slice.name}.${slice.ext || 'png'}`;
           planBuffer(Buffer.from(slice.data, 'base64'), sliceZipPath);
+        }
+      }
+    }
+
+    if (item.generatedHtmlPath) {
+      const generatedRel = stripLeading(String(item.generatedHtmlPath));
+      const generatedAbs = path.resolve(htmlDir, generatedRel);
+      if (generatedAbs.startsWith(htmlRoot + path.sep) && fs.existsSync(generatedAbs)) {
+        if (/\/index\.html?$/i.test(toPosix(generatedRel))) {
+          planDirRecursive(path.dirname(generatedAbs), path.dirname(toPosix(generatedRel)));
+        } else {
+          planFile(generatedAbs, toPosix(generatedRel));
         }
       }
     }
