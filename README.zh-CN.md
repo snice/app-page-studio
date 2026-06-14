@@ -16,7 +16,7 @@ Flutter、React Native 和 UniApp 页面还原。
 
 ## 功能特性
 
-- **多源设计稿**：支持 HTML ZIP、设计图 ZIP/图片上传、PSD/PSD ZIP 上传，以及 Figma 插件导入。
+- **多源设计稿**：支持 HTML ZIP、设计图 ZIP/图片上传、PSD/PSD ZIP 上传，以及 Figma/Pixso 插件导入。
 - **AI HTML IR 生成**：支持从 PNG/JPG/WebP 设计图或 PSD 预览图生成可预览的 HTML IR，并通过 AI 对话继续调整。
 - **页面工作台**：左侧文件列表，中间手机预览/PSD 画布，右侧页面配置面板。
 - **页面分组**：把同一页面的默认、加载中、空数据等状态归为一个页面组。
@@ -119,10 +119,11 @@ AI_AGENT_MAX_TOKENS=12000
 
 也可以先创建空项目，再在工作台上传 HTML、设计图或 PSD。
 
-Figma 导入：
+Figma/Pixso 导入：
 
 - 插件位于 `packages/figma-plugin/`，在 Figma 中加载 `manifest.json`。
-- 工作台顶部点击“Figma”生成上传令牌，把服务器地址和 token 填到插件右下角“设置”中。
+- Pixso 插件位于 `packages/pixso-plugin/`，在 Pixso 中加载 `manifest.json`。
+- 工作台顶部点击“Figma/Pixso”生成上传令牌，把服务器地址和 token 填到插件右下角“设置”中。
 - 插件会自动读取 token 授权范围，支持选择项目和页面分组。
 - 插件会把整页 PNG 导入所选项目的 `__design__/`，把切图导入 `__assets__/`，并写入页面配置。
 
@@ -295,8 +296,8 @@ app-page-studio/
 - `POST /api/upload-image`、`GET /api/list-images`、`POST /api/upload-asset`
 - `POST /api/upload-psd`、`GET /api/list-psd`、`GET /api/psd-preview`
 - `POST /api/ai-html-agent/generate`、`POST /api/ai-html-agent/refine`：生成和调整 HTML IR
-- `POST /api/figma/token`、`GET/PATCH/POST/DELETE /api/figma/tokens...`：生成和管理 Figma 上传令牌
-- `POST /api/figma/verify`、`POST /api/figma/import`：Figma 插件校验与导入
+- `POST /api/figma/token`、`GET/PATCH/POST/DELETE /api/figma/tokens...`：生成和管理 Figma/Pixso 上传令牌
+- `POST /api/figma/verify`、`POST /api/figma/import`：Figma/Pixso 插件校验与导入
 - `POST /api/download-design-zip`
 - `POST /api/generate-prompt`
 

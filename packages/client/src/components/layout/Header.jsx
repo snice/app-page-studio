@@ -109,9 +109,9 @@ export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownlo
           <Icon name="image" />
           上传设计图
         </button>
-        <button className="btn btn-secondary" onClick={onOpenFigmaImport} disabled={!isCurrentEditor} title={isCurrentEditor ? 'Figma 导入' : '当前为只读'}>
+        <button className="btn btn-secondary" onClick={onOpenFigmaImport} disabled={!isCurrentEditor} title={isCurrentEditor ? 'Figma/Pixso 导入' : '当前为只读'}>
           <Icon name="layers" />
-          Figma
+          Figma/Pixso
         </button>
         <button className="btn btn-secondary" onClick={onSaveCurrentPage} disabled={!isCurrentEditor} title={isCurrentEditor ? '保存当前页' : '当前为只读'}>
           <Icon name="save" />

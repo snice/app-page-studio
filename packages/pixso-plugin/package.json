@@ -1,0 +1,9 @@
+{
+  "name": "pixso-plugin",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Pixso plugin for exporting App Page Studio page PNGs and slice metadata",
+  "scripts": {
+    "check": "node -c code.js"
+  }
+}

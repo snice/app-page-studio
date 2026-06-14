@@ -329,6 +329,14 @@
   align-items: baseline;
   gap: 10px;
 }
+.figma-setup-main.plugin-paths {
+  align-items: flex-start;
+}
+.plugin-path-list {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
 .figma-setup-label {
   flex: none;
   color: var(--text-muted);

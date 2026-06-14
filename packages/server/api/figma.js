@@ -1,7 +1,7 @@
 /**
- * Figma 插件导入 API
+ * Figma/Pixso 插件导入 API
  *
- * 网页端登录后生成短期随机 token；Figma 插件用 Bearer token 上传整页 PNG 与切图元数据。
+ * 网页端登录后生成短期随机 token；设计工具插件用 Bearer token 上传整页 PNG 与切图元数据。
  */
 
 const express = require('express');
@@ -23,6 +23,10 @@ const IMAGE_MIME_EXT = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
   'image/webp': '.webp'
+};
+const IMPORT_TOOLS = {
+  figma: { key: 'figma', label: 'Figma', filePrefix: 'figma', pluginSource: 'figma-plugin' },
+  pixso: { key: 'pixso', label: 'Pixso', filePrefix: 'pixso', pluginSource: 'pixso-plugin' }
 };
 
 function defaultPagesConfig(projectName = 'My App') {
@@ -77,6 +81,11 @@ function sanitizeName(name, fallback = 'figma') {
 
 function shortHash(value) {
   return crypto.createHash('sha1').update(String(value || '')).digest('hex').slice(0, 10);
+}
+
+function getImportTool(source = {}) {
+  const key = String(source.tool || source.editor || '').trim().toLowerCase();
+  return IMPORT_TOOLS[key] || IMPORT_TOOLS.figma;
 }
 
 function ensureDir(dir) {
@@ -154,41 +163,57 @@ function buildRegion(page, slice) {
   };
 }
 
-function mergeImageReplacements(existingItems, figmaItems) {
-  const previousFigma = new Map();
+function isPluginReplacement(item) {
+  return item?.source === 'figma' || item?.source === 'pixso' || item?.figmaNodeId;
+}
+
+function getPluginReplacementSource(item) {
+  return item?.source === 'pixso' ? 'pixso' : 'figma';
+}
+
+function getPluginReplacementKey(item) {
+  const source = getPluginReplacementSource(item);
+  const id = item?.figmaNodeId || item?.selector;
+  return id ? `${source}:${id}` : '';
+}
+
+function mergeImageReplacements(existingItems, pluginItems, activeSource = 'figma') {
+  const previousPluginItems = new Map();
   const manualItems = [];
   for (const item of Array.isArray(existingItems) ? existingItems : []) {
-    if (item?.source === 'figma' || item?.figmaNodeId) {
-      const key = item.figmaNodeId || item.selector;
-      if (key) previousFigma.set(key, item);
+    if (isPluginReplacement(item) && getPluginReplacementSource(item) === activeSource) {
+      const key = getPluginReplacementKey(item);
+      if (key) previousPluginItems.set(key, item);
     } else {
       manualItems.push(item);
     }
   }
 
-  const mergedFigma = figmaItems.map((item) => {
-    const previous = previousFigma.get(item.figmaNodeId) || previousFigma.get(item.selector);
+  const mergedPluginItems = pluginItems.map((item) => {
+    const previous = previousPluginItems.get(getPluginReplacementKey(item));
     return {
       ...item,
       description: previous?.description || item.description || ''
     };
   });
-  return [...mergedFigma, ...manualItems];
+  return [...mergedPluginItems, ...manualItems];
 }
 
 function buildPageFileName(page, source, mode) {
+  const importTool = getImportTool(source);
   const base = sanitizeName(page.name || page.nodeName || 'page', 'page');
   const hash = shortHash(`${source?.fileKey || ''}:${page.nodeId || page.id || page.name}`);
   const suffix = mode === 'append' ? `_${Date.now()}_${crypto.randomBytes(3).toString('hex')}` : '';
-  return `figma_${base}_${hash}${suffix}.png`;
+  return `${importTool.filePrefix}_${base}_${hash}${suffix}.png`;
 }
 
 function buildSliceFileName(page, slice, source, mode) {
+  const importTool = getImportTool(source);
   const pageHash = shortHash(`${source?.fileKey || ''}:${page.nodeId || page.name}`);
   const base = sanitizeName(slice.name || 'slice', 'slice');
   const sliceHash = shortHash(`${page.nodeId || page.name}:${slice.nodeId || slice.id || slice.name}`);
   const suffix = mode === 'append' ? `_${Date.now()}_${crypto.randomBytes(3).toString('hex')}` : '';
-  return `figma_${pageHash}_${base}_${sliceHash}${suffix}.png`;
+  return `${importTool.filePrefix}_${pageHash}_${base}_${sliceHash}${suffix}.png`;
 }
 
 function buildProjectOption(project) {
@@ -214,7 +239,7 @@ function buildTokenProjects(token) {
 function verifyFigmaToken(req) {
   const tokenValue = getBearerToken(req);
   const token = FigmaImportTokens.verify(tokenValue);
-  if (!token) throw requestError(401, 'Figma 上传令牌无效或已过期');
+  if (!token) throw requestError(401, '设计工具上传令牌无效或已过期');
   return token;
 }
 
@@ -263,7 +288,7 @@ router.post('/figma/token', requireAuth, (req, res) => {
     projectScope,
     ttlMinutes
   });
-  if (!token) return res.status(500).json({ error: '创建 Figma 上传令牌失败' });
+  if (!token) return res.status(500).json({ error: '创建设计工具上传令牌失败' });
 
   res.json({
     id: token.id,
@@ -349,8 +374,9 @@ router.post('/figma/import', setFigmaCors, (req, res, next) => {
   try {
     const { token, project, projectId } = verifyFigmaProject(req);
     const source = req.body?.source && typeof req.body.source === 'object' ? req.body.source : {};
+    const importTool = getImportTool(source);
     const pages = Array.isArray(req.body?.pages) ? req.body.pages.slice(0, MAX_PAGES_PER_IMPORT) : [];
-    if (pages.length === 0) throw requestError(400, '没有可导入的 Figma 页面');
+    if (pages.length === 0) throw requestError(400, `没有可导入的 ${importTool.label} 页面`);
 
     const mode = req.body?.mode === 'append' ? 'append' : 'upsert';
     const projectDir = getHtmlDir(projectId);
@@ -380,12 +406,12 @@ router.post('/figma/import', setFigmaCors, (req, res, next) => {
       const existingIndex = mode === 'upsert'
         ? htmlFiles.findIndex((file) =>
             file?.path === pagePath ||
-            (page.nodeId && file?.figma?.nodeId === page.nodeId)
+            (page.nodeId && file?.figma?.nodeId === page.nodeId && (file?.figma?.tool || 'figma') === importTool.key)
           )
         : -1;
       const existingFile = existingIndex >= 0 ? htmlFiles[existingIndex] : null;
       const slices = Array.isArray(page.slices) ? page.slices.slice(0, MAX_SLICES_PER_PAGE) : [];
-      const figmaItems = [];
+      const pluginItems = [];
 
       for (const slice of slices) {
         if (!slice || typeof slice !== 'object') continue;
@@ -399,12 +425,15 @@ router.post('/figma/import', setFigmaCors, (req, res, next) => {
           size: sliceImage.buffer.length,
           mimetype: sliceImage.mimeType
         });
-        figmaItems.push({
-          selector: slice.name || 'Figma Slice',
+        pluginItems.push({
+          selector: slice.name || `${importTool.label} Slice`,
           imagePath: slicePath,
           description: slice.description || '',
           region: buildRegion(page, slice),
-          source: 'figma',
+          source: importTool.key,
+          tool: importTool.key,
+          designNodeId: slice.nodeId || null,
+          designNodeName: slice.name || null,
           figmaNodeId: slice.nodeId || null,
           figmaNodeName: slice.name || null
         });
@@ -425,10 +454,11 @@ router.post('/figma/import', setFigmaCors, (req, res, next) => {
         interactions: existingFile?.interactions || [],
         functionDescriptions: existingFile?.functionDescriptions || [],
         dataSources: existingFile?.dataSources || [],
-        imageReplacements: mergeImageReplacements(existingFile?.imageReplacements, figmaItems),
+        imageReplacements: mergeImageReplacements(existingFile?.imageReplacements, pluginItems, importTool.key),
         figma: {
           ...(existingFile?.figma || {}),
-          source: 'figma-plugin',
+          source: importTool.pluginSource,
+          tool: importTool.key,
           importedAt: new Date().toISOString(),
           fileKey: source.fileKey || null,
           fileName: source.fileName || null,
@@ -439,7 +469,7 @@ router.post('/figma/import', setFigmaCors, (req, res, next) => {
           width: roundRect(page.width),
           height: roundRect(page.height),
           scale: Number(page.scale) || 1,
-          sliceCount: figmaItems.length,
+          sliceCount: pluginItems.length,
           pluginVersion: source.pluginVersion || null
         }
       };
@@ -452,18 +482,18 @@ router.post('/figma/import', setFigmaCors, (req, res, next) => {
         path: pagePath,
         size: pageImage.buffer.length,
         mimetype: pageImage.mimeType,
-        slices: figmaItems.length
+        slices: pluginItems.length
       });
     }
 
-    if (importedFiles.length === 0) throw requestError(400, '没有成功导入的 Figma 页面');
+    if (importedFiles.length === 0) throw requestError(400, `没有成功导入的 ${importTool.label} 页面`);
 
     const nextConfig = {
       ...currentConfig,
       htmlFiles
     };
     Projects.savePagesJson(projectId, nextConfig, {
-      editorName: token.createdByName || token.username || 'Figma',
+      editorName: token.createdByName || token.username || importTool.label,
       sessionId: `figma-token:${token.id}`
     });
     Projects.touch(projectId);
@@ -474,7 +504,7 @@ router.post('/figma/import', setFigmaCors, (req, res, next) => {
 
     broadcastProjectEvent(req, projectId, {
       type: 'files:changed',
-      reason: 'figma-imported',
+      reason: `${importTool.key}-imported`,
       files: importedFiles,
       assets: importedAssets.length
     });
@@ -483,7 +513,7 @@ router.post('/figma/import', setFigmaCors, (req, res, next) => {
       projectId,
       revision: savedRecord?.revision || 0,
       updatedAt: savedRecord?.updatedAt || null,
-      savedBy: { sessionId: `figma-token:${token.id}`, editorName: token.createdByName || token.username || 'Figma' }
+      savedBy: { sessionId: `figma-token:${token.id}`, editorName: token.createdByName || token.username || importTool.label }
     });
 
     res.json({

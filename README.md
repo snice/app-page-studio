@@ -14,7 +14,7 @@ It supports HTML exports, PNG/JPG/WebP design images, PSD previews and layer sli
 
 ## Features
 
-- **Multi-source design input**: Upload HTML ZIP files, image ZIP files or standalone images, PSD or PSD ZIP files, and imports from the Figma plugin.
+- **Multi-source design input**: Upload HTML ZIP files, image ZIP files or standalone images, PSD or PSD ZIP files, and imports from Figma/Pixso plugins.
 - **AI HTML IR generation**: Generate previewable HTML IR from PNG/JPG/WebP or PSD previews, then refine it through AI chat.
 - **Page workspace**: Use a left file list, center phone preview or PSD canvas, and right page configuration panel.
 - **Page grouping**: Group default, loading, empty, and other states of the same page.
@@ -114,10 +114,11 @@ When creating a project, you can upload a ZIP:
 
 You can also create an empty project first, then upload HTML, design images, or PSD files in the workspace.
 
-Figma import:
+Figma/Pixso import:
 
 - The plugin lives in `packages/figma-plugin/`; load `manifest.json` in Figma.
-- In the workspace, click `Figma`, generate an upload token, then paste both the server URL and token into the plugin settings.
+- The Pixso plugin lives in `packages/pixso-plugin/`; load `manifest.json` in Pixso.
+- In the workspace, click `Figma/Pixso`, generate an upload token, then paste both the server URL and token into the plugin settings.
 - The plugin reads the token scope and lets you choose the target project and page group.
 - The plugin imports page PNGs into the selected project's `__design__/`, slice PNGs into `__assets__/`, and writes slice regions into page config.
 
@@ -289,8 +290,8 @@ Business APIs require login. Login state is stored through `express-session`.
 - `POST /api/upload-image`, `GET /api/list-images`, `POST /api/upload-asset`
 - `POST /api/upload-psd`, `GET /api/list-psd`, `GET /api/psd-preview`
 - `POST /api/ai-html-agent/generate`, `POST /api/ai-html-agent/refine`: generate and refine HTML IR
-- `POST /api/figma/token`, `GET/PATCH/POST/DELETE /api/figma/tokens...`: create and manage Figma upload tokens
-- `POST /api/figma/verify`, `POST /api/figma/import`: Figma plugin verification and import
+- `POST /api/figma/token`, `GET/PATCH/POST/DELETE /api/figma/tokens...`: create and manage Figma/Pixso upload tokens
+- `POST /api/figma/verify`, `POST /api/figma/import`: Figma/Pixso plugin verification and import
 - `POST /api/download-design-zip`
 - `POST /api/generate-prompt`
 

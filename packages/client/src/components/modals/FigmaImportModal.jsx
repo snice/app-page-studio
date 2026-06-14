@@ -190,7 +190,7 @@ export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
 
   const createToken = async () => {
     if (!isCurrentEditor) {
-      showToast('当前为只读，不能生成 Figma 上传令牌');
+      showToast('当前为只读，不能生成设计工具上传令牌');
       return;
     }
     setLoading(true);
@@ -204,7 +204,7 @@ export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
       setLocalTokens(readLocalTokenCache());
       setServerUrl(getFigmaServerUrl(res.serverUrl));
       setTokenData(res);
-      showToast('Figma 上传令牌已生成');
+      showToast('设计工具上传令牌已生成');
       await loadTokens();
     } finally {
       setLoading(false);
@@ -258,8 +258,8 @@ export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
   const deleteToken = async (token) => {
     if (!token?.id) return;
     const confirmed = await onRequestConfirm?.({
-      title: '删除 Figma 令牌',
-      message: '确定彻底删除这个 Figma 上传令牌？',
+      title: '删除导入令牌',
+      message: '确定彻底删除这个设计工具上传令牌？',
       hint: '删除后该令牌记录会从服务端移除，当前 token 也会立即失效。',
       confirmText: '删除令牌',
       danger: true,
@@ -277,7 +277,7 @@ export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
       setLocalTokens(readLocalTokenCache());
       if (tokenData?.id === token.id) setTokenData(null);
       await loadTokens();
-      showToast('Figma 令牌已彻底删除');
+      showToast('导入令牌已彻底删除');
     } finally {
       setBusyTokenId(null);
     }
@@ -297,7 +297,7 @@ export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
     <ModalOverlay isOpen={isOpen} onClose={onClose}>
       <div className="modal wide figma-import-modal">
         <div className="modal-header">
-          <span className="modal-title">Figma 导入令牌</span>
+          <span className="modal-title">Figma/Pixso 导入令牌</span>
           <button className="modal-close" onClick={onClose}><Icon name="x" /></button>
         </div>
         <div className="modal-body">
@@ -313,7 +313,7 @@ export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
                   value={ttlMinutes}
                   options={TTL_OPTIONS}
                   compact
-                  ariaLabel="Figma token 有效期"
+                  ariaLabel="导入 token 有效期"
                   onValueChange={setTtlMinutes}
                 />
               </label>
@@ -344,9 +344,12 @@ export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
             </div>
             <div className="figma-setup-row muted">
               <span className="figma-setup-icon"><Icon name="package" size="sm" /></span>
-              <div className="figma-setup-main">
+              <div className="figma-setup-main plugin-paths">
                 <span className="figma-setup-label">本地插件</span>
-                <code>packages/figma-plugin/manifest.json</code>
+                <div className="plugin-path-list">
+                  <code>Figma: packages/figma-plugin/manifest.json</code>
+                  <code>Pixso: packages/pixso-plugin/manifest.json</code>
+                </div>
               </div>
             </div>
           </div>
@@ -363,7 +366,7 @@ export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
           ) : (
             <div className="figma-token-empty">
               <Icon name="layers" size="xl" />
-              <span>生成令牌后，把服务器地址和 token 填到 Figma 插件右下角设置中。</span>
+              <span>生成令牌后，把服务器地址和 token 填到 Figma 或 Pixso 插件右下角设置中。</span>
             </div>
           )}
 
@@ -379,7 +382,7 @@ export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
                   value={manageTtlMinutes}
                   options={TTL_OPTIONS}
                   compact
-                  ariaLabel="Figma token 调整时长"
+                  ariaLabel="导入 token 调整时长"
                   onValueChange={setManageTtlMinutes}
                 />
               </label>
@@ -392,7 +395,7 @@ export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
 
           <div className="figma-token-list">
             {tokens.length === 0 ? (
-              <div className="figma-token-row empty">暂无 Figma 上传令牌</div>
+              <div className="figma-token-row empty">暂无设计工具上传令牌</div>
             ) : tokens.map((token) => {
               const local = getLocalToken(token);
               const canCopy = !!local?.token && token.status === 'active';

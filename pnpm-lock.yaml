@@ -75,6 +75,8 @@ importers:
 
   packages/figma-plugin: {}
 
+  packages/pixso-plugin: {}
+
   packages/server:
     dependencies:
       adm-zip:
