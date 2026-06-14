@@ -15,6 +15,7 @@ It supports HTML exports, PNG/JPG/WebP design images, PSD previews and layer sli
 ## Features
 
 - **Multi-source design input**: Upload HTML ZIP files, image ZIP files or standalone images, PSD or PSD ZIP files, and imports from the Figma plugin.
+- **AI HTML IR generation**: Generate previewable HTML IR from PNG/JPG/WebP or PSD previews, then refine it through AI chat.
 - **Page workspace**: Use a left file list, center phone preview or PSD canvas, and right page configuration panel.
 - **Page grouping**: Group default, loading, empty, and other states of the same page.
 - **Page configuration**: Configure state name, development status, route, source path, tab bar, data sources, and more.
@@ -83,6 +84,21 @@ Reset a specific account password to the default value `123456`:
 ```bash
 pnpm --filter server reset-password -- -u <username>
 ```
+
+### AI HTML IR Configuration
+
+HTML IR generation is optional and requires an OpenAI-compatible Chat Completions API. The server reads `packages/server/.env` first, then falls back to process environment variables.
+
+Create `packages/server/.env` from `packages/server/.env.example`:
+
+```bash
+AI_AGENT_BASE_URL=https://api.openai.com/v1
+AI_AGENT_API_KEY=sk-...
+AI_AGENT_MODEL=gpt-4o
+AI_AGENT_MAX_TOKENS=12000
+```
+
+For OpenAI-compatible gateways, `AI_AGENT_BASE_URL` must expose the `/v1/chat/completions` interface.
 
 ## Workflow
 
@@ -160,7 +176,36 @@ PSD mode:
 - Mark slices on the canvas
 - Save slice data to the current PSD page configuration
 
-### 6. Save Configuration
+### 6. Generate and Refine HTML IR
+
+For PNG/JPG/WebP design images and PSD previews, switch the preview mode to `HTML IR`. The right-side AI panel is shown only in this mode.
+
+The MVP supports:
+
+- Generate or regenerate HTML IR from the source design image.
+- Stream AI progress stages while the HTML is being generated.
+- Save generated output as a self-contained preview page:
+  - `__design__/xxx.png` -> `__design__/xxx/index.html`
+  - `__psd__/xxx.png` -> `__psd__/xxx/index.html`
+- Keep `img/`, `css/`, and `js/` subdirectories in the generated page directory for future local assets.
+- Preview the generated HTML online in the iframe.
+- Refine generated HTML through AI chat.
+- Select one or more preview elements before sending a refinement instruction, so the AI receives the target selectors and element summaries.
+
+The backend validates AI output before saving:
+
+- The response must be valid HTML.
+- SVG tags are rejected.
+- `pointer-events: none` and `user-select: none` declarations are removed so elements remain selectable in preview.
+- Local image references are checked against real project files; when an AI-invented filename can be matched by asset hash, it is repaired automatically.
+
+Local smoke test:
+
+```bash
+pnpm --filter server test-ai-html-agent -- --projectId 1 --path __design__/figma_page_d8e2c82aab.png
+```
+
+### 7. Save Configuration
 
 The top bar provides two save entry points:
 
@@ -177,7 +222,7 @@ When another user saves the same page or group, WebSocket notifies the client an
 
 Every successful save advances the pages-config revision used by collaboration conflict guards.
 
-### 7. Generate Prompts
+### 8. Generate Prompts
 
 Click "Generate prompt" and choose a target platform:
 
@@ -185,7 +230,7 @@ Click "Generate prompt" and choose a target platform:
 - React Native
 - UniApp
 
-You can filter by development status or generate only for the current page. For design-image pages, the prompt asks you to generate UI IR (JSON) according to `UI-IR-AGENT.md` first, then implement code from the IR.
+You can filter by development status or generate only for the current page. For design-image pages, generated HTML IR is passed through as the visual source of truth when available. If HTML IR has not been generated yet, the platform prompt asks you to generate UI IR(HTML) according to `UI-IR-AGENT.md` first, then implement code from the IR.
 
 ## Project Structure
 
@@ -222,7 +267,7 @@ app-page-studio/
 ├── html_caches/
 │   └── {projectId}/
 │       ├── __html__/      # HTML design exports
-│       ├── __design__/    # PNG/JPG/WebP design images
+│       ├── __design__/    # PNG/JPG/WebP design images and generated HTML IR bundles
 │       ├── __assets__/    # User-uploaded slice assets
 │       └── __psd__/       # PSD files and generated PNG previews
 └── studio.db              # SQLite database
@@ -243,6 +288,7 @@ Business APIs require login. Login state is stored through `express-session`.
 - `POST /api/upload-html`, `GET /api/scan-html`, `GET /api/html-content`
 - `POST /api/upload-image`, `GET /api/list-images`, `POST /api/upload-asset`
 - `POST /api/upload-psd`, `GET /api/list-psd`, `GET /api/psd-preview`
+- `POST /api/ai-html-agent/generate`, `POST /api/ai-html-agent/refine`: generate and refine HTML IR
 - `POST /api/figma/token`, `GET/PATCH/POST/DELETE /api/figma/tokens...`: create and manage Figma upload tokens
 - `POST /api/figma/verify`, `POST /api/figma/import`: Figma plugin verification and import
 - `POST /api/download-design-zip`
@@ -271,6 +317,7 @@ WebSocket provides collaboration awareness and synchronization:
 - **Database**: SQLite, better-sqlite3, better-sqlite3-session-store
 - **File processing**: Multer, ADM-Zip, archiver, Chokidar
 - **PSD processing**: psd for backend previews, ag-psd for frontend parsing
+- **AI integration**: OpenAI Node SDK with Chat Completions-compatible APIs
 - **Frontend**: Vite, React, React Router, Zustand, HeroUI, Tailwind CSS
 
 ## Prompt Usage Suggestions

@@ -1,16 +1,36 @@
-# React + Vite
+# App Page Studio Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This package contains the active Vite + React frontend for App Page Studio.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Run from the repository root:
 
-## React Compiler
+```bash
+pnpm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The Vite dev server runs on `5173` and proxies `/api`, `/html`, and `/ws` to the Express server.
 
-## Expanding the ESLint configuration
+## Main Areas
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- `src/pages/`: login, project home, and dashboard routes.
+- `src/components/layout/`: workspace shell, preview panel, config panel, and the HTML IR agent panel.
+- `src/components/picker/`: element picker, image-region selector, and style inspection.
+- `src/hooks/workspace/`: iframe reload, picker, PSD events, and workspace actions.
+- `src/lib/api/`: frontend API wrappers.
+- `src/lib/slices/`: Zustand state slices.
+- `src/styles/modules/`: layout and component CSS modules.
+
+## HTML IR UI
+
+Design-image and PSD-preview pages can switch the preview mode to `HTML IR`. In that mode, `DesignHtmlAgentPanel` appears on the right side of the preview workspace.
+
+The panel supports:
+
+- generating or regenerating HTML IR;
+- streaming AI progress stages;
+- refining generated HTML through chat;
+- selecting multiple iframe elements and sending their selectors to the AI refinement endpoint.
+
+The generated iframe page is served from the backend under `/html/:projectId/...` and saved in the project cache as `__design__/xxx/index.html` or `__psd__/xxx/index.html`.

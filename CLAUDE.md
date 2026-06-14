@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-App Page Studio is a web tool for turning design inputs into structured AI implementation prompts for Flutter, React Native, and UniApp. It supports HTML exports, raster design images, PSD previews/layers/slices, page grouping, design-system metadata, and multi-user project collaboration.
+App Page Studio is a web tool for turning design inputs into structured AI implementation prompts for Flutter, React Native, and UniApp. It supports HTML exports, raster design images, PSD previews/layers/slices, AI-generated HTML IR previews and refinements, page grouping, design-system metadata, and multi-user project collaboration.
 
 The active frontend is Vite + React under `packages/client/`. The backend is under `packages/server/`. The old root-level `public/` HTML/CSS/JS implementation is obsolete and should not be updated.
 
@@ -19,6 +19,12 @@ Useful maintenance command:
 
 ```bash
 pnpm --filter server reset-password -- -u <username>
+```
+
+AI HTML IR smoke test:
+
+```bash
+pnpm --filter server test-ai-html-agent -- --projectId 1 --path __design__/figma_page_d8e2c82aab.png
 ```
 
 ## Architecture
@@ -37,6 +43,7 @@ packages/server/
     ├── html.js         # HTML/design file upload, scan, delete, ZIP download
     ├── image.js        # Design image and asset upload/list APIs
     ├── psd.js          # PSD upload/list/preview APIs
+    ├── ai-html-agent.js # PNG/PSD preview -> HTML IR generation/refinement
     ├── prompt.js       # Prompt generation route
     ├── prompt/         # Prompt builders by target platform
     └── utils.js        # Shared upload, auth guard, path, ZIP, broadcast helpers
@@ -143,6 +150,22 @@ All business APIs require login unless noted.
 - `GET /api/list-psd?projectId=` - list PSD files.
 - `GET /api/psd-preview?projectId=&path=` - ensure/return PSD preview path.
 
+**ai-html-agent.js**
+
+- `POST /api/ai-html-agent/generate` - generate HTML IR for PNG/JPG/WebP design images or PSD previews.
+- `POST /api/ai-html-agent/refine` - refine an existing HTML IR page from an AI chat instruction.
+- Supports JSON and SSE streaming responses; the frontend uses the streaming path for progress stages and deltas.
+- Reads AI configuration from `packages/server/.env` first, then process env vars:
+  - `AI_AGENT_BASE_URL` / `OPENAI_BASE_URL`
+  - `AI_AGENT_API_KEY` / `OPENAI_API_KEY`
+  - `AI_AGENT_MODEL` / `OPENAI_MODEL`
+  - `AI_AGENT_MAX_TOKENS`
+- Uses the OpenAI Node SDK against a Chat Completions-compatible API.
+- Uses `UI-IR-AGENT.md` as the base generation spec.
+- Saves generated output as `__design__/xxx/index.html` or `__psd__/xxx/index.html`.
+- Creates `img/`, `css/`, and `js/` subdirectories in the generated HTML IR bundle directory.
+- Validates AI output before saving: must be valid HTML, SVG is rejected, malformed streamed tags are rejected, disabled interaction CSS is removed, and missing local image references are repaired by asset hash when possible.
+
 **prompt.js + prompt/**
 
 - `POST /api/generate-prompt` - prompt generation entry.
@@ -155,12 +178,25 @@ Project files live under `html_caches/{projectId}/`.
 ```text
 html_caches/{projectId}/
 ├── __html__/    # Extracted HTML exports and their local assets
-├── __design__/  # Uploaded PNG/JPG/WebP design images
+├── __design__/  # Uploaded PNG/JPG/WebP design images and generated HTML IR bundles
 ├── __assets__/  # User-uploaded slice/replacement assets
-└── __psd__/     # Uploaded PSD files and generated PNG previews
+└── __psd__/     # Uploaded PSD files, generated PNG previews, and generated HTML IR bundles
 ```
 
 Always resolve user-provided file paths with `resolveSafe()` or an equivalent guarded path check before reading/deleting files.
+
+HTML IR output layout:
+
+```text
+__design__/figma_page_xxx.png
+__design__/figma_page_xxx/
+├── index.html
+├── img/
+├── css/
+└── js/
+```
+
+The same layout applies to PSD preview images under `__psd__/`.
 
 ## Pages Config And Save Model
 
@@ -203,7 +239,7 @@ packages/client/
     │   └── DashboardModals.jsx
     ├── components/
     │   ├── common/                  # Icon, AppSelect, Toast
-    │   ├── layout/                  # Header, Sidebar, PreviewPanel, ConfigPanel
+    │   ├── layout/                  # Header, Sidebar, PreviewPanel, ConfigPanel, DesignHtmlAgentPanel
     │   ├── layout/ConfigPanel/      # Lists and form sections for page config
     │   ├── modals/                  # Project/member/user/prompt/design modals
     │   ├── picker/                  # HTML element styles and image region selection
@@ -215,7 +251,7 @@ packages/client/
     │   ├── useWorkspaceController.js
     │   └── workspace/               # Iframe reload, picker, PSD events, actions
     ├── lib/
-    │   ├── api/                     # Auth/projects/pages/html/prompt/users API modules
+    │   ├── api/                     # Auth/projects/pages/html/prompt/aiHtmlAgent/users API modules
     │   ├── slices/                  # Zustand state slices
     │   ├── state.js                 # Store assembly
     │   ├── picker.js
@@ -241,6 +277,8 @@ Routing:
   - `usePsdSliceEvents()` owns PSD slice state syncing.
 - API wrappers live in `packages/client/src/lib/api/*`; prefer adding endpoint wrappers there instead of calling `fetch` directly in components.
 - Components should read/write store state through `useAppStore`.
+- HTML IR preview mode is owned by `PreviewPanel`; `DesignHtmlAgentPanel` floats on the right side of the preview workspace and should not change the preview layout width when toggling between design image and HTML IR.
+- The AI adjustment panel is shown only in HTML IR mode. It supports generating, regenerating, streaming progress, AI chat refinement, and multi-selecting iframe elements so their selectors and summaries can be sent to the refine endpoint.
 
 ## Code Style Guidelines
 
@@ -280,6 +318,10 @@ To add a new icon, add an entry to `ICONS` with only the SVG inner content, no `
 - Use `ensureProjectReadable()` and `ensureProjectWritable()` for project-scoped access.
 - Use `broadcastProjectEvent()` for file/config changes that other clients should observe.
 - Return structured conflict responses with `conflict: true` when save guards fail.
+- For project-scoped files, always resolve paths against the project cache with `resolveSafe()`; generated HTML IR must remain under `__design__/` or `__psd__/`.
+- AI HTML IR output must not contain SVG. Missing cut assets should be represented as ordinary HTML/CSS placeholders, not inline SVG.
+- Do not allow generated HTML to include `pointer-events: none` or `user-select: none`; these break element selection in the preview iframe.
+- When HTML IR references local assets, validate that they exist. If AI has invented a resource filename, repair it only when it can be matched to an existing asset by hash/suffix.
 
 ### Frontend Development
 
@@ -287,3 +329,5 @@ To add a new icon, add an entry to `ICONS` with only the SVG inner content, no `
 - Preserve the per-page/per-group save model unless a change explicitly needs full-config save.
 - For file list changes after upload/delete, rely on `files:changed` plus `scanHtmlFiles()`.
 - PSD slice changes must keep `psdMarkedSlices` and the current file's `psdSlices` in sync.
+- Keep HTML IR UI visible only in HTML IR preview mode. If the generated `index.html` is missing, show an iframe overlay instead of silently failing.
+- Preserve multi-element selection in `DesignHtmlAgentPanel`; repeated AI refinements often need several selectors in one instruction.

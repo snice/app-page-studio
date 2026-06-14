@@ -17,6 +17,7 @@ Flutter、React Native 和 UniApp 页面还原。
 ## 功能特性
 
 - **多源设计稿**：支持 HTML ZIP、设计图 ZIP/图片上传、PSD/PSD ZIP 上传，以及 Figma 插件导入。
+- **AI HTML IR 生成**：支持从 PNG/JPG/WebP 设计图或 PSD 预览图生成可预览的 HTML IR，并通过 AI 对话继续调整。
 - **页面工作台**：左侧文件列表，中间手机预览/PSD 画布，右侧页面配置面板。
 - **页面分组**：把同一页面的默认、加载中、空数据等状态归为一个页面组。
 - **页面配置**：配置状态名称、开发状态、路由、源码路径、Tabbar、数据源等。
@@ -88,6 +89,21 @@ BOOTSTRAP_ADMIN_USERNAME=admin BOOTSTRAP_ADMIN_PASSWORD=123456 pnpm --filter ser
 ```bash
 pnpm --filter server reset-password -- -u <username>
 ```
+
+### AI HTML IR 配置
+
+HTML IR 生成功能是可选能力，需要配置兼容 OpenAI Chat Completions 的 API。服务端优先读取 `packages/server/.env`，然后回退读取进程环境变量。
+
+可根据 `packages/server/.env.example` 创建 `packages/server/.env`：
+
+```bash
+AI_AGENT_BASE_URL=https://api.openai.com/v1
+AI_AGENT_API_KEY=sk-...
+AI_AGENT_MODEL=gpt-4o
+AI_AGENT_MAX_TOKENS=12000
+```
+
+如果使用 OpenAI 兼容网关，`AI_AGENT_BASE_URL` 需要提供 `/v1/chat/completions` 接口。
 
 ## 使用流程
 
@@ -166,7 +182,36 @@ PSD 模式：
 - 在画布上标记切图
 - 切图数据保存到当前 PSD 页面配置中
 
-### 6. 保存配置
+### 6. 生成和调整 HTML IR
+
+对于 PNG/JPG/WebP 设计图和 PSD 预览图，切换预览模式到 `HTML IR` 后，右侧会显示 AI 调整面板。
+
+当前 MVP 支持：
+
+- 根据源设计图生成或重新生成 HTML IR。
+- 生成过程中以流式方式显示 AI 阶段进度。
+- 按完整预览页保存生成结果：
+  - `__design__/xxx.png` -> `__design__/xxx/index.html`
+  - `__psd__/xxx.png` -> `__psd__/xxx/index.html`
+- 在生成目录保留 `img/`、`css/`、`js/` 子目录，后续可放本地切图、样式和脚本。
+- 在 iframe 中在线预览生成后的 HTML。
+- 通过 AI 对话继续调整已生成的 HTML。
+- 发送调整说明前，可在预览中选择一个或多个元素，把目标 selector 和元素摘要一起交给 AI。
+
+后端保存前会校验 AI 输出：
+
+- 必须返回有效 HTML。
+- 禁止 SVG 标签。
+- 自动移除 `pointer-events: none` 和 `user-select: none`，保证预览元素可继续被选择。
+- 校验本地图片资源是否真实存在；如果 AI 拼错文件名但能通过 asset hash 匹配到真实切图，会自动修复路径。
+
+本地冒烟测试：
+
+```bash
+pnpm --filter server test-ai-html-agent -- --projectId 1 --path __design__/figma_page_d8e2c82aab.png
+```
+
+### 7. 保存配置
 
 顶部有两个保存入口：
 
@@ -183,7 +228,7 @@ PSD 模式：
 
 每次成功保存都会推进页面配置 revision，用于多人协作冲突校验。
 
-### 7. 生成提示词
+### 8. 生成提示词
 
 点击“生成提示词”，选择目标平台：
 
@@ -191,8 +236,7 @@ PSD 模式：
 - React Native
 - UniApp
 
-可按开发状态筛选，也可只生成当前页。设计图页面会提示先按 `UI-IR-AGENT.md` 生成
-UI IR(JSON)，再基于 IR 实现代码。
+可按开发状态筛选，也可只生成当前页。设计图页面如果已经生成 HTML IR，平台提示词会把它作为视觉真源传递给代码生成流程；如果还没有生成，则会提示先按 `UI-IR-AGENT.md` 生成 UI IR(HTML)，再基于 IR 实现代码。
 
 ## 项目结构
 
@@ -229,7 +273,7 @@ app-page-studio/
 ├── html_caches/
 │   └── {projectId}/
 │       ├── __html__/      # HTML 设计稿
-│       ├── __design__/    # PNG/JPG/WebP 设计图
+│       ├── __design__/    # PNG/JPG/WebP 设计图和生成后的 HTML IR 预览目录
 │       ├── __assets__/    # 用户上传切图资源
 │       └── __psd__/       # PSD 文件和生成的 PNG 预览
 └── studio.db              # SQLite 数据库
@@ -250,6 +294,7 @@ app-page-studio/
 - `POST /api/upload-html`、`GET /api/scan-html`、`GET /api/html-content`
 - `POST /api/upload-image`、`GET /api/list-images`、`POST /api/upload-asset`
 - `POST /api/upload-psd`、`GET /api/list-psd`、`GET /api/psd-preview`
+- `POST /api/ai-html-agent/generate`、`POST /api/ai-html-agent/refine`：生成和调整 HTML IR
 - `POST /api/figma/token`、`GET/PATCH/POST/DELETE /api/figma/tokens...`：生成和管理 Figma 上传令牌
 - `POST /api/figma/verify`、`POST /api/figma/import`：Figma 插件校验与导入
 - `POST /api/download-design-zip`
@@ -280,6 +325,7 @@ WebSocket 负责协作感知和同步：
 - **数据库**：SQLite、better-sqlite3、better-sqlite3-session-store
 - **文件处理**：Multer、ADM-Zip、archiver、Chokidar
 - **PSD 处理**：psd（后端预览）、ag-psd（前端解析）
+- **AI 集成**：OpenAI Node SDK，兼容 Chat Completions API
 - **前端**：Vite、React、React Router、Zustand、HeroUI、Tailwind CSS
 
 ## 提示词使用建议
