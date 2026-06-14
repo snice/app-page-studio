@@ -482,6 +482,204 @@ function sanitizeDisallowedInteractionCss(html) {
     .replace(inlinePattern, '');
 }
 
+function parseDimensionPair(value) {
+  const match = String(value || '').match(/(\d{2,5})\s*x\s*(\d{2,5})/i);
+  if (!match) return null;
+  const width = Number.parseInt(match[1], 10);
+  const height = Number.parseInt(match[2], 10);
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) return null;
+  return { width, height };
+}
+
+function parseCssPixelValue(html, name) {
+  const escapedName = String(name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`${escapedName}\\s*:\\s*(\\d{2,5})(?:px)?\\s*;`, 'i');
+  const match = String(html || '').match(pattern);
+  if (!match) return 0;
+  const value = Number.parseInt(match[1], 10);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function inferHtmlDesignSize(html, fallbackSize = {}) {
+  const fallbackWidth = Number.parseInt(fallbackSize?.width, 10);
+  const fallbackHeight = Number.parseInt(fallbackSize?.height, 10);
+  const rootDevice = String(html || '').match(/\bdata-device\s*=\s*(["'])([^"']+)\1/i);
+  const parsedDevice = parseDimensionPair(rootDevice?.[2]);
+  const pageW = parseCssPixelValue(html, '--page-w') || parseCssPixelValue(html, '--aps-page-w');
+  const pageH = parseCssPixelValue(html, '--page-h') || parseCssPixelValue(html, '--aps-page-h');
+  const pageWidth = String(html || '').match(/\.page\s*\{[\s\S]*?\bwidth\s*:\s*(\d{2,5})px/i);
+  const pageHeight = String(html || '').match(/\.page\s*\{[\s\S]*?\bheight\s*:\s*(\d{2,5})px/i);
+  const canvasWidth = String(html || '').match(/#canvas\s*\{[\s\S]*?\bwidth\s*:\s*(\d{2,5})px/i);
+  const canvasHeight = String(html || '').match(/#canvas\s*\{[\s\S]*?\bheight\s*:\s*(\d{2,5})px/i);
+  const width = pageW || Number.parseInt(pageWidth?.[1], 10) || Number.parseInt(canvasWidth?.[1], 10) || parsedDevice?.width || fallbackWidth;
+  const height = pageH || Number.parseInt(pageHeight?.[1], 10) || Number.parseInt(canvasHeight?.[1], 10) || parsedDevice?.height || fallbackHeight;
+
+  return {
+    width: Number.isFinite(width) && width > 0 ? width : 375,
+    height: Number.isFinite(height) && height > 0 ? height : 812
+  };
+}
+
+function hasFixedCanvasScaleLayout(html) {
+  const source = String(html || '');
+  return /\bid\s*=\s*(["'])canvas\1/i.test(source) &&
+    /#canvas\s*\{[\s\S]*?\btransform\s*:\s*scale\s*\(/i.test(source);
+}
+
+function hasFixedPagePixelLayout(html) {
+  const source = String(html || '');
+  const pageRule = source.match(/\.page\s*\{[\s\S]*?\}/i)?.[0] || '';
+  if (!pageRule || /\btransform\s*:\s*scale\s*\(/i.test(pageRule)) return false;
+  const width = Number.parseInt(pageRule.match(/\bwidth\s*:\s*(\d{2,5})px/i)?.[1], 10);
+  const height = Number.parseInt(pageRule.match(/\bheight\s*:\s*(\d{2,5})px/i)?.[1], 10);
+  return Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0;
+}
+
+function insertBeforeClosingTag(html, tagName, content) {
+  const pattern = new RegExp(`</${tagName}\\s*>`, 'i');
+  if (pattern.test(html)) return html.replace(pattern, `${content}\n</${tagName}>`);
+  return `${html}\n${content}`;
+}
+
+function stripViewportGuard(html) {
+  return String(html || '')
+    .replace(/\n?\s*<style\b[^>]*\bid=(["'])aps-html-ir-viewport-guard\1[^>]*>[\s\S]*?<\/style>/ig, '')
+    .replace(/\n?\s*<script\b[^>]*\bid=(["'])aps-html-ir-viewport-guard-script\1[^>]*>[\s\S]*?<\/script>/ig, '');
+}
+
+function buildViewportGuardStyle(width, height) {
+  return `<style id="aps-html-ir-viewport-guard">
+      :root {
+        --aps-page-w: ${width}px;
+        --aps-page-h: ${height}px;
+        --aps-scale: 1;
+        --aps-scaled-page-w: ${width}px;
+        --aps-scaled-page-h: ${height}px;
+      }
+
+      html,
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: var(--aps-scaled-page-h) !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        background: #ffffff;
+      }
+
+      body {
+        transform: none !important;
+      }
+
+      #root {
+        position: relative !important;
+        width: var(--aps-scaled-page-w) !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        height: var(--aps-scaled-page-h) !important;
+        min-height: var(--aps-scaled-page-h) !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+        transform: none !important;
+      }
+
+      #root > #canvas,
+      #canvas {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: auto !important;
+        bottom: auto !important;
+        width: var(--aps-page-w) !important;
+        height: var(--aps-page-h) !important;
+        max-width: none !important;
+        margin: 0 !important;
+        transform: scale(var(--aps-scale)) !important;
+        transform-origin: top left !important;
+      }
+
+      #root > .stage {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: auto !important;
+        bottom: auto !important;
+        width: var(--aps-page-w) !important;
+        height: var(--aps-page-h) !important;
+        max-width: none !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+        transform: scale(var(--aps-scale)) !important;
+        transform-origin: top left !important;
+      }
+
+      #root > .stage > .page {
+        width: var(--aps-page-w) !important;
+        height: var(--aps-page-h) !important;
+        margin: 0 !important;
+        transform: none !important;
+      }
+
+      #root > .page,
+      body > .page {
+        position: relative !important;
+        width: var(--aps-page-w) !important;
+        height: var(--aps-page-h) !important;
+        max-width: none !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+        transform: scale(var(--aps-scale)) !important;
+        transform-origin: top left !important;
+      }
+    </style>`;
+}
+
+function buildViewportGuardScript(width, height) {
+  return `<script id="aps-html-ir-viewport-guard-script">
+      (function () {
+        var designWidth = ${width};
+        var designHeight = ${height};
+
+        function viewportWidth() {
+          return Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+        }
+
+        function updateApsScale() {
+          var scale = Math.min(1, Math.max(0.01, viewportWidth() / designWidth));
+          var style = document.documentElement.style;
+          style.setProperty('--aps-page-w', designWidth + 'px');
+          style.setProperty('--aps-page-h', designHeight + 'px');
+          style.setProperty('--aps-scale', String(scale));
+          style.setProperty('--scale', String(scale));
+          style.setProperty('--aps-scaled-page-w', (designWidth * scale) + 'px');
+          style.setProperty('--aps-scaled-page-h', (designHeight * scale) + 'px');
+        }
+
+        window.addEventListener('pageshow', updateApsScale);
+        window.addEventListener('resize', updateApsScale, { passive: true });
+        updateApsScale();
+      })();
+    </script>`;
+}
+
+function ensureViewportSafeHtml(html, fallbackSize = {}) {
+  let output = String(html || '');
+  if (
+    !hasFixedCanvasScaleLayout(output) &&
+    !hasFixedPagePixelLayout(output)
+  ) {
+    return output;
+  }
+
+  const { width, height } = inferHtmlDesignSize(output, fallbackSize);
+  output = stripViewportGuard(output);
+  output = insertBeforeClosingTag(output, 'head', buildViewportGuardStyle(width, height));
+  output = insertBeforeClosingTag(output, 'body', buildViewportGuardScript(width, height));
+  return output;
+}
+
 function findMalformedHtmlSyntax(html) {
   const attrNames = [
     'id', 'class', 'src', 'alt', 'href', 'style', 'type', 'role', 'name', 'value',
@@ -851,8 +1049,12 @@ function buildSystemPrompt(uiIrSpec) {
 - 不要引用网络图片、CDN、远程字体或远程脚本。
 - 页面视觉基准必须优先使用输入设计图的实际像素尺寸，不要把移动端预览设备宽高当成设计稿尺寸。
 - viewport 必须使用 width=device-width；禁止输出 width=375、固定 375px 根容器或只按 812px 首屏截断。
+- 推荐使用 Lanhu/flexible 风格的设计画布：.page { position: relative; width: 设计图宽度px; height: 设计图高度px; overflow: hidden; }，所有坐标从画布左上角 (0,0) 开始；通过内联 flexible 脚本按 document.documentElement.clientWidth / 设计图宽度 设置缩放变量。
+- 如果样式继续使用 px 坐标，必须用外层 stage 对 .page 做 transform: scale(var(--scale)) 且 transform-origin: top left，并同步 stage 的缩放后宽高；如果只设置 html font-size，则必须把尺寸换算成 rem，否则 px 不会随 flexible 缩放。
+- 严禁生成居中的固定 #canvas 结构，例如 #canvas { width: 750px; transform: scale(...); transform-origin: top center; margin: 0 auto; }。如果确实需要整体缩放，必须使用外层缩放后的 stage 承载布局高度，内层画布 transform-origin: top left，且 left: 0; top: 0; margin: 0;。
+- 移动端截图和像素对比时，页面左上角必须对应设计稿 (0,0)，不得通过居中、负位移或 top-center transform 造成左侧留白、右侧裁切、截图截断。
 - 主页面结构必须使用 flex 或 grid：按 header/profile/stats/orders/banner/tools/footer 等区块组织；禁止用整页 absolute left/top 定位复刻所有内容。组件内部的徽标、装饰、图标叠层可以少量 absolute。
-- 根容器应使用 width: min(100%, 设计图宽度px)、max-width: 设计图宽度px、margin: 0 auto，并通过百分比、clamp、calc、flex-wrap 或网格列实现响应式适配，避免横向滚动。
+- 根容器不得暴露未缩放的设计稿宽度给窄屏 viewport；如果根容器使用设计稿宽度，必须同步缩放根容器的视觉宽高，避免横向滚动、留白或裁切。
 - 即使设计图内容识别不完整，也必须返回最小可预览 HTML，并在 #root 的 data-notes 写明不确定点；不要回复“无法生成”“需要更多信息”等说明文字。
 - 对话修正时必须基于“当前 HTML”做最小必要修改，不要重写成无关结构。`;
 }
@@ -873,7 +1075,9 @@ function buildGeneratePrompt({ file, sourceImageRelPath, htmlRelPath, device, im
 布局要求：
 - 以设计图实际尺寸完整还原整页内容，不能只生成 375x812 首屏，也不能裁掉下方订单、签到、常用工具、浮动购物车、底部导航等区域。
 - 使用 flex/grid 组织主要区块，避免把 #root 和所有元素写成固定 375px + absolute 坐标。
-- 在 ${device.width}px 宽度下应接近设计图；在窄屏预览时应等比压缩间距和字号，保持内容不溢出、不重叠。
+- 使用 .page 作为设计坐标画布：position: relative; width: ${device.width}px; height: ${device.height}px; overflow: hidden; 画布左上角必须是设计稿 (0,0)。
+- 可以内联 flexible 脚本设置根字号或缩放变量；使用 px 坐标时必须用 stage top-left transform 同步缩放宽高，使用 rem 时必须把设计稿 px 换算成 rem。不得输出居中的固定 #canvas；禁止 transform-origin: top center、margin: 0 auto 的 750px/1080px 内层画布。
+- 在 ${device.width}px 宽度下应接近设计图；在窄屏预览时应从左上角等比缩放整张设计画布，保持内容不溢出、不重叠，截图不截断。
 - 顶层 CSS viewport 必须是 width=device-width，#root 最大宽度应接近 ${device.width}px，页面最小高度应接近 ${device.height}px。
 
 设计系统：
@@ -912,6 +1116,7 @@ function buildRefinePrompt({ file, sourceImageRelPath, htmlRelPath, device, imag
 
 调整要求：
 - 如果当前 HTML 仍是 375px 固定画布、viewport width=375 或整页 absolute 定位，请优先改成以 ${device.width}x${device.height} 为基准的 flex/grid 响应式结构。
+- 如果当前 HTML 使用固定 #canvas、transform-origin: top center、margin: 0 auto 或居中缩放导致左侧留白/右侧裁切，必须改成 Lanhu/flexible 风格：设计画布从 (0,0) 开始，外层同步缩放后的宽高，内层 transform-origin: top left。
 - 保留当前 HTML 中已识别的业务内容，但修正为完整页面高度和响应式布局。
 - 在窄屏预览时允许整体按比例收敛，但内容不能互相覆盖或横向溢出。
 
@@ -1078,6 +1283,8 @@ function prepareGenerateJob(req, onStage = null) {
     projectId,
     file,
     context,
+    device,
+    imageSize: imageFile.imageSize,
     prompt,
     imageDataUrl: imageFile.dataUrl,
     status: 'generated',
@@ -1134,6 +1341,8 @@ function prepareRefineJob(req, onStage = null) {
     projectId,
     file,
     context,
+    device,
+    imageSize: imageFile.imageSize,
     prompt,
     imageDataUrl: imageFile.dataUrl,
     status: 'refined',
@@ -1157,12 +1366,15 @@ async function runAgentJob(req, job, { stream = false, onStage = null, onDelta =
     emitStage(onStage, 'asset-repair', `已修复 ${repaired.replacements.length} 个本地资源路径`);
   }
 
+  emitStage(onStage, 'viewport-guard', '校验预览缩放结构');
+  const viewportSafeHtml = ensureViewportSafeHtml(repaired.html, job.imageSize || job.device);
+
   emitStage(onStage, 'saving', '写入 HTML IR 文件');
-  const updatedAt = writeHtmlIr(req, job.projectId, job.context, repaired.html);
+  const updatedAt = writeHtmlIr(req, job.projectId, job.context, viewportSafeHtml);
   emitStage(onStage, 'done', 'HTML IR 已生成');
 
   return {
-    html: repaired.html,
+    html: viewportSafeHtml,
     htmlPath: job.context.htmlRelPath,
     sourcePath: job.context.sourceImageRelPath,
     status: job.status,
@@ -1216,6 +1428,11 @@ router.__test = {
   findForbiddenSvgSyntax,
   findMalformedHtmlSyntax,
   normalizeHtml,
+  ensureViewportSafeHtml,
+  hasFixedCanvasScaleLayout,
+  hasFixedPagePixelLayout,
+  inferHtmlDesignSize,
+  stripViewportGuard,
   repairHtmlLocalAssetReferences,
   buildAvailableLocalAssetsText
 };
