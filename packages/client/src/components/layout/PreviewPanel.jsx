@@ -6,7 +6,7 @@ import { ImageRegionSelector } from '../picker/ImageRegionSelector';
 import { PSDCanvas } from '../psd/PSDCanvas';
 
 const DEVICES = [
-  { name: 'iPhone 14', width: 375, height: 812 },
+  { name: 'iPhone 14', width: 375, height: 815 },
   { name: 'iPhone Pro', width: 390, height: 844 },
   { name: 'Android', width: 360, height: 780 },
 ];
@@ -281,61 +281,61 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
           ) : null}
         </div>
       ) : (
-      <div className="preview-frame-wrapper">
-        <div className="phone-frame">
-          <div
-            className={`phone-screen ${isImageMode || isPsdMode ? 'image-mode' : ''} ${isImageRegionSelecting ? 'image-selecting' : ''}`}
-            style={{ width: device.width, height: device.height, position: 'relative' }}
-          >
-            {iframeSrc ? (
-              <iframe
-                ref={iframeRef}
-                src={iframeSrc}
-                title="preview"
-                onLoad={onIframeLoad}
-                style={{
-                  width: iframeWidth,
-                  height: iframeHeight,
-                  transform: `scale(${zoomScale})`,
-                  transformOrigin: 'top left',
-                }}
-              />
-            ) : (isImageMode || isPsdMode) && currentFile ? (
-              <>
-                <img
-                  ref={imgRef}
-                  className="design-image"
-                  src={`/html/${currentProjectId}/${currentFile.imagePath || currentFile.previewPath || currentFile.path}`}
-                  alt="design"
-                  draggable={false}
+        <div className="preview-frame-wrapper">
+          <div className="phone-frame">
+            <div
+              className={`phone-screen ${isImageMode || isPsdMode ? 'image-mode' : ''} ${isImageRegionSelecting ? 'image-selecting' : ''}`}
+              style={{ width: device.width, height: device.height, position: 'relative' }}
+            >
+              {iframeSrc ? (
+                <iframe
+                  ref={iframeRef}
+                  src={iframeSrc}
+                  title="preview"
+                  onLoad={onIframeLoad}
                   style={{
-                    width: device.width,
-                    height: 'auto',
+                    width: iframeWidth,
+                    height: iframeHeight,
                     transform: `scale(${zoomScale})`,
                     transformOrigin: 'top left',
                   }}
                 />
-                {isImageRegionSelecting && (
-                  <ImageRegionSelector
-                    imgRef={imgRef}
-                    deviceWidth={device.width}
-                    deviceHeight={device.height}
-                    zoomScale={zoomScale}
-                    onRegionAction={onRegionAction}
+              ) : (isImageMode || isPsdMode) && currentFile ? (
+                <>
+                  <img
+                    ref={imgRef}
+                    className="design-image"
+                    src={`/html/${currentProjectId}/${currentFile.imagePath || currentFile.previewPath || currentFile.path}`}
+                    alt="design"
+                    draggable={false}
+                    style={{
+                      width: device.width,
+                      height: 'auto',
+                      transform: `scale(${zoomScale})`,
+                      transformOrigin: 'top left',
+                    }}
                   />
-                )}
-              </>
-            ) : (
-              <div className="empty-preview">
-                <div className="empty-preview-icon">
-                  <Icon name="fileEmpty" size="xl" />
+                  {isImageRegionSelecting && (
+                    <ImageRegionSelector
+                      imgRef={imgRef}
+                      deviceWidth={device.width}
+                      deviceHeight={device.height}
+                      zoomScale={zoomScale}
+                      onRegionAction={onRegionAction}
+                    />
+                  )}
+                </>
+              ) : (
+                <div className="empty-preview">
+                  <div className="empty-preview-icon">
+                    <Icon name="fileEmpty" size="xl" />
+                  </div>
+                  <p>选择文件预览</p>
                 </div>
-                <p>选择文件预览</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
       )}
     </main>
   );

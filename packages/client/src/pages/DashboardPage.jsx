@@ -146,6 +146,7 @@ export function DashboardPage({ workspaceLoading, onGoHome, onSwitchProject, onR
         onDeleteFiles={ctrl.handleDeleteFiles}
         mindMapOpen={ctrl.mindMapOpen}
         onCloseMindMap={() => ctrl.setMindMapOpen(false)}
+        onRequestConfirm={onRequestConfirm}
       />
     </div>
   );

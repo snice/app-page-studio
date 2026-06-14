@@ -243,7 +243,7 @@ Business APIs require login. Login state is stored through `express-session`.
 - `POST /api/upload-html`, `GET /api/scan-html`, `GET /api/html-content`
 - `POST /api/upload-image`, `GET /api/list-images`, `POST /api/upload-asset`
 - `POST /api/upload-psd`, `GET /api/list-psd`, `GET /api/psd-preview`
-- `POST /api/figma/token`: create a Figma upload token
+- `POST /api/figma/token`, `GET/PATCH/POST/DELETE /api/figma/tokens...`: create and manage Figma upload tokens
 - `POST /api/figma/verify`, `POST /api/figma/import`: Figma plugin verification and import
 - `POST /api/download-design-zip`
 - `POST /api/generate-prompt`

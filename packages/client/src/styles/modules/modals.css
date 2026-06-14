@@ -256,6 +256,37 @@
   color: var(--text-muted);
   font-size: 12px;
 }
+.figma-token-create-controls,
+.figma-token-list-tools {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.figma-token-duration {
+  display: grid;
+  gap: 4px;
+  min-width: 120px;
+}
+.figma-token-duration > span {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.figma-token-duration.compact {
+  min-width: 112px;
+}
+.figma-token-duration .app-select {
+  min-width: 112px;
+}
+.figma-token-create-controls .figma-token-duration .app-select {
+  --app-select-height: 36px;
+}
+.figma-token-list-tools .figma-token-duration .app-select {
+  --app-select-height: 30px;
+}
 .figma-token-expiry {
   display: flex;
   align-items: center;
@@ -445,6 +476,22 @@
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .figma-token-row {
+    grid-template-columns: 1fr;
+  }
+  .figma-import-summary,
+  .figma-token-list-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .figma-token-create-controls,
+  .figma-token-list-tools,
+  .figma-token-row-actions {
+    justify-content: flex-start;
+  }
 }
 
 /* ==================== File Browser ==================== */

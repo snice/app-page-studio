@@ -285,13 +285,40 @@ router.get('/figma/tokens', requireAuth, (req, res) => {
   });
 });
 
-router.delete('/figma/tokens/:id', requireAuth, (req, res) => {
+router.patch('/figma/tokens/:id/expiry', requireAuth, (req, res) => {
+  const tokenId = Number.parseInt(req.params.id, 10);
+  if (!tokenId) return res.status(400).json({ error: '缺少令牌 ID' });
+
+  const token = FigmaImportTokens.setExpiryForUser(tokenId, req.authUser, req.body?.ttlMinutes);
+  if (!token) return res.status(404).json({ error: '令牌不存在或无权修改' });
+  res.json({ success: true, token });
+});
+
+router.post('/figma/tokens/:id/renew', requireAuth, (req, res) => {
+  const tokenId = Number.parseInt(req.params.id, 10);
+  if (!tokenId) return res.status(400).json({ error: '缺少令牌 ID' });
+
+  const token = FigmaImportTokens.renewForUser(tokenId, req.authUser, req.body?.ttlMinutes);
+  if (!token) return res.status(404).json({ error: '令牌不存在或无权续期' });
+  res.json({ success: true, token });
+});
+
+router.post('/figma/tokens/:id/revoke', requireAuth, (req, res) => {
   const tokenId = Number.parseInt(req.params.id, 10);
   if (!tokenId) return res.status(400).json({ error: '缺少令牌 ID' });
 
   const revokedCount = FigmaImportTokens.revokeForUser(tokenId, req.authUser);
-  if (!revokedCount) return res.status(404).json({ error: '令牌不存在或无权删除' });
+  if (!revokedCount) return res.status(404).json({ error: '令牌不存在或无权吊销' });
   res.json({ success: true, revokedCount, id: tokenId });
+});
+
+router.delete('/figma/tokens/:id', requireAuth, (req, res) => {
+  const tokenId = Number.parseInt(req.params.id, 10);
+  if (!tokenId) return res.status(400).json({ error: '缺少令牌 ID' });
+
+  const deletedCount = FigmaImportTokens.deleteForUser(tokenId, req.authUser);
+  if (!deletedCount) return res.status(404).json({ error: '令牌不存在或无权删除' });
+  res.json({ success: true, deletedCount, id: tokenId });
 });
 
 router.options('/figma/verify', setFigmaCors, (req, res) => res.sendStatus(204));

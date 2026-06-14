@@ -250,7 +250,7 @@ app-page-studio/
 - `POST /api/upload-html`、`GET /api/scan-html`、`GET /api/html-content`
 - `POST /api/upload-image`、`GET /api/list-images`、`POST /api/upload-asset`
 - `POST /api/upload-psd`、`GET /api/list-psd`、`GET /api/psd-preview`
-- `POST /api/figma/token`：生成 Figma 上传令牌
+- `POST /api/figma/token`、`GET/PATCH/POST/DELETE /api/figma/tokens...`：生成和管理 Figma 上传令牌
 - `POST /api/figma/verify`、`POST /api/figma/import`：Figma 插件校验与导入
 - `POST /api/download-design-zip`
 - `POST /api/generate-prompt`

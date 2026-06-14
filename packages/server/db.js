@@ -866,6 +866,15 @@ function buildFigmaImportToken(row) {
   };
 }
 
+function normalizeFigmaTtlMinutes(value) {
+  const ttl = Number.parseInt(value, 10);
+  return Math.max(5, Math.min(Number.isFinite(ttl) ? ttl : 720, 30 * 24 * 60));
+}
+
+function buildFigmaExpiry(ttlMinutes, baseMs = Date.now()) {
+  return new Date(baseMs + normalizeFigmaTtlMinutes(ttlMinutes) * 60 * 1000).toISOString();
+}
+
 function decodeFigmaTokenPayload(raw) {
   try {
     return JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
@@ -902,15 +911,32 @@ function tokenCanAccessProject(tokenRecord, projectId) {
   return (tokenRecord.allowedProjectIds || []).includes(pid);
 }
 
+function getFigmaTokenRowForUser(tokenId, user) {
+  const id = Number.parseInt(tokenId, 10);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  const isAdmin = isAdminUser(user);
+  const userId = normalizeUserId(user?.id);
+  if (!isAdmin && !userId) return null;
+
+  const sql = `
+    SELECT t.id, t.token_id, t.token_secret_hash, t.token_preview, t.project_scope,
+           t.allowed_project_ids, t.created_by_user_id, t.created_by_name, t.expires_at,
+           t.revoked_at, t.created_at, t.last_used_at, t.last_used_project_id, u.username
+    FROM figma_import_tokens t
+    LEFT JOIN users u ON u.id = t.created_by_user_id
+    WHERE t.id = ? ${isAdmin ? '' : 'AND t.created_by_user_id = ?'}
+  `;
+  return isAdmin ? db.prepare(sql).get(id) : db.prepare(sql).get(id, userId);
+}
+
 const FigmaImportTokens = {
   create({ createdByUser = null, allowedProjectIds = [], projectScope = 'selected', ttlMinutes = 720 } = {}) {
-    const ttl = Math.max(5, Math.min(Number.parseInt(ttlMinutes, 10) || 720, 30 * 24 * 60));
     const tokenId = crypto.randomBytes(9).toString('base64url');
     const secret = crypto.randomBytes(32).toString('base64url');
     const token = `aps1.${tokenId}.${secret}`;
     const tokenSecretHash = hashFigmaImportSecret(secret);
     const tokenPreview = `aps1.${tokenId}...${secret.slice(-4)}`;
-    const expiresAt = new Date(Date.now() + ttl * 60 * 1000).toISOString();
+    const expiresAt = buildFigmaExpiry(ttlMinutes);
     const creatorId = normalizeUserId(createdByUser?.id);
     const createdByName = createdByUser?.username || null;
     const normalizedScope = projectScope === 'all' ? 'all' : 'selected';
@@ -1012,6 +1038,44 @@ const FigmaImportTokens = {
           SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP)
           WHERE id = ? AND created_by_user_id = ?
         `).run(id, userId || -1);
+    return result.changes || 0;
+  },
+
+  setExpiryForUser(tokenId, user, ttlMinutes) {
+    const row = getFigmaTokenRowForUser(tokenId, user);
+    if (!row) return null;
+    const expiresAt = buildFigmaExpiry(ttlMinutes);
+    db.prepare(`
+      UPDATE figma_import_tokens
+      SET expires_at = ?
+      WHERE id = ?
+    `).run(expiresAt, row.id);
+    return buildFigmaImportToken({ ...row, expires_at: expiresAt });
+  },
+
+  renewForUser(tokenId, user, ttlMinutes) {
+    const row = getFigmaTokenRowForUser(tokenId, user);
+    if (!row) return null;
+    const currentExpiryMs = Date.parse(row.expires_at);
+    const baseMs = Number.isFinite(currentExpiryMs) ? Math.max(Date.now(), currentExpiryMs) : Date.now();
+    const expiresAt = buildFigmaExpiry(ttlMinutes, baseMs);
+    db.prepare(`
+      UPDATE figma_import_tokens
+      SET expires_at = ?
+      WHERE id = ?
+    `).run(expiresAt, row.id);
+    return buildFigmaImportToken({ ...row, expires_at: expiresAt });
+  },
+
+  deleteForUser(tokenId, user) {
+    const id = Number.parseInt(tokenId, 10);
+    if (!Number.isFinite(id) || id <= 0) return 0;
+    const isAdmin = isAdminUser(user);
+    const userId = normalizeUserId(user?.id);
+    if (!isAdmin && !userId) return 0;
+    const result = isAdmin
+      ? db.prepare(`DELETE FROM figma_import_tokens WHERE id = ?`).run(id)
+      : db.prepare(`DELETE FROM figma_import_tokens WHERE id = ? AND created_by_user_id = ?`).run(id, userId);
     return result.changes || 0;
   },
 

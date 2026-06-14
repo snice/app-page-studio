@@ -1,7 +1,7 @@
 {
   "id": "1647490471056031342",
   "name": "App Page Studio Exporter",
-  "api": "1.0.1",
+  "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
   "editorType": [

@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../common/Icon';
+import { AppSelect } from '../common/AppSelect';
 import { ModalOverlay } from './ModalOverlay';
 import { useAppStore } from '../../lib/state';
 import { api } from '../../lib/api';
 
 const LOCAL_TOKEN_KEY = 'appPageStudio_figmaImportTokensV3';
+const TTL_OPTIONS = [
+  { value: '60', label: '1 小时' },
+  { value: '720', label: '12 小时' },
+  { value: '1440', label: '1 天' },
+  { value: '10080', label: '7 天' },
+  { value: '43200', label: '30 天' },
+];
 
 function readLocalTokenCache() {
   try {
@@ -46,11 +54,28 @@ function removeLocalToken(tokenId) {
   }
 }
 
+function updateLocalTokenExpiry(tokenId, expiresAt) {
+  if (!tokenId || !expiresAt) return;
+  try {
+    const tokens = readLocalTokenCache();
+    if (tokens[tokenId]) {
+      tokens[tokenId] = { ...tokens[tokenId], expiresAt };
+      localStorage.setItem(LOCAL_TOKEN_KEY, JSON.stringify(tokens));
+    }
+  } catch {
+    // ignore storage failures
+  }
+}
+
 function formatDate(value) {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
   return date.toLocaleString();
+}
+
+function formatTtl(value) {
+  return TTL_OPTIONS.find((item) => item.value === String(value))?.label || `${value} 分钟`;
 }
 
 function formatScope(token) {
@@ -119,7 +144,7 @@ function TokenField({ token, onCopy }) {
   );
 }
 
-export function FigmaImportModal({ isOpen, onClose }) {
+export function FigmaImportModal({ isOpen, onClose, onRequestConfirm }) {
   const showToast = useAppStore((s) => s.showToast);
   const isCurrentEditor = useAppStore((s) => s.session.isCurrentEditor);
   const [loading, setLoading] = useState(false);
@@ -128,6 +153,9 @@ export function FigmaImportModal({ isOpen, onClose }) {
   const [tokens, setTokens] = useState([]);
   const [localTokens, setLocalTokens] = useState({});
   const [serverUrl, setServerUrl] = useState('');
+  const [ttlMinutes, setTtlMinutes] = useState('720');
+  const [manageTtlMinutes, setManageTtlMinutes] = useState('720');
+  const [busyTokenId, setBusyTokenId] = useState(null);
 
   const loadTokens = async () => {
     setListLoading(true);
@@ -167,7 +195,7 @@ export function FigmaImportModal({ isOpen, onClose }) {
     }
     setLoading(true);
     try {
-      const res = await api.createFigmaImportToken();
+      const res = await api.createFigmaImportToken(ttlMinutes);
       if (res.error) {
         showToast(res.error);
         return;
@@ -183,23 +211,76 @@ export function FigmaImportModal({ isOpen, onClose }) {
     }
   };
 
-  const revokeToken = async (token) => {
-    if (!token?.id) return;
-    const message = token.status === 'active'
-      ? '删除后该令牌将无法继续用于 Figma 上传，确定删除？'
-      : '确定删除这个令牌记录？';
-    if (!window.confirm(message)) return;
-
-    const res = await api.deleteFigmaImportToken(token.id);
-    if (res.error) {
-      showToast(res.error);
-      return;
-    }
-    removeLocalToken(token.id);
+  const applyUpdatedToken = (updatedToken) => {
+    if (!updatedToken?.id) return;
+    setTokens((current) => current.map((item) => (
+      item.id === updatedToken.id ? { ...item, ...updatedToken } : item
+    )));
+    updateLocalTokenExpiry(updatedToken.id, updatedToken.expiresAt);
     setLocalTokens(readLocalTokenCache());
-    if (tokenData?.id === token.id) setTokenData(null);
-    await loadTokens();
-    showToast('Figma 令牌已删除');
+    setTokenData((current) => (
+      current?.id === updatedToken.id ? { ...current, ...updatedToken } : current
+    ));
+  };
+
+  const updateTokenExpiry = async (token) => {
+    if (!token?.id || token.status === 'revoked') return;
+    setBusyTokenId(`${token.id}:expiry`);
+    try {
+      const res = await api.updateFigmaImportTokenExpiry(token.id, manageTtlMinutes);
+      if (res.error) {
+        showToast(res.error);
+        return;
+      }
+      applyUpdatedToken(res.token);
+      showToast(`有效期已改为从现在起 ${formatTtl(manageTtlMinutes)}`);
+    } finally {
+      setBusyTokenId(null);
+    }
+  };
+
+  const renewToken = async (token) => {
+    if (!token?.id || token.status === 'revoked') return;
+    setBusyTokenId(`${token.id}:renew`);
+    try {
+      const res = await api.renewFigmaImportToken(token.id, manageTtlMinutes);
+      if (res.error) {
+        showToast(res.error);
+        return;
+      }
+      applyUpdatedToken(res.token);
+      showToast(`已续期 ${formatTtl(manageTtlMinutes)}`);
+    } finally {
+      setBusyTokenId(null);
+    }
+  };
+
+  const deleteToken = async (token) => {
+    if (!token?.id) return;
+    const confirmed = await onRequestConfirm?.({
+      title: '删除 Figma 令牌',
+      message: '确定彻底删除这个 Figma 上传令牌？',
+      hint: '删除后该令牌记录会从服务端移除，当前 token 也会立即失效。',
+      confirmText: '删除令牌',
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    setBusyTokenId(`${token.id}:delete`);
+    try {
+      const res = await api.deleteFigmaImportToken(token.id);
+      if (res.error) {
+        showToast(res.error);
+        return;
+      }
+      removeLocalToken(token.id);
+      setLocalTokens(readLocalTokenCache());
+      if (tokenData?.id === token.id) setTokenData(null);
+      await loadTokens();
+      showToast('Figma 令牌已彻底删除');
+    } finally {
+      setBusyTokenId(null);
+    }
   };
 
   const getLocalToken = (token) => {
@@ -225,16 +306,28 @@ export function FigmaImportModal({ isOpen, onClose }) {
               <strong>插件填写服务器地址和 Token</strong>
               <span>服务器地址用于连接当前部署，Token 只负责授权可导入的项目。</span>
             </div>
-            <button
-              className="btn btn-primary"
-              type="button"
-              onClick={createToken}
-              disabled={loading || !isCurrentEditor}
-              title={isCurrentEditor ? '生成上传令牌' : '当前为只读'}
-            >
-              <Icon name="key" />
-              {loading ? '生成中' : '生成令牌'}
-            </button>
+            <div className="figma-token-create-controls">
+              <label className="figma-token-duration">
+                <span>有效期</span>
+                <AppSelect
+                  value={ttlMinutes}
+                  options={TTL_OPTIONS}
+                  compact
+                  ariaLabel="Figma token 有效期"
+                  onValueChange={setTtlMinutes}
+                />
+              </label>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={createToken}
+                disabled={loading || !isCurrentEditor}
+                title={isCurrentEditor ? '生成上传令牌' : '当前为只读'}
+              >
+                <Icon name="key" />
+                {loading ? '生成中' : '生成令牌'}
+              </button>
+            </div>
           </div>
 
           <div className="figma-setup-card">
@@ -279,10 +372,22 @@ export function FigmaImportModal({ isOpen, onClose }) {
               <strong>令牌列表</strong>
               <span>{listLoading ? '加载中' : `${tokens.length} 条，${activeCount} 条有效`}</span>
             </div>
-            <button className="btn btn-sm btn-secondary" type="button" onClick={loadTokens} disabled={listLoading}>
-              <Icon name="refresh" size="sm" />
-              刷新
-            </button>
+            <div className="figma-token-list-tools">
+              <label className="figma-token-duration compact">
+                <span>调整时长</span>
+                <AppSelect
+                  value={manageTtlMinutes}
+                  options={TTL_OPTIONS}
+                  compact
+                  ariaLabel="Figma token 调整时长"
+                  onValueChange={setManageTtlMinutes}
+                />
+              </label>
+              <button className="btn btn-sm btn-secondary" type="button" onClick={loadTokens} disabled={listLoading}>
+                <Icon name="refresh" size="sm" />
+                刷新
+              </button>
+            </div>
           </div>
 
           <div className="figma-token-list">
@@ -291,6 +396,8 @@ export function FigmaImportModal({ isOpen, onClose }) {
             ) : tokens.map((token) => {
               const local = getLocalToken(token);
               const canCopy = !!local?.token && token.status === 'active';
+              const actionBusy = busyTokenId && busyTokenId.startsWith(`${token.id}:`);
+              const canManageToken = isCurrentEditor && token.status !== 'revoked' && !actionBusy;
               return (
                 <div className="figma-token-row" key={token.id}>
                   <div className="figma-token-row-main">
@@ -312,8 +419,28 @@ export function FigmaImportModal({ isOpen, onClose }) {
                     <button
                       className="btn btn-sm btn-secondary"
                       type="button"
+                      onClick={() => updateTokenExpiry(token)}
+                      disabled={!canManageToken}
+                      title={canManageToken ? `改为从现在起 ${formatTtl(manageTtlMinutes)} 过期` : '无法修改'}
+                    >
+                      <Icon name="edit" size="sm" />
+                      改有效期
+                    </button>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      type="button"
+                      onClick={() => renewToken(token)}
+                      disabled={!canManageToken}
+                      title={canManageToken ? `在当前有效期上续 ${formatTtl(manageTtlMinutes)}` : '无法续期'}
+                    >
+                      <Icon name="refresh" size="sm" />
+                      续期
+                    </button>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      type="button"
                       onClick={() => copyText(local?.token)}
-                      disabled={!canCopy}
+                      disabled={!canCopy || actionBusy}
                       title={canCopy ? '复制 token' : '无法复制：无完整 token 或已失效'}
                     >
                       <Icon name="copy" size="sm" />
@@ -322,9 +449,9 @@ export function FigmaImportModal({ isOpen, onClose }) {
                     <button
                       className="btn btn-sm btn-secondary"
                       type="button"
-                      onClick={() => revokeToken(token)}
-                      disabled={!isCurrentEditor || token.status === 'revoked'}
-                      title={isCurrentEditor ? '删除令牌' : '当前为只读'}
+                      onClick={() => deleteToken(token)}
+                      disabled={!isCurrentEditor || actionBusy}
+                      title={isCurrentEditor ? '彻底删除令牌' : '当前为只读'}
                     >
                       <Icon name="trash" size="sm" />
                       删除
