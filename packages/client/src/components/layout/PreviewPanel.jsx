@@ -1,12 +1,13 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Icon } from '../common/Icon';
 import { useAppStore } from '../../lib/state';
 import { parsePSD } from '../../lib/psdUtils';
 import { ImageRegionSelector } from '../picker/ImageRegionSelector';
 import { PSDCanvas } from '../psd/PSDCanvas';
+import { DesignHtmlAgentPanel } from './DesignHtmlAgentPanel';
 
 const DEVICES = [
-  { name: 'iPhone 14', width: 375, height: 812 },
+  { name: 'iPhone 14', width: 375, height: 815 },
   { name: 'iPhone Pro', width: 390, height: 844 },
   { name: 'Android', width: 360, height: 780 },
 ];
@@ -45,6 +46,9 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
 
   const [device, setDevice] = useState(DEVICES[0]);
   const [psdCropMode, setPsdCropMode] = useState(false);
+  const [designPreviewState, setDesignPreviewState] = useState({ path: null, mode: 'design' });
+  const [htmlIrReloadKey, setHtmlIrReloadKey] = useState(0);
+  const [htmlIrFrameMissing, setHtmlIrFrameMissing] = useState(false);
 
   const zoomScale = zoom / 100;
 
@@ -58,19 +62,37 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
     ? `${currentFile.name || currentFile.path.split('/').pop()} (${device.width}x${device.height})`
     : '未选择文件';
 
-  // iframe src
-  const iframeSrc = currentFile
-    ? currentFile.sourceType === 'html'
-      ? `/html/${currentProjectId}/${currentFile.path}` : null
-    : null;
-
   const isImageMode = currentFile?.sourceType === 'image';
   const isPsdMode = currentFile?.sourceType === 'psd';
   const isPsdLayers = isPsdMode && psdMode === 'layers';
   const showPsdCanvas = isPsdLayers && psdData;
+  const isDesignFile = isImageMode || isPsdMode;
+  const hasGeneratedHtml = !!currentFile?.generatedHtmlPath;
+  const requestedDesignPreviewMode = designPreviewState.path === currentFile?.path
+    ? designPreviewState.mode
+    : 'design';
+  const designPreviewMode = requestedDesignPreviewMode === 'html' ? 'html' : 'design';
+  const isHtmlIrPreview = isDesignFile && designPreviewMode === 'html';
+  const isDesignImagePreview = isDesignFile && !isHtmlIrPreview;
+  const cropModeEnabled = isCurrentEditor && psdCropMode;
+
+  // iframe src
+  const iframeSrc = currentFile
+    ? currentFile.sourceType === 'html'
+      ? `/html/${currentProjectId}/${currentFile.path}`
+      : isHtmlIrPreview
+        ? hasGeneratedHtml
+          ? `/html/${currentProjectId}/${currentFile.generatedHtmlPath}?ir=${htmlIrReloadKey}`
+          : null
+        : null
+    : null;
+  const showHtmlIrMissingOverlay = isHtmlIrPreview && (!hasGeneratedHtml || htmlIrFrameMissing);
 
   const iframeWidth = device.width / zoomScale;
   const iframeHeight = device.height / zoomScale;
+  const setCurrentDesignPreviewMode = useCallback((mode) => {
+    setDesignPreviewState({ path: currentFile?.path || null, mode });
+  }, [currentFile?.path]);
 
   // 加载 PSD 数据
   const loadPsdData = useCallback(async () => {
@@ -139,10 +161,13 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
 
   useEffect(() => {
     if (!isCurrentEditor) {
-      setPsdCropMode(false);
       setIsImageRegionSelecting(false);
     }
   }, [isCurrentEditor, setIsImageRegionSelecting]);
+
+  useEffect(() => {
+    setHtmlIrFrameMissing(false);
+  }, [iframeSrc, currentFile?.path]);
 
   // PSD 图层选中回调
   const handlePsdSelectLayer = useCallback((layer) => {
@@ -153,6 +178,20 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
   const handlePsdClickSlice = useCallback((id) => {
     setPsdSelectedSliceId(id);
   }, [setPsdSelectedSliceId]);
+
+  const handlePreviewIframeLoad = useCallback((event) => {
+    onIframeLoad?.(event);
+    if (!isHtmlIrPreview) return;
+    try {
+      const doc = event.currentTarget.contentDocument;
+      const bodyText = doc?.body?.innerText?.trim() || '';
+      const isMissing = /^(Cannot GET|File not found|Project not found|Not Found)/i.test(bodyText) ||
+        /404|not found/i.test(doc?.title || '');
+      setHtmlIrFrameMissing(isMissing);
+    } catch {
+      setHtmlIrFrameMissing(false);
+    }
+  }, [isHtmlIrPreview, onIframeLoad]);
 
   return (
     <main className="preview-container">
@@ -190,14 +229,33 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
           {/* 框选切图按钮 - 仅图层模式显示 */}
           {isPsdLayers && psdData && (
             <button
-              className={`crop-btn ${psdCropMode ? 'active' : ''}`}
+              className={`crop-btn ${cropModeEnabled ? 'active' : ''}`}
               onClick={() => setPsdCropMode(v => !v)}
               disabled={!isCurrentEditor}
-              title={!isCurrentEditor ? '当前为只读' : psdCropMode ? '退出框选' : '框选标记切图'}
+              title={!isCurrentEditor ? '当前为只读' : cropModeEnabled ? '退出框选' : '框选标记切图'}
             >
-              <Icon name={psdCropMode ? 'x' : 'crop'} size="sm" />
-              <span>{psdCropMode ? '取消框选' : '框选切图'}</span>
+              <Icon name={cropModeEnabled ? 'x' : 'crop'} size="sm" />
+              <span>{cropModeEnabled ? '取消框选' : '框选切图'}</span>
             </button>
+          )}
+          {isDesignFile && !isPsdLayers && (
+            <div className="design-ir-controls">
+              <div className="design-ir-segment">
+                <button
+                  className={`design-ir-segment-btn ${designPreviewMode === 'design' ? 'active' : ''}`}
+                  onClick={() => setCurrentDesignPreviewMode('design')}
+                >
+                  设计图
+                </button>
+                <button
+                  className={`design-ir-segment-btn ${isHtmlIrPreview ? 'active' : ''}`}
+                  onClick={() => setCurrentDesignPreviewMode('html')}
+                  title={hasGeneratedHtml ? '预览生成的 HTML IR' : '切换后可生成 HTML IR'}
+                >
+                  HTML IR
+                </button>
+              </div>
+            </div>
           )}
         </div>
         <span className="preview-info">{previewInfo}</span>
@@ -245,8 +303,8 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
           <button
             className={`picker-btn ${isPickerActive || isImageRegionSelecting ? 'active' : ''}`}
             onClick={onTogglePicker}
-            disabled={isPsdLayers || !isCurrentEditor}
-            title={!isCurrentEditor ? '当前为只读' : undefined}
+            disabled={isPsdLayers || !isCurrentEditor || isHtmlIrPreview}
+            title={!isCurrentEditor ? '当前为只读' : isHtmlIrPreview ? '切回设计图后标注交互或切图' : undefined}
           >
             <Icon name="target" />
             <span>{isPickerActive ? '取消选择' : isImageRegionSelecting ? '拖拽选择' : '添加交互'}</span>
@@ -271,7 +329,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
               hiddenLayerIds={psdHiddenLayerIds}
               onSelectLayer={handlePsdSelectLayer}
               onClickSlice={handlePsdClickSlice}
-              cropMode={psdCropMode}
+              cropMode={cropModeEnabled}
               onCropDone={(rect) => {
                 if (!isCurrentEditor) return;
                 setPsdCropMode(false);
@@ -281,61 +339,83 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
           ) : null}
         </div>
       ) : (
-      <div className="preview-frame-wrapper">
-        <div className="phone-frame">
-          <div
-            className={`phone-screen ${isImageMode || isPsdMode ? 'image-mode' : ''} ${isImageRegionSelecting ? 'image-selecting' : ''}`}
-            style={{ width: device.width, height: device.height, position: 'relative' }}
-          >
-            {iframeSrc ? (
-              <iframe
-                ref={iframeRef}
-                src={iframeSrc}
-                title="preview"
-                onLoad={onIframeLoad}
-                style={{
-                  width: iframeWidth,
-                  height: iframeHeight,
-                  transform: `scale(${zoomScale})`,
-                  transformOrigin: 'top left',
-                }}
-              />
-            ) : (isImageMode || isPsdMode) && currentFile ? (
-              <>
-                <img
-                  ref={imgRef}
-                  className="design-image"
-                  src={`/html/${currentProjectId}/${currentFile.imagePath || currentFile.previewPath || currentFile.path}`}
-                  alt="design"
-                  draggable={false}
-                  style={{
-                    width: device.width,
-                    height: 'auto',
-                    transform: `scale(${zoomScale})`,
-                    transformOrigin: 'top left',
-                  }}
-                />
-                {isImageRegionSelecting && (
-                  <ImageRegionSelector
-                    imgRef={imgRef}
-                    deviceWidth={device.width}
-                    deviceHeight={device.height}
-                    zoomScale={zoomScale}
-                    onRegionAction={onRegionAction}
+        <div className={`preview-workspace ${isHtmlIrPreview ? 'with-agent' : ''}`}>
+          <div className="preview-frame-wrapper">
+            <div className="phone-frame">
+              <div
+                className={`phone-screen ${isDesignImagePreview ? 'image-mode' : ''} ${isImageRegionSelecting ? 'image-selecting' : ''}`}
+                style={{ width: device.width, height: device.height, position: 'relative' }}
+              >
+                {iframeSrc ? (
+                  <iframe
+                    ref={iframeRef}
+                    src={iframeSrc}
+                    title="preview"
+                    onLoad={handlePreviewIframeLoad}
+                    style={{
+                      width: iframeWidth,
+                      height: iframeHeight,
+                      transform: `scale(${zoomScale})`,
+                      transformOrigin: 'top left',
+                    }}
                   />
+                ) : isDesignImagePreview && currentFile ? (
+                  <>
+                    <img
+                      ref={imgRef}
+                      className="design-image"
+                      src={`/html/${currentProjectId}/${currentFile.imagePath || currentFile.previewPath || currentFile.path}`}
+                      alt="design"
+                      draggable={false}
+                      style={{
+                        width: device.width,
+                        height: 'auto',
+                        transform: `scale(${zoomScale})`,
+                        transformOrigin: 'top left',
+                      }}
+                    />
+                    {isImageRegionSelecting && (
+                      <ImageRegionSelector
+                        imgRef={imgRef}
+                        deviceWidth={device.width}
+                        deviceHeight={device.height}
+                        zoomScale={zoomScale}
+                        onRegionAction={onRegionAction}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <div className="empty-preview">
+                    <div className="empty-preview-icon">
+                      <Icon name="fileEmpty" size="xl" />
+                    </div>
+                    <p>{isHtmlIrPreview ? '尚未生成 HTML IR' : '选择文件预览'}</p>
+                  </div>
                 )}
-              </>
-            ) : (
-              <div className="empty-preview">
-                <div className="empty-preview-icon">
-                  <Icon name="fileEmpty" size="xl" />
-                </div>
-                <p>选择文件预览</p>
+                {showHtmlIrMissingOverlay && (
+                  <div className="html-ir-missing-overlay">
+                    <div className="html-ir-missing-card">
+                      <Icon name="fileEmpty" size="lg" />
+                      <strong>HTML IR 文件不存在</strong>
+                      <span>请在右侧面板生成 HTML IR</span>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
+          {isHtmlIrPreview && (
+            <DesignHtmlAgentPanel
+              key={`${currentFile?.path || 'none'}:${currentFile?.generatedHtmlPath || 'empty'}`}
+              device={device}
+              iframeRef={iframeRef}
+              onGenerated={() => {
+                setCurrentDesignPreviewMode('html');
+                setHtmlIrReloadKey(Date.now());
+              }}
+            />
+          )}
         </div>
-      </div>
       )}
     </main>
   );

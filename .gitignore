@@ -6,3 +6,4 @@ studio.db
 .DS_Store
 release
 .playwright-mcp
+.env

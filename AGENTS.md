@@ -37,7 +37,7 @@ packages/server/
 └── api/
     ├── auth.js         # Login/logout/current user/admin user management
     ├── projects.js     # Project CRUD and project members
-    ├── pages.js        # Pages config save/load/history APIs
+    ├── pages.js        # Pages config save/load APIs
     ├── html.js         # HTML/design file upload, scan, delete, ZIP download
     ├── image.js        # Design image and asset upload/list APIs
     ├── psd.js          # PSD upload/list/preview APIs
@@ -85,14 +85,13 @@ Core tables:
 - `projects`: name, description, design system JSON, owner user.
 - `project_members`: project/user membership with role (`owner`, `editor`, `viewer`).
 - `project_pages`: current pages config JSON, revision, updated actor/session.
-- `project_page_revisions`: historical snapshots for restore.
 
 The session store also persists Express session data in SQLite.
 
 Key data modules:
 
 - `Users`: login/admin user management helpers.
-- `Projects`: project CRUD, access checks, members, page config save/merge/history helpers.
+- `Projects`: project CRUD, access checks, members, and page config save/merge helpers.
 
 ### API Modules
 
@@ -127,8 +126,6 @@ All business APIs require login unless noted.
 - `POST /api/pages?projectId=` - full config save; requires `expectedRevision`.
 - `PATCH /api/pages/file?projectId=` - save one file config by `path` and `baseHash`.
 - `PATCH /api/pages/groups?projectId=` - save `pageGroups` and group assignments by `baseHash`.
-- `GET /api/pages/history?projectId=&limit=` - list revision snapshots.
-- `POST /api/pages/restore?projectId=` - restore a historical revision.
 
 **html.js**
 
@@ -189,7 +186,7 @@ Important save behavior:
 - Group create/edit/assignment changes are saved through `PATCH /api/pages/groups`.
 - `GET /api/pages` returns `entityHashes.files[path]` and `entityHashes.groups`; these are the bases for per-file and per-group conflict checks.
 - Full saves conflict on revision; file/group saves conflict only when that target hash changed.
-- Every successful write increments the pages revision and snapshots previous config for history/restore.
+- Every successful write increments the pages revision used by collaboration conflict guards.
 
 ## Frontend Structure
 
@@ -212,7 +209,7 @@ packages/client/
     │   ├── common/                  # Icon, AppSelect, Toast
     │   ├── layout/                  # Header, Sidebar, PreviewPanel, ConfigPanel
     │   ├── layout/ConfigPanel/      # Lists and form sections for page config
-    │   ├── modals/                  # Project/member/user/history/prompt/design modals
+    │   ├── modals/                  # Project/member/user/prompt/design modals
     │   ├── picker/                  # HTML element styles and image region selection
     │   ├── psd/                     # PSDCanvas, LayerPanel, SlicesPanel
     │   └── mindmap/                 # Page group mind map

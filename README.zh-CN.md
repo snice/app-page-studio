@@ -6,7 +6,7 @@ App Page Studio 是一个把设计稿输入转换为 AI 开发提示词的工作
 Flutter、React Native 和 UniApp 页面还原。
 
 它支持 HTML 设计稿、PNG/JPG/WebP 设计图、PSD
-文件预览与图层切图，并提供页面分组、交互/切图/功能描述、设计系统、多人协作和版本历史。
+文件预览与图层切图，并提供页面分组、交互/切图/功能描述、设计系统和多人协作。
 
 ## 在线演示
 
@@ -32,7 +32,6 @@ Flutter、React Native 和 UniApp 页面还原。
 - **多人协作**：WebSocket
   显示项目/页面协作者，上传、删除、保存后自动同步相关信息。
 - **细粒度保存**：支持“保存当前页”和“保存全部”，降低多人编辑不同页面时的冲突。
-- **历史版本**：保存会产生页面配置版本，可查看并恢复历史版本。
 - **深色/浅色主题**：支持主题切换。
 
 ## 架构图
@@ -182,12 +181,9 @@ PSD 模式：
 
 当其他用户保存相同页面或分组时，WebSocket 会提示并在本地未修改时自动合并。
 
-### 7. 查看历史版本
+每次成功保存都会推进页面配置 revision，用于多人协作冲突校验。
 
-每次成功保存都会推进页面配置
-revision，并保留历史快照。可以在“历史版本”中查看并恢复。
-
-### 8. 生成提示词
+### 7. 生成提示词
 
 点击“生成提示词”，选择目标平台：
 
@@ -251,11 +247,10 @@ app-page-studio/
 - `POST /api/pages`：保存全部配置
 - `PATCH /api/pages/file`：保存单页配置
 - `PATCH /api/pages/groups`：保存页面组和文件归属
-- `GET /api/pages/history`、`POST /api/pages/restore`：历史版本
 - `POST /api/upload-html`、`GET /api/scan-html`、`GET /api/html-content`
 - `POST /api/upload-image`、`GET /api/list-images`、`POST /api/upload-asset`
 - `POST /api/upload-psd`、`GET /api/list-psd`、`GET /api/psd-preview`
-- `POST /api/figma/token`：生成 Figma 上传令牌
+- `POST /api/figma/token`、`GET/PATCH/POST/DELETE /api/figma/tokens...`：生成和管理 Figma 上传令牌
 - `POST /api/figma/verify`、`POST /api/figma/import`：Figma 插件校验与导入
 - `POST /api/download-design-zip`
 - `POST /api/generate-prompt`

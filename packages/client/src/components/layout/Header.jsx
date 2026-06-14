@@ -3,7 +3,7 @@ import { Icon } from '../common/Icon';
 import { useTheme } from '../../hooks/useTheme';
 import { useAppStore } from '../../lib/state';
 
-export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownloadDesigns, onScanHtml, onOpenImageUpload, onOpenFigmaImport, onSaveCurrentPage, onSaveAllConfig, onDownloadConfig, onShowPageHistory, onShowPromptModal }) {
+export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownloadDesigns, onScanHtml, onOpenImageUpload, onOpenFigmaImport, onSaveCurrentPage, onSaveAllConfig, onDownloadConfig, onShowPromptModal }) {
   const { theme, toggleTheme } = useTheme();
   const currentProject = useAppStore((s) => s.getCurrentProject());
   const projects = useAppStore((s) => s.config.projects);
@@ -120,10 +120,6 @@ export function Header({ onGoHome, onSwitchProject, onOpenDesignSystem, onDownlo
         <button className="btn btn-secondary" onClick={onSaveAllConfig} disabled={!isCurrentEditor} title={isCurrentEditor ? '保存全部配置' : '当前为只读'}>
           <Icon name="save" />
           保存全部
-        </button>
-        <button className="btn btn-secondary" onClick={onShowPageHistory}>
-          <Icon name="clock" />
-          历史版本
         </button>
         <button className="btn btn-secondary" onClick={onDownloadConfig}>
           <Icon name="download" />

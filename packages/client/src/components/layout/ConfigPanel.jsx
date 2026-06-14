@@ -139,12 +139,16 @@ export function ConfigPanel({ iframeRef }) {
             </div>
           </div>
 
-          {currentFile?.sourceType === 'image' && (
+          {(currentFile?.sourceType === 'image' || currentFile?.sourceType === 'psd') && (
             <div className="panel-section">
               <div className="panel-section-title">设计图模式</div>
               <div className="form-group">
                 <label className="form-label">设计图路径</label>
-                <input type="text" className="form-input" readOnly value={currentFile?.imagePath || ''} />
+                <input type="text" className="form-input" readOnly value={currentFile?.imagePath || currentFile?.previewPath || currentFile?.path || ''} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">HTML IR</label>
+                <input type="text" className="form-input" readOnly value={currentFile?.generatedHtmlPath || '未生成'} />
               </div>
             </div>
           )}

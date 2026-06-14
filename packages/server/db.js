@@ -11,16 +11,6 @@ const { DB_PATH } = require('./paths');
 const db = new Database(DB_PATH);
 db.pragma('foreign_keys = ON');
 
-const existingFigmaTokenTable = db.prepare(`
-  SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'figma_import_tokens'
-`).get();
-if (existingFigmaTokenTable) {
-  const tokenColumns = new Set(db.prepare(`PRAGMA table_info(figma_import_tokens)`).all().map((column) => column.name));
-  if (!tokenColumns.has('token_id') || !tokenColumns.has('token_secret_hash')) {
-    db.exec(`DROP TABLE IF EXISTS figma_import_tokens`);
-  }
-}
-
 // 创建表
 db.exec(`
   CREATE TABLE IF NOT EXISTS projects (
@@ -42,18 +32,6 @@ db.exec(`
     updated_by TEXT,
     updated_by_session TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS project_page_revisions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id INTEGER NOT NULL,
-    revision INTEGER NOT NULL,
-    pages_json TEXT,
-    updated_by TEXT,
-    updated_by_session TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(project_id, revision),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
   );
 
@@ -215,22 +193,6 @@ function buildPagesHashes(pagesConfig) {
     files,
     groups: entityHash(buildGroupEntity(normalized))
   };
-}
-
-function snapshotPagesRevision(projectId, row) {
-  if (!row || !row.pages_json) return;
-  db.prepare(`
-    INSERT OR IGNORE INTO project_page_revisions
-      (project_id, revision, pages_json, updated_by, updated_by_session, created_at)
-    VALUES (?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))
-  `).run(
-    projectId,
-    normalizeRevision(row.revision),
-    row.pages_json,
-    row.updated_by || null,
-    row.updated_by_session || null,
-    row.updated_at || null
-  );
 }
 
 function normalizeUserId(value) {
@@ -598,7 +560,6 @@ const Projects = {
     `).get(projectId);
 
     if (exists) {
-      snapshotPagesRevision(projectId, exists);
       return db.prepare(`
         UPDATE project_pages
         SET pages_json = ?,
@@ -666,8 +627,6 @@ const Projects = {
           current: buildPagesRecord(current)
         };
       }
-
-      snapshotPagesRevision(projectId, current);
 
       const result = db.prepare(`
         UPDATE project_pages
@@ -742,7 +701,6 @@ const Projects = {
       const nextConfig = { ...pagesConfig, htmlFiles: files };
 
       if (current) {
-        snapshotPagesRevision(projectId, current);
         db.prepare(`
           UPDATE project_pages
           SET pages_json = ?,
@@ -823,7 +781,6 @@ const Projects = {
       };
 
       if (current) {
-        snapshotPagesRevision(projectId, current);
         db.prepare(`
           UPDATE project_pages
           SET pages_json = ?,
@@ -850,77 +807,6 @@ const Projects = {
     return tx();
   },
 
-  /**
-   * 获取历史版本列表
-   */
-  getPageRevisions(projectId, limit = 30) {
-    return db.prepare(`
-      SELECT id, project_id, revision, updated_by, updated_by_session, created_at
-      FROM project_page_revisions
-      WHERE project_id = ?
-      ORDER BY revision DESC
-      LIMIT ?
-    `).all(projectId, Math.max(1, Math.min(Number.parseInt(limit, 10) || 30, 100)));
-  },
-
-  /**
-   * 获取指定历史版本
-   */
-  getPageRevision(projectId, revision) {
-    const row = db.prepare(`
-      SELECT project_id, revision, pages_json, updated_by, updated_by_session, created_at
-      FROM project_page_revisions
-      WHERE project_id = ? AND revision = ?
-    `).get(projectId, revision);
-
-    return row ? {
-      ...row,
-      pagesConfig: safeParsePagesJson(row.pages_json)
-    } : null;
-  },
-
-  /**
-   * 恢复到指定历史版本，恢复操作本身会生成一个新版本
-   */
-  restorePageRevision(projectId, revision, meta = {}) {
-    const tx = db.transaction(() => {
-      const target = db.prepare(`
-        SELECT pages_json
-        FROM project_page_revisions
-        WHERE project_id = ? AND revision = ?
-      `).get(projectId, revision);
-
-      if (!target || !target.pages_json) return null;
-
-      const current = db.prepare(`
-        SELECT pages_json, revision, updated_at, updated_by, updated_by_session
-        FROM project_pages
-        WHERE project_id = ?
-      `).get(projectId);
-
-      if (current) {
-        snapshotPagesRevision(projectId, current);
-        db.prepare(`
-          UPDATE project_pages
-          SET pages_json = ?,
-              revision = COALESCE(revision, 1) + 1,
-              updated_by = ?,
-              updated_by_session = ?,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE project_id = ?
-        `).run(target.pages_json, meta.editorName || null, meta.sessionId || null, projectId);
-      } else {
-        db.prepare(`
-          INSERT INTO project_pages (project_id, pages_json, revision, updated_by, updated_by_session)
-          VALUES (?, ?, 1, ?, ?)
-        `).run(projectId, target.pages_json, meta.editorName || null, meta.sessionId || null);
-      }
-
-      return this.getPagesRecord(projectId);
-    });
-
-    return tx();
-  }
 };
 
 function hashFigmaImportSecret(secret) {
@@ -980,6 +866,15 @@ function buildFigmaImportToken(row) {
   };
 }
 
+function normalizeFigmaTtlMinutes(value) {
+  const ttl = Number.parseInt(value, 10);
+  return Math.max(5, Math.min(Number.isFinite(ttl) ? ttl : 720, 30 * 24 * 60));
+}
+
+function buildFigmaExpiry(ttlMinutes, baseMs = Date.now()) {
+  return new Date(baseMs + normalizeFigmaTtlMinutes(ttlMinutes) * 60 * 1000).toISOString();
+}
+
 function decodeFigmaTokenPayload(raw) {
   try {
     return JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
@@ -1016,15 +911,32 @@ function tokenCanAccessProject(tokenRecord, projectId) {
   return (tokenRecord.allowedProjectIds || []).includes(pid);
 }
 
+function getFigmaTokenRowForUser(tokenId, user) {
+  const id = Number.parseInt(tokenId, 10);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  const isAdmin = isAdminUser(user);
+  const userId = normalizeUserId(user?.id);
+  if (!isAdmin && !userId) return null;
+
+  const sql = `
+    SELECT t.id, t.token_id, t.token_secret_hash, t.token_preview, t.project_scope,
+           t.allowed_project_ids, t.created_by_user_id, t.created_by_name, t.expires_at,
+           t.revoked_at, t.created_at, t.last_used_at, t.last_used_project_id, u.username
+    FROM figma_import_tokens t
+    LEFT JOIN users u ON u.id = t.created_by_user_id
+    WHERE t.id = ? ${isAdmin ? '' : 'AND t.created_by_user_id = ?'}
+  `;
+  return isAdmin ? db.prepare(sql).get(id) : db.prepare(sql).get(id, userId);
+}
+
 const FigmaImportTokens = {
   create({ createdByUser = null, allowedProjectIds = [], projectScope = 'selected', ttlMinutes = 720 } = {}) {
-    const ttl = Math.max(5, Math.min(Number.parseInt(ttlMinutes, 10) || 720, 30 * 24 * 60));
     const tokenId = crypto.randomBytes(9).toString('base64url');
     const secret = crypto.randomBytes(32).toString('base64url');
     const token = `aps1.${tokenId}.${secret}`;
     const tokenSecretHash = hashFigmaImportSecret(secret);
     const tokenPreview = `aps1.${tokenId}...${secret.slice(-4)}`;
-    const expiresAt = new Date(Date.now() + ttl * 60 * 1000).toISOString();
+    const expiresAt = buildFigmaExpiry(ttlMinutes);
     const creatorId = normalizeUserId(createdByUser?.id);
     const createdByName = createdByUser?.username || null;
     const normalizedScope = projectScope === 'all' ? 'all' : 'selected';
@@ -1126,6 +1038,44 @@ const FigmaImportTokens = {
           SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP)
           WHERE id = ? AND created_by_user_id = ?
         `).run(id, userId || -1);
+    return result.changes || 0;
+  },
+
+  setExpiryForUser(tokenId, user, ttlMinutes) {
+    const row = getFigmaTokenRowForUser(tokenId, user);
+    if (!row) return null;
+    const expiresAt = buildFigmaExpiry(ttlMinutes);
+    db.prepare(`
+      UPDATE figma_import_tokens
+      SET expires_at = ?
+      WHERE id = ?
+    `).run(expiresAt, row.id);
+    return buildFigmaImportToken({ ...row, expires_at: expiresAt });
+  },
+
+  renewForUser(tokenId, user, ttlMinutes) {
+    const row = getFigmaTokenRowForUser(tokenId, user);
+    if (!row) return null;
+    const currentExpiryMs = Date.parse(row.expires_at);
+    const baseMs = Number.isFinite(currentExpiryMs) ? Math.max(Date.now(), currentExpiryMs) : Date.now();
+    const expiresAt = buildFigmaExpiry(ttlMinutes, baseMs);
+    db.prepare(`
+      UPDATE figma_import_tokens
+      SET expires_at = ?
+      WHERE id = ?
+    `).run(expiresAt, row.id);
+    return buildFigmaImportToken({ ...row, expires_at: expiresAt });
+  },
+
+  deleteForUser(tokenId, user) {
+    const id = Number.parseInt(tokenId, 10);
+    if (!Number.isFinite(id) || id <= 0) return 0;
+    const isAdmin = isAdminUser(user);
+    const userId = normalizeUserId(user?.id);
+    if (!isAdmin && !userId) return 0;
+    const result = isAdmin
+      ? db.prepare(`DELETE FROM figma_import_tokens WHERE id = ?`).run(id)
+      : db.prepare(`DELETE FROM figma_import_tokens WHERE id = ? AND created_by_user_id = ?`).run(id, userId);
     return result.changes || 0;
   },
 

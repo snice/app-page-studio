@@ -1,6 +1,11 @@
 import { readJson, notifyAuthExpired } from './_http';
 
 export const promptApi = {
+  async getPromptPlatforms() {
+    const res = await fetch('/api/prompt-platforms');
+    return readJson(res);
+  },
+
   async generatePrompt(options) {
     const res = await fetch('/api/generate-prompt', {
       method: 'POST',

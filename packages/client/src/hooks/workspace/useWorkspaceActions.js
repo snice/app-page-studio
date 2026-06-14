@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useAppStore } from '../../lib/state';
 import { api } from '../../lib/api';
-import { Picker, ColorPickerModule } from '../../lib/picker';
+import { Picker } from '../../lib/picker';
 import { exportSlice, parsePSD } from '../../lib/psdUtils';
 
 function buildGroupAssignments(pagesConfig) {
@@ -171,7 +171,12 @@ export function useWorkspaceActions({ iframeRef, setPickerMenu, requestConfirm }
       const pc = state.pagesConfig;
       const files = selectedPaths.map(p => {
         const f = (pc.htmlFiles || []).find(hf => hf.path === p);
-        return { path: p, sourceType: f?.sourceType || (f?.imagePath ? 'image' : 'html'), previewPath: f?.previewPath || null };
+        return {
+          path: p,
+          sourceType: f?.sourceType || (f?.imagePath ? 'image' : 'html'),
+          previewPath: f?.previewPath || null,
+          generatedHtmlPath: f?.generatedHtmlPath || null,
+        };
       });
 
       const psdSliceExports = {};
@@ -247,7 +252,11 @@ export function useWorkspaceActions({ iframeRef, setPickerMenu, requestConfirm }
     const files = selectedPaths
       .map(path => state.pagesConfig.htmlFiles.find(f => f.path === path))
       .filter(Boolean)
-      .map(f => ({ path: f.path, sourceType: f.sourceType || (f.imagePath ? 'image' : 'html') }));
+      .map(f => ({
+        path: f.path,
+        sourceType: f.sourceType || (f.imagePath ? 'image' : 'html'),
+        generatedHtmlPath: f.generatedHtmlPath || null,
+      }));
 
     try {
       const res = await api.deleteFiles({ projectId, files });

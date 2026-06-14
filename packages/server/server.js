@@ -20,6 +20,7 @@ const promptRouter = require('./api/prompt');
 const imageRouter = require('./api/image');
 const psdRouter = require('./api/psd');
 const figmaRouter = require('./api/figma');
+const aiHtmlAgentRouter = require('./api/ai-html-agent');
 const authRouter = require('./api/auth');
 const { requireAuth } = authRouter;
 const { HTML_CACHES_DIR } = require('./api/utils');
@@ -111,6 +112,7 @@ app.use('/api', requireAuth, htmlRouter);
 app.use('/api', requireAuth, promptRouter);
 app.use('/api', requireAuth, imageRouter);
 app.use('/api', requireAuth, psdRouter);
+app.use('/api', requireAuth, aiHtmlAgentRouter);
 
 // SPA fallback：非 API / 非 html 路由返回前端 index.html
 if (frontendDist) {
