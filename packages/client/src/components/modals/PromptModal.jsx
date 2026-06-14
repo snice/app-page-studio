@@ -5,22 +5,117 @@ import { api } from '../../lib/api';
 import { copyText } from '../../lib/clipboard';
 import { ModalOverlay } from './ModalOverlay';
 
+const PLATFORM_ALIASES = {
+  reactNative: 'react-native',
+  react_native: 'react-native',
+  rn: 'react-native',
+  'uni-app': 'uniapp',
+};
+
+function normalizePlatformValue(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  return PLATFORM_ALIASES[trimmed] || trimmed;
+}
+
+function normalizePlatformList(value) {
+  const source = Array.isArray(value) ? value : [value];
+  const seen = new Set();
+  const result = [];
+  for (const item of source) {
+    const platform = normalizePlatformValue(item);
+    if (!platform || seen.has(platform)) continue;
+    seen.add(platform);
+    result.push(platform);
+  }
+  return result;
+}
+
+function normalizePlatformOptions(platforms) {
+  if (!Array.isArray(platforms)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const item of platforms) {
+    const value = normalizePlatformValue(item?.value);
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    result.push({
+      value,
+      label: item?.label || value,
+    });
+  }
+  return result;
+}
+
 // ==================== Prompt Modal ====================
 export function PromptModal({ isOpen, onClose }) {
   const pagesConfig = useAppStore((s) => s.pagesConfig);
   const currentFile = useAppStore((s) => s.currentFile);
   const selectedFiles = useAppStore((s) => s.selectedFiles);
   const showToast = useAppStore((s) => s.showToast);
-  const [platform, setPlatform] = useState('flutter');
+  const configuredTargetPlatforms = React.useMemo(
+    () => normalizePlatformList(pagesConfig?.targetPlatform),
+    [pagesConfig?.targetPlatform]
+  );
+  const [platform, setPlatform] = useState('');
+  const [platformOptions, setPlatformOptions] = useState([]);
+  const [platformsLoading, setPlatformsLoading] = useState(false);
+  const [platformsError, setPlatformsError] = useState('');
   const [filterMode, setFilterMode] = useState('status');
   const [statusFilters, setStatusFilters] = useState({ pending: false, developing: true, completed: false });
   const [promptText, setPromptText] = useState('点击"生成"按钮生成提示词');
 
   React.useEffect(() => {
-    if (isOpen) setPromptText('点击"生成"按钮生成提示词');
+    if (!isOpen) return undefined;
+    let ignored = false;
+    setPromptText('点击"生成"按钮生成提示词');
+    setPlatformsLoading(true);
+    setPlatformsError('');
+
+    api.getPromptPlatforms()
+      .then((res) => {
+        if (ignored) return;
+        if (res.error) {
+          setPlatformOptions([]);
+          setPlatformsError(res.error);
+          return;
+        }
+        const options = normalizePlatformOptions(res.platforms);
+        setPlatformOptions(options);
+        setPlatformsError(options.length > 0 ? '' : '接口未返回可用目标平台');
+      })
+      .catch(() => {
+        if (!ignored) {
+          setPlatformOptions([]);
+          setPlatformsError('目标平台加载失败');
+        }
+      })
+      .finally(() => {
+        if (!ignored) setPlatformsLoading(false);
+      });
+
+    return () => { ignored = true; };
   }, [isOpen]);
 
+  const platformChoices = React.useMemo(() => {
+    return platformOptions;
+  }, [platformOptions]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const configuredPlatform = platformChoices.find((option) => configuredTargetPlatforms.includes(option.value))?.value;
+    const nextPlatform = configuredPlatform || platformChoices[0]?.value || '';
+    if (!platformChoices.some((option) => option.value === platform)) {
+      setPlatform(nextPlatform);
+    }
+  }, [configuredTargetPlatforms, isOpen, platform, platformChoices]);
+
   const generate = async () => {
+    if (!platform) {
+      showToast(platformsError || '暂无可用目标平台');
+      return;
+    }
+
     const currentOnly = filterMode === 'current';
     const selectedOnly = filterMode === 'selected';
 
@@ -78,6 +173,7 @@ export function PromptModal({ isOpen, onClose }) {
 
   const isStatusMode = filterMode === 'status';
   const selectedCount = selectedFiles?.size || 0;
+  const disableGenerate = platformsLoading || platformChoices.length === 0;
 
   return (
     <ModalOverlay isOpen={isOpen} onClose={onClose}>
@@ -90,18 +186,23 @@ export function PromptModal({ isOpen, onClose }) {
           <div className="form-group">
             <label className="form-label">目标平台</label>
             <div className="dev-status-radio-group">
-              <label className="radio-label">
-                <input type="radio" name="platform" value="flutter" checked={platform === 'flutter'} onChange={(e) => setPlatform(e.target.value)} />
-                <span>Flutter (Dart)</span>
-              </label>
-              <label className="radio-label">
-                <input type="radio" name="platform" value="react-native" checked={platform === 'react-native'} onChange={(e) => setPlatform(e.target.value)} />
-                <span>React Native (TypeScript)</span>
-              </label>
-              <label className="radio-label">
-                <input type="radio" name="platform" value="uniapp" checked={platform === 'uniapp'} onChange={(e) => setPlatform(e.target.value)} />
-                <span>UniApp (Vue)</span>
-              </label>
+              {platformChoices.map((option) => (
+                <label className="radio-label" key={option.value}>
+                  <input
+                    type="radio"
+                    name="platform"
+                    value={option.value}
+                    checked={platform === option.value}
+                    onChange={(e) => setPlatform(e.target.value)}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+              {platformsLoading && <span className="platform-load-state">正在加载目标平台...</span>}
+              {!platformsLoading && platformsError && <span className="platform-load-state">{platformsError}</span>}
+              {!platformsLoading && !platformsError && platformChoices.length === 0 && (
+                <span className="platform-load-state">暂无可用目标平台</span>
+              )}
             </div>
           </div>
           <div className="form-group">
@@ -141,7 +242,7 @@ export function PromptModal({ isOpen, onClose }) {
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={generate}><Icon name="refresh" /> 生成</button>
+          <button className="btn btn-secondary" onClick={generate} disabled={disableGenerate}><Icon name="refresh" /> 生成</button>
           <button className="btn btn-primary" onClick={copy}><Icon name="copy" /> 复制</button>
           <button className="btn btn-primary" onClick={download}><Icon name="download" /> 下载</button>
         </div>

@@ -6,17 +6,30 @@
 
 const express = require('express');
 const router = express.Router();
-const { generatePrompt } = require('./prompt/index');
+const {
+  DEFAULT_PLATFORM,
+  generatePrompt,
+  getPromptPlatforms,
+  resolvePlatform,
+} = require('./prompt/index');
+
+router.get('/prompt-platforms', (_req, res) => {
+  res.json({
+    platforms: getPromptPlatforms(),
+    defaultPlatform: DEFAULT_PLATFORM,
+  });
+});
 
 router.post('/generate-prompt', (req, res) => {
   const {
     pages,
-    targetPlatform = 'flutter',
+    targetPlatform = null,
     designSystem = null,
     statusFilters = null,
   } = req.body;
-  const prompt = generatePrompt(targetPlatform, pages, designSystem, statusFilters);
-  res.json({ prompt });
+  const platform = resolvePlatform(targetPlatform, pages);
+  const prompt = generatePrompt(platform, pages, designSystem, statusFilters);
+  res.json({ prompt, targetPlatform: platform });
 });
 
 module.exports = router;
