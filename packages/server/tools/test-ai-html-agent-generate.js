@@ -13,7 +13,8 @@ const router = require('../api/ai-html-agent');
 const { Projects, Users } = require('../db');
 
 const DEFAULT_PROJECT_ID = 1;
-const DEFAULT_DESIGN_PATH = '__design__/figma_page_d8e2c82aab.png';
+// const DEFAULT_DESIGN_PATH = '__design__/figma_page_d8e2c82aab.png';
+const DEFAULT_DESIGN_PATH = '__design__/1781502910920_ykazff.jpg';
 const DEFAULT_DEVICE = { width: 375, height: 812 };
 
 function parseArgs(argv) {
@@ -162,7 +163,7 @@ function invokeHandler(handler, req, { stream = false } = {}) {
         this.headers = { ...this.headers, ...headers };
         return this;
       },
-      flushHeaders() {},
+      flushHeaders() { },
       write(chunk) {
         sseBuffer += String(chunk);
         let index = sseBuffer.indexOf('\n\n');
@@ -178,7 +179,7 @@ function invokeHandler(handler, req, { stream = false } = {}) {
         if (sseBuffer.trim()) handleSseBlock(sseBuffer);
         finish({ statusCode: this.statusCode, payload: ssePayload });
       },
-      on() {},
+      on() { },
       json(payload) {
         finish({ statusCode: this.statusCode, payload });
       },
@@ -230,7 +231,7 @@ async function main() {
     get(name) {
       return options.stream && String(name).toLowerCase() === 'accept' ? 'text/event-stream' : '';
     },
-    on() {},
+    on() { },
     app: { get() { return null; } },
   };
 

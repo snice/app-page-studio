@@ -16,15 +16,23 @@ function buildPsdSlicesText(file) {
   }).join('\n');
 }
 
-function buildImageReplacementsText(file) {
+function buildImageReplacementsText(file, htmlRelPath) {
   const items = Array.isArray(file?.imageReplacements) ? file.imageReplacements : [];
   if (items.length === 0) return '无';
   return items.map((item) => {
-    const r = item.region?.device || item.region?.image || item.region || {};
-    const region = Number.isFinite(Number(r.x))
-      ? `区域 ${r.x},${r.y},${r.width},${r.height}`
-      : '区域未标注';
-    return `- ${item.selector || '区域'}: ${region}, 切图 ${item.imagePath || '待指定'}${item.description ? `, ${item.description}` : ''}`;
+    const image = item.region?.image || {};
+    const device = item.region?.device || {};
+    const imageRegion = Number.isFinite(Number(image.x))
+      ? `设计图坐标 x=${image.x},y=${image.y},w=${image.width},h=${image.height}`
+      : '';
+    const deviceRegion = Number.isFinite(Number(device.x))
+      ? `画布坐标 x=${device.x},y=${device.y},w=${device.width},h=${device.height}`
+      : '';
+    const regionText = [imageRegion, deviceRegion].filter(Boolean).join('；') || '区域未标注';
+    const assetPath = item.imagePath
+      ? (htmlRelPath ? relativeFromHtml(htmlRelPath, item.imagePath) : item.imagePath)
+      : '待指定';
+    return `- ${item.selector || '区域'} ${regionText}：必须用 <img src="${assetPath}"> 覆盖该区域${item.description ? `（${item.description}）` : ''}`;
   }).join('\n');
 }
 
@@ -59,6 +67,8 @@ function buildSystemPrompt(uiIrSpec) {
 }
 
 function buildGeneratePrompt({ file, sourceImageRelPath, htmlRelPath, device, imageSize, designSystem, existingHtml, availableAssetsText }) {
+  const imageReplacementsText = buildImageReplacementsText(file, htmlRelPath);
+  const hasReplacements = imageReplacementsText !== '无';
   return `请根据输入设计图生成 UI IR HTML。
 
 页面信息：
@@ -88,8 +98,16 @@ ${availableAssetsText || '无'}
 PSD 切图：
 ${buildPsdSlicesText(file)}
 
-切图标记：
-${buildImageReplacementsText(file)}
+${hasReplacements ? `必须使用的切图（强约束，不得忽略，不得用 CSS/div 模拟代替）：
+${imageReplacementsText}
+
+切图使用规则：
+- 上方"必须使用的切图"中列出的每一条都必须在生成的 HTML 中以 <img> 引用，src 必须使用列表中给出的相对路径，逐字复制，不得改名、改目录、改扩展名。
+- 图片应定位/铺满对应"画布坐标"（基于 .page 设计画布的 px 坐标），width/height 与坐标一致；切图本身已是透明底，不要再叠 CSS 绘制的同款图形。
+- 禁止以"未使用切图"、"CSS 近似"为由跳过这些切图；若设计图上还有未提供切图的图标/插画，才允许 div/span 占位。
+
+` : ''}切图标记：
+${imageReplacementsText}
 
 ${existingHtml ? `当前已有 HTML，请在充分比对设计图后更新，不要重新发明无关结构：\n${existingHtml}` : '当前没有已有 HTML，请生成第一版。'}
 
@@ -100,6 +118,8 @@ function buildRefinePrompt({ file, sourceImageRelPath, htmlRelPath, device, imag
   const historyText = history.length > 0
     ? history.map((item) => `${item.role === 'assistant' ? 'AI' : '用户'}: ${item.content}`).join('\n')
     : '无';
+  const imageReplacementsText = buildImageReplacementsText(file, htmlRelPath);
+  const hasReplacements = imageReplacementsText !== '无';
 
   return `请根据用户反馈修正当前 UI IR HTML。
 
@@ -128,8 +148,16 @@ ${availableAssetsText || '无'}
 PSD 切图：
 ${buildPsdSlicesText(file)}
 
-切图标记：
-${buildImageReplacementsText(file)}
+${hasReplacements ? `必须使用的切图（强约束，不得忽略，不得用 CSS/div 模拟代替）：
+${imageReplacementsText}
+
+切图使用规则：
+- 上方"必须使用的切图"中列出的每一条都必须在 HTML 中以 <img> 引用，src 必须逐字复制列表中给出的相对路径。
+- 图片应定位到对应"画布坐标"，width/height 与坐标一致；切图本身已是透明底，不要再叠 CSS 绘制的同款图形。
+- 如果当前 HTML 在这些区域用 div/span/CSS 模拟图标，必须改写成 <img>。
+
+` : ''}切图标记：
+${imageReplacementsText}
 
 最近对话：
 ${historyText}

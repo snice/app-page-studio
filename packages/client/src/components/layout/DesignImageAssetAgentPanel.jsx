@@ -337,9 +337,12 @@ export function DesignImageAssetAgentPanel({
             ))
           ) : (
             <span className="ai-html-agent-target-empty">
-              {selecting ? '可连续框选多个区域' : '未选择区域'}
+              {selecting ? '可连续框选多个方形区域' : '未选择区域'}
             </span>
           )}
+        </div>
+        <div className="design-asset-agent-note">
+          目前 AI 只能生成方图，选区会保持正方形；已选区域可拖拽或四角缩放。
         </div>
       </div>
 

@@ -183,10 +183,46 @@ export function ImageRegionSelector({
 
         if (mode === 'move') { x += dx; y += dy; }
         else if (mode === 'resize') {
-          if (handle.includes('e')) w += dx;
-          if (handle.includes('s')) h += dy;
-          if (handle.includes('w')) { x += dx; w -= dx; }
-          if (handle.includes('n')) { y += dy; h -= dy; }
+          if (squareSelection) {
+            const startSide = Math.max(startRegion.width, startRegion.height);
+            const anchorRight = startRegion.x + startSide;
+            const anchorBottom = startRegion.y + startSide;
+            let side = startSide;
+            let maxSide = startSide;
+
+            if (handle === 'se') {
+              side = startSide + Math.max(dx, dy);
+              maxSide = Math.min(layout.imageW - startRegion.x, layout.imageH - startRegion.y);
+              x = startRegion.x;
+              y = startRegion.y;
+            } else if (handle === 'sw') {
+              side = startSide + Math.max(-dx, dy);
+              maxSide = Math.min(anchorRight, layout.imageH - startRegion.y);
+              x = anchorRight - side;
+              y = startRegion.y;
+            } else if (handle === 'ne') {
+              side = startSide + Math.max(dx, -dy);
+              maxSide = Math.min(layout.imageW - startRegion.x, anchorBottom);
+              x = startRegion.x;
+              y = anchorBottom - side;
+            } else if (handle === 'nw') {
+              side = startSide + Math.max(-dx, -dy);
+              maxSide = Math.min(anchorRight, anchorBottom);
+              x = anchorRight - side;
+              y = anchorBottom - side;
+            }
+
+            side = Math.max(minSize, Math.min(side, maxSide));
+            w = side;
+            h = side;
+            if (handle === 'sw' || handle === 'nw') x = anchorRight - side;
+            if (handle === 'ne' || handle === 'nw') y = anchorBottom - side;
+          } else {
+            if (handle.includes('e')) w += dx;
+            if (handle.includes('s')) h += dy;
+            if (handle.includes('w')) { x += dx; w -= dx; }
+            if (handle.includes('n')) { y += dy; h -= dy; }
+          }
         }
 
         w = Math.max(minSize, w); h = Math.max(minSize, h);
@@ -318,7 +354,7 @@ export function ImageRegionSelector({
               startRegionDrag(e, item, 'move', null);
             }}
           >
-            {!squareSelection && ['nw', 'ne', 'se', 'sw'].map((h) => (
+            {['nw', 'ne', 'se', 'sw'].map((h) => (
               <div
                 key={h}
                 className={`image-region-handle handle-${h}`}

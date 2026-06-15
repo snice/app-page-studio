@@ -2,17 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "frontend",
+      "name": "dev",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "export PATH=/Users/itfenbao/.nvm/versions/node/v22.22.0/bin:$PATH && npm run dev"],
-      "port": 5173,
-      "cwd": "frontend"
-    },
-    {
-      "name": "backend",
-      "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "export PATH=/Users/itfenbao/.nvm/versions/node/v22.22.0/bin:$PATH && node server.js"],
-      "port": 3000
+      "runtimeArgs": ["-c", "export PATH=/Users/itfenbao/.nvm/versions/node/v22.22.0/bin:$PATH && pnpm run dev"],
+      "port": 5173
     }
   ]
 }
