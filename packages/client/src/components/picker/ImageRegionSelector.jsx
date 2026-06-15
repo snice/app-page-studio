@@ -118,6 +118,7 @@ export function ImageRegionSelector({
 }) {
   const currentFile = useAppStore((s) => s.currentFile);
   const isImageRegionSelecting = useAppStore((s) => s.isImageRegionSelecting);
+  const designAssetActiveRegionId = useAppStore((s) => s.designAssetActiveRegionId);
 
   const [selectionRect, setSelectionRect] = useState(null);
   const [pendingRegion, setPendingRegion] = useState(null);
@@ -318,7 +319,10 @@ export function ImageRegionSelector({
     return () => clearTimeout(timer);
   }, [pendingRegion]);
 
-  if (!isImageRegionSelecting) return null;
+  const hasOverlayOnly = !isImageRegionSelecting
+    && Array.isArray(overlayRegions)
+    && overlayRegions.length > 0;
+  if (!isImageRegionSelecting && !hasOverlayOnly) return null;
 
   const img = imgRef?.current;
   const layout = img ? getImageLayout(img) : null;
@@ -342,10 +346,11 @@ export function ImageRegionSelector({
       {/* 已有区域覆盖层 */}
       {layout && regions.map((item) => {
         const boxStyle = applyRegionBoxStyle(item.region, layout);
+        const isActive = designAssetActiveRegionId && item.id === designAssetActiveRegionId;
         return (
         <div
           key={item.id || `${item.type}-${item.index}`}
-            className={`image-region-box ${item.type}`}
+            className={`image-region-box ${item.type}${isActive ? ' is-generating' : ''}`}
             data-type={item.type}
             data-index={item.index}
             style={{ position: 'absolute', ...boxStyle }}

@@ -396,7 +396,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
                         transformOrigin: 'top left',
                       }}
                     />
-                    {isImageRegionSelecting && (
+                    {(isImageRegionSelecting || designAssetOverlayRegions.length > 0) && (
                       <ImageRegionSelector
                         imgRef={imgRef}
                         deviceWidth={device.width}
@@ -404,7 +404,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
                         zoomScale={zoomScale}
                         onRegionAction={onRegionAction}
                         onRegionSelected={designAssetRegionSelectHandler}
-                        overlayRegions={designAssetRegionSelectHandler ? designAssetOverlayRegions : null}
+                        overlayRegions={designAssetRegionSelectHandler || designAssetOverlayRegions.length > 0 ? designAssetOverlayRegions : null}
                         squareSelection={!!designAssetRegionSelectHandler}
                       />
                     )}

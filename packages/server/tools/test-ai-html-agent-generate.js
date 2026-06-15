@@ -9,12 +9,52 @@
  */
 
 const path = require('path');
+const fs = require('fs');
+
+const logCapture = {
+  stages: [],
+  systemPrompt: '',
+  userPrompt: '',
+  imageDataUrlMeta: '',
+  rawAiResponse: '',
+  finishReason: '',
+  startedAt: new Date().toISOString(),
+  endedAt: null
+};
+
+const chatModule = require('../api/ai/chat');
+const originalStream = chatModule.postChatCompletionStream;
+const originalNonStream = chatModule.postChatCompletion;
+function recordPrompt({ systemPrompt, prompt, imageDataUrl }) {
+  logCapture.systemPrompt = String(systemPrompt || '');
+  logCapture.userPrompt = String(prompt || '');
+  const raw = String(imageDataUrl || '');
+  const mimeMatch = raw.match(/^data:([^;]+);base64,/);
+  logCapture.imageDataUrlMeta = `mime=${mimeMatch ? mimeMatch[1] : 'unknown'}, length=${raw.length}`;
+}
+chatModule.postChatCompletionStream = async function patchedStream(config, args, hooks) {
+  recordPrompt(args);
+  const result = await originalStream(config, args, hooks);
+  logCapture.rawAiResponse = String(result?.content || '');
+  logCapture.finishReason = String(result?.finishReason || '');
+  return result;
+};
+chatModule.postChatCompletion = async function patchedNonStream(config, args) {
+  recordPrompt(args);
+  const result = await originalNonStream(config, args);
+  try {
+    const { extractChatText } = chatModule;
+    logCapture.rawAiResponse = String(extractChatText(result) || '');
+  } catch { }
+  return result;
+};
+
 const router = require('../api/ai-html-agent');
 const { Projects, Users } = require('../db');
 
 const DEFAULT_PROJECT_ID = 1;
 // const DEFAULT_DESIGN_PATH = '__design__/figma_page_d8e2c82aab.png';
-const DEFAULT_DESIGN_PATH = '__design__/1781502910920_ykazff.jpg';
+const DEFAULT_DESIGN_PATH = '__design__/1781510385344_vq6xvg.jpg';
 const DEFAULT_DEVICE = { width: 375, height: 812 };
 
 function parseArgs(argv) {
@@ -133,7 +173,9 @@ function invokeHandler(handler, req, { stream = false } = {}) {
       if (!message) return;
 
       if (message.event === 'stage') {
-        console.log(`[stage] ${message.payload?.message || message.payload?.stage || '处理中'}`);
+        const text = message.payload?.message || message.payload?.stage || '处理中';
+        logCapture.stages.push({ at: new Date().toISOString(), stage: message.payload?.stage || '', message: text });
+        console.log(`[stage] ${text}`);
       } else if (message.event === 'delta') {
         streamedChars = Number.isFinite(Number(message.payload?.chars))
           ? Number(message.payload.chars)
@@ -197,6 +239,53 @@ function invokeHandler(handler, req, { stream = false } = {}) {
   });
 }
 
+function writeLogFile(options, file, result, error) {
+  logCapture.endedAt = new Date().toISOString();
+  const logDir = path.join(__dirname, 'logs');
+  fs.mkdirSync(logDir, { recursive: true });
+  const stamp = logCapture.startedAt.replace(/[:.]/g, '-');
+  const safeDesign = String(options?.designPath || '').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-60);
+  const logPath = path.join(logDir, `ai-html-agent-${stamp}-${safeDesign}.log`);
+
+  let savedHtml = '';
+  const htmlPath = result?.payload?.htmlPath;
+  if (htmlPath) {
+    try {
+      const { getHtmlDir, resolveSafe } = require('../api/utils');
+      const projectDir = getHtmlDir(options.projectId);
+      const abs = resolveSafe(projectDir, htmlPath);
+      if (abs && fs.existsSync(abs)) savedHtml = fs.readFileSync(abs, 'utf-8');
+    } catch (readError) {
+      savedHtml = `[read error: ${readError.message}]`;
+    }
+  }
+
+  const sections = [];
+  const push = (title, body) => {
+    sections.push(`=== ${title} ===\n${body == null ? '' : body}`);
+  };
+  push('META', JSON.stringify({
+    startedAt: logCapture.startedAt,
+    endedAt: logCapture.endedAt,
+    options,
+    outcome: error ? 'error' : 'ok',
+    statusCode: result?.statusCode || null,
+    finishReason: logCapture.finishReason || null,
+    imageDataUrl: logCapture.imageDataUrlMeta || null
+  }, null, 2));
+  push('FILE_CONFIG', JSON.stringify(file, null, 2));
+  push('STAGES', logCapture.stages.map((s) => `[${s.at}] ${s.stage}\t${s.message}`).join('\n'));
+  push('SYSTEM_PROMPT', logCapture.systemPrompt);
+  push('USER_PROMPT', logCapture.userPrompt);
+  push('AI_RAW_RESPONSE', logCapture.rawAiResponse);
+  push('RESPONSE_PAYLOAD', JSON.stringify(result?.payload || null, null, 2));
+  push('SAVED_HTML', savedHtml);
+  if (error) push('ERROR', error?.stack || error?.message || String(error));
+
+  fs.writeFileSync(logPath, sections.join('\n\n'), 'utf-8');
+  console.log(`[log] ${logPath}`);
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (!Number.isFinite(options.projectId) || options.projectId <= 0) {
@@ -241,11 +330,25 @@ async function main() {
   console.log(`device: ${options.width}x${options.height}`);
   console.log(`stream: ${options.stream ? 'yes' : 'no'}`);
 
-  const result = await invokeHandler(handler, req, { stream: options.stream });
-  if (result.statusCode >= 400 || result.payload?.error) {
-    const message = result.payload?.error || `HTTP ${result.statusCode}`;
-    throw new Error(message);
+  let result;
+  let runError;
+  try {
+    result = await invokeHandler(handler, req, { stream: options.stream });
+    if (result.statusCode >= 400 || result.payload?.error) {
+      const message = result.payload?.error || `HTTP ${result.statusCode}`;
+      runError = new Error(message);
+    }
+  } catch (error) {
+    runError = error;
   }
+
+  try {
+    writeLogFile(options, file, result, runError);
+  } catch (logError) {
+    console.error('[log] write failed:', logError.message);
+  }
+
+  if (runError) throw runError;
 
   console.log('[AI HTML Agent Test] Success');
   console.log(`htmlPath: ${result.payload.htmlPath}`);

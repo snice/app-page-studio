@@ -7,3 +7,4 @@ studio.db
 release
 .playwright-mcp
 .env
+packages/server/tools/logs

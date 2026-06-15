@@ -183,13 +183,21 @@ function repairHtmlLocalAssetReferences(html, context) {
   return { html: repairedHtml, replacements: uniqueReplacements };
 }
 
-function buildAvailableLocalAssetsText(context) {
+function buildAvailableLocalAssetsText(context, { excludePaths = [] } = {}) {
   const sourceHashes = extractHashTokens(context.sourceImageRelPath);
   const assets = listProjectLocalImageAssets(context.projectDir);
+  const excludeSet = new Set(
+    (Array.isArray(excludePaths) ? excludePaths : [])
+      .map((value) => normalizeRelPath(String(value || '')))
+      .filter(Boolean)
+  );
+  const filteredAssets = excludeSet.size > 0
+    ? assets.filter((asset) => !excludeSet.has(asset.relPath))
+    : assets;
   const sameSourceAssets = sourceHashes.length > 0
-    ? assets.filter((asset) => sourceHashes.some((hash) => asset.basename.toLowerCase().includes(hash)))
+    ? filteredAssets.filter((asset) => sourceHashes.some((hash) => asset.basename.toLowerCase().includes(hash)))
     : [];
-  const scopedAssets = (sameSourceAssets.length > 0 ? sameSourceAssets : assets).slice(0, MAX_PROMPT_ASSETS);
+  const scopedAssets = (sameSourceAssets.length > 0 ? sameSourceAssets : filteredAssets).slice(0, MAX_PROMPT_ASSETS);
   if (scopedAssets.length === 0) return '无';
   return scopedAssets
     .map((asset) => `- ${relativeFromHtml(context.htmlRelPath, asset.relPath)}`)

@@ -163,7 +163,10 @@ function prepareGenerateJob(req, onStage = null) {
   }
 
   emitStage(onStage, 'prompt', '组装 UI-IR 提示词');
-  const availableAssetsText = buildAvailableLocalAssetsText(context);
+  const excludeAssetPaths = (Array.isArray(file?.imageReplacements) ? file.imageReplacements : [])
+    .map((item) => item?.imagePath)
+    .filter(Boolean);
+  const availableAssetsText = buildAvailableLocalAssetsText(context, { excludePaths: excludeAssetPaths });
   const prompt = buildGeneratePrompt({
     file,
     sourceImageRelPath: context.sourceImageRelPath,
@@ -219,7 +222,10 @@ function prepareRefineJob(req, onStage = null) {
   }
 
   emitStage(onStage, 'prompt', '组装调整提示词');
-  const availableAssetsText = buildAvailableLocalAssetsText(context);
+  const excludeAssetPaths = (Array.isArray(file?.imageReplacements) ? file.imageReplacements : [])
+    .map((item) => item?.imagePath)
+    .filter(Boolean);
+  const availableAssetsText = buildAvailableLocalAssetsText(context, { excludePaths: excludeAssetPaths });
   const prompt = buildRefinePrompt({
     file,
     sourceImageRelPath: context.sourceImageRelPath,

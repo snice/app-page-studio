@@ -18,146 +18,125 @@ function buildPsdSlicesText(file) {
 
 function buildImageReplacementsText(file, htmlRelPath) {
   const items = Array.isArray(file?.imageReplacements) ? file.imageReplacements : [];
-  if (items.length === 0) return '无';
-  return items.map((item) => {
+  if (items.length === 0) return '';
+  return items.map((item, index) => {
     const image = item.region?.image || {};
-    const device = item.region?.device || {};
-    const imageRegion = Number.isFinite(Number(image.x))
-      ? `设计图坐标 x=${image.x},y=${image.y},w=${image.width},h=${image.height}`
-      : '';
-    const deviceRegion = Number.isFinite(Number(device.x))
-      ? `画布坐标 x=${device.x},y=${device.y},w=${device.width},h=${device.height}`
-      : '';
-    const regionText = [imageRegion, deviceRegion].filter(Boolean).join('；') || '区域未标注';
     const assetPath = item.imagePath
       ? (htmlRelPath ? relativeFromHtml(htmlRelPath, item.imagePath) : item.imagePath)
       : '待指定';
-    return `- ${item.selector || '区域'} ${regionText}：必须用 <img src="${assetPath}"> 覆盖该区域${item.description ? `（${item.description}）` : ''}`;
+    if (!Number.isFinite(Number(image.x))) {
+      return `- #${index + 1} src="${assetPath}"：区域未标注${item.description ? `（${item.description}）` : ''}`;
+    }
+    return `- #${index + 1} src="${assetPath}" → absolute left:${image.x}px; top:${image.y}px; width:${image.width}px; height:${image.height}px${item.description ? `（${item.description}）` : ''}`;
   }).join('\n');
 }
 
 function buildSystemPrompt(uiIrSpec) {
   return `${uiIrSpec}
 
-你现在运行在 App Page Studio 的在线 AI HTML Agent 中。
-必须遵守：
-- 只返回完整 HTML 文档，不要 Markdown、不要代码块、不要解释。
-- 输出第一个字符必须是 <，并且必须以 <!doctype html> 或 <html 开头。
-- 不要输出思考过程、实现计划、英文说明、Implementation details、Let's compose 等非 HTML 文本。
-- 生成物会保存为与设计图同名目录下的 index.html，例如 __design__/xxx/index.html。
-- 当前接口只写入 index.html，请把 CSS/JS 内联到 HTML 中，不要引用未创建的 ./css 或 ./js 文件。
-- HTML 必须可直接通过浏览器预览，避免外部依赖。
-- 严禁生成任何 SVG：不要使用 <svg>、<path>、<circle>、<rect>、<defs>、<g>、<use> 等 SVG 标签，也不要内联 SVG 图标。
-- 严禁生成 pointer-events: none、user-select: none 以及 -webkit/-moz/-ms-user-select: none；所有可见元素都必须能被预览区元素选择器命中。
-- 图标、插画、头像、横幅等优先使用已有切图；没有切图覆盖的区域只允许用普通 HTML 元素（div/span/img）做简洁占位图块。
-- 引用已有切图时必须逐字复制“可用本地资源路径”中的路径；禁止按页面名、图层名或设计稿文件名自行拼接、改名、补全资源文件名。
-- 如果必须引用原设计图或 PSD 切图，使用相对当前 index.html 文件的路径，例如 ../xxx.png 或 ../xxx_slices/name.png。
-- 如果后续拆分本地资源，路径约定为 ./img、./css、./js。
-- 不要引用网络图片、CDN、远程字体或远程脚本。
-- 页面视觉基准必须优先使用输入设计图的实际像素尺寸，不要把移动端预览设备宽高当成设计稿尺寸。
-- viewport 必须使用 width=device-width；禁止输出 width=375、固定 375px 根容器或只按 812px 首屏截断。
-- 推荐使用 Lanhu/flexible 风格的设计画布：.page { position: relative; width: 设计图宽度px; height: 设计图高度px; overflow: hidden; }，所有坐标从画布左上角 (0,0) 开始；通过内联 flexible 脚本按 document.documentElement.clientWidth / 设计图宽度 设置缩放变量。
-- 如果样式继续使用 px 坐标，必须用外层 stage 对 .page 做 transform: scale(var(--scale)) 且 transform-origin: top left，并同步 stage 的缩放后宽高；如果只设置 html font-size，则必须把尺寸换算成 rem，否则 px 不会随 flexible 缩放。
-- 严禁生成居中的固定 #canvas 结构，例如 #canvas { width: 750px; transform: scale(...); transform-origin: top center; margin: 0 auto; }。如果确实需要整体缩放，必须使用外层缩放后的 stage 承载布局高度，内层画布 transform-origin: top left，且 left: 0; top: 0; margin: 0;。
-- 移动端截图和像素对比时，页面左上角必须对应设计稿 (0,0)，不得通过居中、负位移或 top-center transform 造成左侧留白、右侧裁切、截图截断。
-- 主页面结构必须使用 flex 或 grid：按 header/profile/stats/orders/banner/tools/footer 等区块组织；禁止用整页 absolute left/top 定位复刻所有内容。组件内部的徽标、装饰、图标叠层可以少量 absolute。
-- 根容器不得暴露未缩放的设计稿宽度给窄屏 viewport；如果根容器使用设计稿宽度，必须同步缩放根容器的视觉宽高，避免横向滚动、留白或裁切。
-- 即使设计图内容识别不完整，也必须返回最小可预览 HTML，并在 #root 的 data-notes 写明不确定点；不要回复“无法生成”“需要更多信息”等说明文字。
-- 对话修正时必须基于“当前 HTML”做最小必要修改，不要重写成无关结构。`;
+你运行在 App Page Studio 的在线 AI HTML Agent 中。生成物保存为 __design__/xxx/index.html 或 __psd__/xxx/index.html。
+
+【输出格式】
+- 只返回完整 HTML 文档，首字符必须是 <，以 <!doctype html> 或 <html 开头。
+- 不要 Markdown、代码块、解释、思考过程、英文说明。
+- CSS/JS 全部内联，不引用未创建的 ./css、./js 文件，不引用 CDN/远程脚本/远程字体/网络图片。
+- 禁止 SVG（<svg>/<path>/<circle>/<rect>/<defs>/<g>/<use> 及内联 SVG 图标）。
+- 禁止 pointer-events:none、user-select:none（含 -webkit/-moz/-ms 前缀），所有可见元素必须可被预览选择。
+
+【画布与缩放】
+- 使用 .page 作为设计画布：position:relative; width:设计图宽度px; height:设计图高度px; overflow:hidden; 坐标从 (0,0) 开始。
+- viewport 必须 width=device-width；不得固定 width=375 或 375px 根容器。
+- 推荐 Lanhu/flexible 风格：内联脚本按 document.documentElement.clientWidth / 设计图宽度 设置缩放变量；若继续用 px 坐标，外层 stage 做 transform:scale(var(--scale)); transform-origin:top left 并同步缩放后宽高；若改用 rem，必须把 px 换算成 rem。
+- 禁止居中固定 #canvas（width:750px; transform-origin:top center; margin:0 auto）造成左侧留白、右侧裁切。整体缩放必须 transform-origin:top left; left:0; top:0; margin:0。
+
+【主结构】
+- 主页面按 header/profile/stats/orders/banner/tools/footer 等区块用 flex 或 grid 组织；禁止整页 absolute left/top 复刻所有内容。组件内徽标/图标叠层可少量 absolute。
+- 切图位置规则见用户提示中的"必须使用的切图"。
+
+【资源引用】
+- 引用切图必须逐字复制用户提示中给出的相对路径，不得自行拼接、改名、补全文件名。
+- 图标、插画、头像、横幅优先用切图；未提供切图的区域允许 div/span/img 占位。
+- 引用原设计图或 PSD 切图用相对当前 index.html 的路径，如 ../xxx.png 或 ../xxx_slices/name.png。
+
+【兜底】
+- 即使识别不完整也要返回最小可预览 HTML，在 #root 的 data-notes 写明不确定点；不要回复"无法生成"。
+- refine 时基于"当前 HTML"做最小必要修改，不要重写无关结构。`;
+}
+
+function buildLayoutBriefing(device) {
+  return `布局基准：
+- 设计画布 .page 宽 ${device.width}px、高 ${device.height}px，所有坐标从 (0,0) 开始。
+- 完整还原整页内容，不得只渲染首屏或裁掉底部区域。
+- 主结构 flex/grid 分块；窄屏预览时整体从左上角等比缩放，不溢出、不重叠。`;
+}
+
+function buildReplacementsBlock(file, htmlRelPath) {
+  const text = buildImageReplacementsText(file, htmlRelPath);
+  if (!text) return '切图标记：无';
+  return `必须使用的切图（强约束，不得用 CSS/div 模拟代替）：
+${text}
+
+切图规则：
+- 每条都用 <img> 引用，src 逐字复制上面给出的路径。
+- left/top/width/height 是设计图原始像素，等同 .page 画布 px；<img> 必须 position:absolute 挂在 .page 下，按这些坐标精确落位，不得用 flex/grid 推算。
+- 切图是透明底，禁止再叠 CSS 同款图标；该区域已有的 div/span 模拟必须删除。`;
+}
+
+function buildContextHeader({ file, sourceImageRelPath, htmlRelPath, device, imageSize }) {
+  return `页面信息：
+- 页面名: ${file?.stateName || file?.name || path.posix.basename(sourceImageRelPath)}
+- sourceType: ${file?.sourceType || 'image'}
+- 设计图: ${sourceImageRelPath}（实际尺寸 ${imageSize?.width || '未知'}x${imageSize?.height || '未知'}）
+- HTML 保存路径: ${htmlRelPath}
+- 设计图相对 HTML: ${relativeFromHtml(htmlRelPath, sourceImageRelPath)}
+- 生成基准: ${device.width}x${device.height}（${device.source === 'image' ? '设计图实际像素' : '预览设备兜底'}）
+- 描述: ${file?.description || '无'}`;
 }
 
 function buildGeneratePrompt({ file, sourceImageRelPath, htmlRelPath, device, imageSize, designSystem, existingHtml, availableAssetsText }) {
-  const imageReplacementsText = buildImageReplacementsText(file, htmlRelPath);
-  const hasReplacements = imageReplacementsText !== '无';
   return `请根据输入设计图生成 UI IR HTML。
 
-页面信息：
-- 页面名: ${file?.stateName || file?.name || path.posix.basename(sourceImageRelPath)}
-- sourceType: ${file?.sourceType || 'image'}
-- 设计图路径: ${sourceImageRelPath}
-- HTML 保存路径: ${htmlRelPath}
-- 原设计图相对 HTML 路径: ${relativeFromHtml(htmlRelPath, sourceImageRelPath)}
-- 设计图实际尺寸: ${imageSize?.width || '未知'}x${imageSize?.height || '未知'}
-- HTML 生成基准尺寸: ${device.width}x${device.height}（${device.source === 'image' ? '来自设计图实际像素' : '未解析到图片尺寸时的预览设备兜底'}）
-- 页面描述: ${file?.description || '无'}
+${buildContextHeader({ file, sourceImageRelPath, htmlRelPath, device, imageSize })}
 
-布局要求：
-- 以设计图实际尺寸完整还原整页内容，不能只生成 375x812 首屏，也不能裁掉下方订单、签到、常用工具、浮动购物车、底部导航等区域。
-- 使用 flex/grid 组织主要区块，避免把 #root 和所有元素写成固定 375px + absolute 坐标。
-- 使用 .page 作为设计坐标画布：position: relative; width: ${device.width}px; height: ${device.height}px; overflow: hidden; 画布左上角必须是设计稿 (0,0)。
-- 可以内联 flexible 脚本设置根字号或缩放变量；使用 px 坐标时必须用 stage top-left transform 同步缩放宽高，使用 rem 时必须把设计稿 px 换算成 rem。不得输出居中的固定 #canvas；禁止 transform-origin: top center、margin: 0 auto 的 750px/1080px 内层画布。
-- 在 ${device.width}px 宽度下应接近设计图；在窄屏预览时应从左上角等比缩放整张设计画布，保持内容不溢出、不重叠，截图不截断。
-- 顶层 CSS viewport 必须是 width=device-width，#root 最大宽度应接近 ${device.width}px，页面最小高度应接近 ${device.height}px。
+${buildLayoutBriefing(device)}
 
 设计系统：
 ${designSystem && Object.keys(designSystem).length > 0 ? JSON.stringify(designSystem, null, 2) : '无'}
 
-可用本地资源路径：
+可用本地资源（不含下方切图标记里已列出的）：
 ${availableAssetsText || '无'}
 
 PSD 切图：
 ${buildPsdSlicesText(file)}
 
-${hasReplacements ? `必须使用的切图（强约束，不得忽略，不得用 CSS/div 模拟代替）：
-${imageReplacementsText}
+${buildReplacementsBlock(file, htmlRelPath)}
 
-切图使用规则：
-- 上方"必须使用的切图"中列出的每一条都必须在生成的 HTML 中以 <img> 引用，src 必须使用列表中给出的相对路径，逐字复制，不得改名、改目录、改扩展名。
-- 图片应定位/铺满对应"画布坐标"（基于 .page 设计画布的 px 坐标），width/height 与坐标一致；切图本身已是透明底，不要再叠 CSS 绘制的同款图形。
-- 禁止以"未使用切图"、"CSS 近似"为由跳过这些切图；若设计图上还有未提供切图的图标/插画，才允许 div/span 占位。
+${existingHtml ? `当前已有 HTML，请基于它更新，不要重写无关结构：\n${existingHtml}` : '当前没有已有 HTML，请生成第一版。'}
 
-` : ''}切图标记：
-${imageReplacementsText}
-
-${existingHtml ? `当前已有 HTML，请在充分比对设计图后更新，不要重新发明无关结构：\n${existingHtml}` : '当前没有已有 HTML，请生成第一版。'}
-
-请直接返回最终 HTML。第一行必须是 <!doctype html>。不要输出解释、Markdown、JSON 或代码块。`;
+直接返回最终 HTML，第一行必须是 <!doctype html>。`;
 }
 
 function buildRefinePrompt({ file, sourceImageRelPath, htmlRelPath, device, imageSize, designSystem, currentHtml, instruction, history, availableAssetsText }) {
   const historyText = history.length > 0
     ? history.map((item) => `${item.role === 'assistant' ? 'AI' : '用户'}: ${item.content}`).join('\n')
     : '无';
-  const imageReplacementsText = buildImageReplacementsText(file, htmlRelPath);
-  const hasReplacements = imageReplacementsText !== '无';
 
   return `请根据用户反馈修正当前 UI IR HTML。
 
-页面信息：
-- 页面名: ${file?.stateName || file?.name || path.posix.basename(sourceImageRelPath)}
-- sourceType: ${file?.sourceType || 'image'}
-- 设计图路径: ${sourceImageRelPath}
-- HTML 保存路径: ${htmlRelPath}
-- 原设计图相对 HTML 路径: ${relativeFromHtml(htmlRelPath, sourceImageRelPath)}
-- 设计图实际尺寸: ${imageSize?.width || '未知'}x${imageSize?.height || '未知'}
-- HTML 生成基准尺寸: ${device.width}x${device.height}（${device.source === 'image' ? '来自设计图实际像素' : '未解析到图片尺寸时的预览设备兜底'}）
-- 页面描述: ${file?.description || '无'}
+${buildContextHeader({ file, sourceImageRelPath, htmlRelPath, device, imageSize })}
 
-调整要求：
-- 如果当前 HTML 仍是 375px 固定画布、viewport width=375 或整页 absolute 定位，请优先改成以 ${device.width}x${device.height} 为基准的 flex/grid 响应式结构。
-- 如果当前 HTML 使用固定 #canvas、transform-origin: top center、margin: 0 auto 或居中缩放导致左侧留白/右侧裁切，必须改成 Lanhu/flexible 风格：设计画布从 (0,0) 开始，外层同步缩放后的宽高，内层 transform-origin: top left。
-- 保留当前 HTML 中已识别的业务内容，但修正为完整页面高度和响应式布局。
-- 在窄屏预览时允许整体按比例收敛，但内容不能互相覆盖或横向溢出。
+${buildLayoutBriefing(device)}
 
 设计系统：
 ${designSystem && Object.keys(designSystem).length > 0 ? JSON.stringify(designSystem, null, 2) : '无'}
 
-可用本地资源路径：
+可用本地资源（不含下方切图标记里已列出的）：
 ${availableAssetsText || '无'}
 
 PSD 切图：
 ${buildPsdSlicesText(file)}
 
-${hasReplacements ? `必须使用的切图（强约束，不得忽略，不得用 CSS/div 模拟代替）：
-${imageReplacementsText}
-
-切图使用规则：
-- 上方"必须使用的切图"中列出的每一条都必须在 HTML 中以 <img> 引用，src 必须逐字复制列表中给出的相对路径。
-- 图片应定位到对应"画布坐标"，width/height 与坐标一致；切图本身已是透明底，不要再叠 CSS 绘制的同款图形。
-- 如果当前 HTML 在这些区域用 div/span/CSS 模拟图标，必须改写成 <img>。
-
-` : ''}切图标记：
-${imageReplacementsText}
+${buildReplacementsBlock(file, htmlRelPath)}
 
 最近对话：
 ${historyText}
@@ -168,7 +147,7 @@ ${instruction}
 当前 HTML：
 ${currentHtml}
 
-请基于当前 HTML 做最小必要修改，并直接返回完整最终 HTML。第一行必须是 <!doctype html>。不要输出解释、Markdown、JSON 或代码块。`;
+基于当前 HTML 做最小必要修改，直接返回完整最终 HTML，第一行必须是 <!doctype html>。`;
 }
 
 module.exports = {

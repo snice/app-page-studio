@@ -59,6 +59,18 @@ router.post('/ai-html-agent/refine', asyncHandler(async (req, res) => {
 }));
 
 router.post('/ai-html-agent/generate-assets', asyncHandler(async (req, res) => {
+  if (wantsEventStream(req)) {
+    const sse = createSseWriter(req, res);
+    try {
+      const payload = await generateDesignAssets(req, { onStage: sse.stage });
+      sse.done(payload);
+    } catch (error) {
+      sse.error(error);
+    } finally {
+      sse.end();
+    }
+    return;
+  }
   const payload = await generateDesignAssets(req);
   res.json(payload);
 }));

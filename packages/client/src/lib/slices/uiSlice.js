@@ -31,6 +31,7 @@ export function createUiSlice(set, get) {
     activePanelTab: 'file',
     designAssetRegionSelectHandler: null,
     designAssetOverlayRegions: [],
+    designAssetActiveRegionId: null,
 
     // 设计系统/分组/项目编辑
     editingDesignSystem: null,
@@ -93,6 +94,7 @@ export function createUiSlice(set, get) {
     setActivePanelTab(tab) { set({ activePanelTab: tab }); },
     setDesignAssetRegionSelectHandler(handler) { set({ designAssetRegionSelectHandler: handler }); },
     setDesignAssetOverlayRegions(regions) { set({ designAssetOverlayRegions: Array.isArray(regions) ? regions : [] }); },
+    setDesignAssetActiveRegionId(id) { set({ designAssetActiveRegionId: id || null }); },
     setFileFilter(filter) { set((s) => ({ fileFilter: { ...s.fileFilter, ...filter } })); },
     setEditingDesignSystem(ds) { set({ editingDesignSystem: ds }); },
     setEditingDesignProjectId(id) { set({ editingDesignProjectId: id }); },

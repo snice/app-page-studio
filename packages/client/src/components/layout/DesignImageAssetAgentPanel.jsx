@@ -79,6 +79,7 @@ export function DesignImageAssetAgentPanel({
   const addImageReplacement = useAppStore((s) => s.addImageReplacement);
   const setActivePanelTab = useAppStore((s) => s.setActivePanelTab);
   const setDesignAssetOverlayRegions = useAppStore((s) => s.setDesignAssetOverlayRegions);
+  const setDesignAssetActiveRegionId = useAppStore((s) => s.setDesignAssetActiveRegionId);
   const scanHtmlFiles = useAppStore((s) => s.scanHtmlFiles);
   const setPagesMeta = useAppStore((s) => s.setPagesMeta);
   const clearDirtyFile = useAppStore((s) => s.clearDirtyFile);
@@ -94,6 +95,7 @@ export function DesignImageAssetAgentPanel({
   const [regions, setRegions] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null);
   const [messages, setMessages] = useState([initialMessage]);
   const operationStartedAtRef = useRef(0);
 
@@ -103,13 +105,15 @@ export function DesignImageAssetAgentPanel({
     setInput('');
     setSelecting(false);
     setDesignAssetOverlayRegions([]);
+    setDesignAssetActiveRegionId(null);
     onCancelRegionSelect?.();
-  }, [currentFile?.path, initialMessage, onCancelRegionSelect, setDesignAssetOverlayRegions]);
+  }, [currentFile?.path, initialMessage, onCancelRegionSelect, setDesignAssetOverlayRegions, setDesignAssetActiveRegionId]);
 
   useEffect(() => () => {
     setDesignAssetOverlayRegions([]);
+    setDesignAssetActiveRegionId(null);
     onCancelRegionSelect?.();
-  }, [onCancelRegionSelect, setDesignAssetOverlayRegions]);
+  }, [onCancelRegionSelect, setDesignAssetOverlayRegions, setDesignAssetActiveRegionId]);
 
   useEffect(() => {
     setDesignAssetOverlayRegions(regions);
@@ -191,10 +195,19 @@ export function DesignImageAssetAgentPanel({
           size: cropped.size,
         };
       });
-      const res = await api.generateDesignAssets({
+      setProgress({ current: 0, total: regions.length });
+      const res = await api.generateDesignAssetsStream({
         file: currentFile,
         prompt: instruction,
         regions: payloadRegions,
+      }, {
+        onStage: (payload) => {
+          if (payload?.stage === 'region-progress' && payload?.detail) {
+            const detail = payload.detail;
+            setProgress({ current: detail.current || 0, total: detail.total || 0 });
+            setDesignAssetActiveRegionId(detail.regionId || null);
+          }
+        },
       });
       if (res.error) throw new Error(res.error);
 
@@ -254,6 +267,8 @@ export function DesignImageAssetAgentPanel({
       showToast(error?.message || 'AI 生成切图失败');
     } finally {
       setBusy(false);
+      setProgress(null);
+      setDesignAssetActiveRegionId(null);
       operationStartedAtRef.current = 0;
     }
   };
@@ -361,7 +376,11 @@ export function DesignImageAssetAgentPanel({
           <div className="ai-html-agent-progress">
             <div className="ai-html-agent-progress-head">
               <Icon name="clock" size="sm" />
-              <span>正在生成透明 PNG 切图...</span>
+              <span>
+                {progress && progress.total > 1 && progress.current > 0
+                  ? `正在生成 ${progress.current}/${progress.total}...`
+                  : '正在生成透明 PNG 切图...'}
+              </span>
             </div>
             <div className="ai-html-agent-progress-count">
               <span>共 {regions.length} 个区域</span>

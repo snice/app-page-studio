@@ -205,7 +205,7 @@ async function generateOneAsset(client, config, item, index, file) {
   };
 }
 
-async function generateDesignAssets(req) {
+async function generateDesignAssets(req, { onStage = null } = {}) {
   const projectId = getRequestProjectId(req);
   const guard = assertProjectWritable(req, projectId);
 
@@ -235,9 +235,19 @@ async function generateDesignAssets(req) {
   const assetsDir = path.join(projectDir, '__assets__');
   fs.mkdirSync(assetsDir, { recursive: true });
 
+  const total = regions.length;
   const files = [];
   for (let index = 0; index < regions.length; index += 1) {
-    const generated = await generateOneAsset(client, config, regions[index], index, file);
+    const region = regions[index];
+    if (typeof onStage === 'function') {
+      const label = total > 1 ? `正在生成 ${index + 1}/${total}` : '正在生成切图';
+      onStage('region-progress', label, {
+        current: index + 1,
+        total,
+        regionId: region?.id || null
+      });
+    }
+    const generated = await generateOneAsset(client, config, region, index, file);
     const nonce = Math.random().toString(36).slice(2, 7);
     const fileName = `ai_${generated.name}_${Date.now()}_${nonce}.png`;
     const relPath = `__assets__/${fileName}`;
@@ -249,7 +259,8 @@ async function generateDesignAssets(req) {
       path: relPath,
       size: generated.buffer.length,
       mimetype: 'image/png',
-      region: generated.region
+      region: generated.region,
+      regionId: region?.id || null
     });
   }
 

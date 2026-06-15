@@ -137,4 +137,8 @@ export const aiHtmlAgentApi = {
   async generateDesignAssets(payload) {
     return postJson('/api/ai-html-agent/generate-assets', payload);
   },
+
+  async generateDesignAssetsStream(payload, handlers) {
+    return postStream('/api/ai-html-agent/generate-assets', payload, handlers);
+  },
 };
