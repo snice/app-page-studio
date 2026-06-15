@@ -25,6 +25,7 @@ mkdir -p "${DIST_DIR}"
 # 后端文件
 echo "  复制后端文件..."
 cp packages/server/server.js packages/server/db.js packages/server/paths.js "${DIST_DIR}/"
+cp UI-IR-AGENT.md "${DIST_DIR}/UI-IR-AGENT.md"
 # 精简 package.json：只保留 start 脚本
 node -e "
   const root = require('./package.json');

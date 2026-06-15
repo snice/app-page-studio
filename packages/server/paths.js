@@ -21,5 +21,6 @@ module.exports = {
   DATA_DIR,
   DB_PATH: path.join(DATA_DIR, 'studio.db'),
   HTML_CACHES_DIR: path.join(DATA_DIR, 'html_caches'),
+  UI_IR_AGENT_SPEC_PATH: path.join(WORKSPACE_ROOT, 'UI-IR-AGENT.md'),
   CLIENT_DIST_DIRS,
 };

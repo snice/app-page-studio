@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const { UI_IR_AGENT_SPEC_PATH } = require('../../paths');
 const { requestError } = require('./errors');
 
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
@@ -72,11 +73,10 @@ function getImageAgentConfig() {
 }
 
 function loadUiIrSpec() {
-  const specPath = path.resolve(__dirname, '..', '..', '..', '..', 'UI-IR-AGENT.md');
-  if (!fs.existsSync(specPath)) {
+  if (!fs.existsSync(UI_IR_AGENT_SPEC_PATH)) {
     throw requestError(500, '缺少 UI-IR-AGENT.md');
   }
-  return fs.readFileSync(specPath, 'utf-8');
+  return fs.readFileSync(UI_IR_AGENT_SPEC_PATH, 'utf-8');
 }
 
 module.exports = {
