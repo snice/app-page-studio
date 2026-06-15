@@ -245,6 +245,7 @@
 }
 .ai-html-agent-panel-chat .ai-html-agent-message {
   max-width: 94%;
+  box-sizing: border-box;
 }
 .ai-html-agent-panel-input-row {
   display: grid;
@@ -258,6 +259,8 @@
   min-height: 82px;
   max-height: 180px;
   resize: vertical;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .ai-html-agent-panel-send {
   width: 42px;

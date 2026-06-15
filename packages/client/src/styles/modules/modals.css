@@ -610,9 +610,13 @@
 }
 .ai-html-agent-message {
   max-width: 88%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 10px 12px;
   border-radius: var(--radius-md);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   line-height: 1.55;
   font-size: 13px;
   color: var(--text-secondary);
@@ -627,6 +631,24 @@
   align-self: flex-start;
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
+}
+.ai-html-agent-message.error {
+  align-self: flex-start;
+  background: var(--error-bg);
+  border: 1px solid color-mix(in srgb, var(--error) 42%, transparent);
+  color: var(--error);
+}
+.ai-html-agent-message-content {
+  min-width: 0;
+}
+.ai-html-agent-message-meta {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+.ai-html-agent-message.error .ai-html-agent-message-meta {
+  color: color-mix(in srgb, var(--error) 82%, var(--text));
 }
 .ai-html-agent-message.muted {
   color: var(--text-muted);
@@ -649,8 +671,14 @@
   font-weight: 600;
 }
 .ai-html-agent-progress-count {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   margin-top: 6px;
   color: var(--text-muted);
+}
+.ai-html-agent-progress-count span {
+  white-space: nowrap;
 }
 .ai-html-agent-stage-list {
   display: grid;
@@ -678,6 +706,8 @@
 .ai-html-agent-input {
   min-height: 76px;
   resize: vertical;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .ai-html-agent-send {
   width: 42px;

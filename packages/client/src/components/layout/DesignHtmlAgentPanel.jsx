@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../common/Icon';
 import { api } from '../../lib/api';
 import { useAppStore } from '../../lib/state';
@@ -18,6 +18,26 @@ function buildHistory(messages) {
 function compactText(value, max = 120) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+function formatAgentError(error, fallback = '执行失败') {
+  const message = String(error?.message || fallback).trim();
+  if (!message) return 'AI 调用失败';
+  return message.startsWith('AI 调用失败') ? message : `AI 调用失败：${message}`;
+}
+
+function formatDuration(ms) {
+  const safeMs = Math.max(0, Math.round(Number(ms) || 0));
+  if (safeMs < 1000) return `${safeMs} 毫秒`;
+
+  const seconds = safeMs / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(seconds >= 10 ? 1 : 2)} 秒`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const restSeconds = seconds - minutes * 60;
+  return `${minutes} 分 ${restSeconds.toFixed(restSeconds >= 10 ? 0 : 1)} 秒`;
 }
 
 const INTERNAL_PICKER_CLASSES = new Set([
@@ -156,8 +176,9 @@ export function DesignHtmlAgentPanel({ device, iframeRef, onGenerated }) {
   const [busy, setBusy] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selectedElements, setSelectedElements] = useState([]);
-  const [progress, setProgress] = useState({ message: '', chars: 0, stages: [] });
+  const [progress, setProgress] = useState({ message: '', chars: 0, stages: [], elapsedMs: 0 });
   const [collapsed, setCollapsed] = useState(true);
+  const operationStartedAtRef = useRef(0);
 
   useEffect(() => {
     setMessages([initialMessage]);
@@ -171,7 +192,21 @@ export function DesignHtmlAgentPanel({ device, iframeRef, onGenerated }) {
     clearIframeSelection(iframeRef.current);
   }, [iframeRef]);
 
-  const applyAgentResult = useCallback((res, assistantText) => {
+  useEffect(() => {
+    if (!busy) return undefined;
+
+    const updateElapsed = () => {
+      const startedAt = operationStartedAtRef.current;
+      if (!startedAt) return;
+      setProgress((prev) => ({ ...prev, elapsedMs: Date.now() - startedAt }));
+    };
+
+    updateElapsed();
+    const timerId = window.setInterval(updateElapsed, 300);
+    return () => window.clearInterval(timerId);
+  }, [busy]);
+
+  const applyAgentResult = useCallback((res, assistantText, durationMs) => {
     updateCurrentFile({
       generatedHtmlPath: res.htmlPath,
       htmlIrStatus: res.status || 'generated',
@@ -180,11 +215,24 @@ export function DesignHtmlAgentPanel({ device, iframeRef, onGenerated }) {
       htmlIrSourcePath: res.sourcePath,
     });
     onGenerated?.(res);
-    setMessages((items) => [...items, { role: 'assistant', content: assistantText || `已更新 HTML IR：${res.htmlPath}` }]);
+    setMessages((items) => [
+      ...items,
+      {
+        role: 'assistant',
+        content: assistantText || `已更新 HTML IR：${res.htmlPath}`,
+        durationMs,
+      }
+    ]);
   }, [onGenerated, updateCurrentFile]);
 
   const resetProgress = () => {
-    setProgress({ message: '准备开始', chars: 0, stages: [] });
+    operationStartedAtRef.current = Date.now();
+    setProgress({ message: '准备开始', chars: 0, stages: [], elapsedMs: 0 });
+  };
+
+  const getElapsedMs = () => {
+    const startedAt = operationStartedAtRef.current;
+    return startedAt ? Date.now() - startedAt : 0;
   };
 
   const handleStreamStage = (payload) => {
@@ -233,14 +281,15 @@ export function DesignHtmlAgentPanel({ device, iframeRef, onGenerated }) {
         designSystem: project?.designSystem || null,
       }, streamHandlers);
       if (res.error) throw new Error(res.error);
-      applyAgentResult(res, `已生成 HTML IR：${res.htmlPath}`);
+      applyAgentResult(res, `已生成 HTML IR：${res.htmlPath}`, getElapsedMs());
       showToast('HTML IR 已生成');
     } catch (e) {
-      const message = e.message || '生成失败';
-      setMessages((items) => [...items, { role: 'assistant', content: message }]);
-      showToast(message);
+      const message = formatAgentError(e, '生成失败');
+      setMessages((items) => [...items, { role: 'error', content: message, durationMs: getElapsedMs() }]);
+      // showToast(message);
     } finally {
       setBusy(false);
+      operationStartedAtRef.current = 0;
     }
   };
 
@@ -286,14 +335,15 @@ export function DesignHtmlAgentPanel({ device, iframeRef, onGenerated }) {
         history: buildHistory(messages),
       }, streamHandlers);
       if (res.error) throw new Error(res.error);
-      applyAgentResult(res, `已按反馈更新 HTML IR：${res.htmlPath}`);
+      applyAgentResult(res, `已按反馈更新 HTML IR：${res.htmlPath}`, getElapsedMs());
       showToast('HTML IR 已更新');
     } catch (e) {
-      const message = e.message || '调整失败';
-      setMessages((items) => [...items, { role: 'assistant', content: message }]);
+      const message = formatAgentError(e, '调整失败');
+      setMessages((items) => [...items, { role: 'error', content: message, durationMs: getElapsedMs() }]);
       showToast(message);
     } finally {
       setBusy(false);
+      operationStartedAtRef.current = 0;
     }
   };
 
@@ -451,7 +501,12 @@ export function DesignHtmlAgentPanel({ device, iframeRef, onGenerated }) {
       <div className="ai-html-agent-panel-chat">
         {messages.map((message, index) => (
           <div className={`ai-html-agent-message ${message.role}`} key={`${message.role}-${index}`}>
-            {message.content}
+            <div className="ai-html-agent-message-content">{message.content}</div>
+            {Number.isFinite(message.durationMs) && (
+              <div className="ai-html-agent-message-meta">
+                耗时 {formatDuration(message.durationMs)}
+              </div>
+            )}
           </div>
         ))}
         {busy && (
@@ -460,8 +515,11 @@ export function DesignHtmlAgentPanel({ device, iframeRef, onGenerated }) {
               <Icon name="clock" size="sm" />
               <span>{progress.message || '正在调用 AI Agent...'}</span>
             </div>
-            {progress.chars > 0 && (
-              <div className="ai-html-agent-progress-count">已接收 HTML {progress.chars} 字符</div>
+            {(progress.elapsedMs > 0 || progress.chars > 0) && (
+              <div className="ai-html-agent-progress-count">
+                {progress.elapsedMs > 0 && <span>已用时 {formatDuration(progress.elapsedMs)}</span>}
+                {progress.chars > 0 && <span>已接收 HTML {progress.chars} 字符</span>}
+              </div>
             )}
             {progress.stages.length > 0 && (
               <div className="ai-html-agent-stage-list">
