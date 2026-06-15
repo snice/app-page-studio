@@ -4,6 +4,7 @@ const { requestError } = require('./errors');
 
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_MODEL = 'gpt-4o';
+const DEFAULT_IMAGE_MODEL = 'gpt-image-1';
 const SERVER_ENV_PATH = path.resolve(__dirname, '..', '..', '.env');
 
 let cachedServerEnv = null;
@@ -61,6 +62,15 @@ function getAgentConfig() {
   };
 }
 
+function getImageAgentConfig() {
+  const config = getAgentConfig();
+  const model = getEnvValue('AI_AGENT_IMAGE_MODEL') || getEnvValue('OPENAI_IMAGE_MODEL') || DEFAULT_IMAGE_MODEL;
+  return {
+    ...config,
+    model
+  };
+}
+
 function loadUiIrSpec() {
   const specPath = path.resolve(__dirname, '..', '..', '..', '..', 'UI-IR-AGENT.md');
   if (!fs.existsSync(specPath)) {
@@ -71,5 +81,6 @@ function loadUiIrSpec() {
 
 module.exports = {
   getAgentConfig,
+  getImageAgentConfig,
   loadUiIrSpec
 };

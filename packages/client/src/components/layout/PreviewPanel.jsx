@@ -5,6 +5,7 @@ import { parsePSD } from '../../lib/psdUtils';
 import { ImageRegionSelector } from '../picker/ImageRegionSelector';
 import { PSDCanvas } from '../psd/PSDCanvas';
 import { DesignHtmlAgentPanel } from './DesignHtmlAgentPanel';
+import { DesignImageAssetAgentPanel } from './DesignImageAssetAgentPanel';
 
 const DEVICES = [
   { name: 'iPhone 14', width: 375, height: 815 },
@@ -40,6 +41,9 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
   const setPsdSelectedSliceId = useAppStore((s) => s.setPsdSelectedSliceId);
   const psdShowSlices = useAppStore((s) => s.psdShowSlices);
   const setActivePanelTab = useAppStore((s) => s.setActivePanelTab);
+  const designAssetRegionSelectHandler = useAppStore((s) => s.designAssetRegionSelectHandler);
+  const setDesignAssetRegionSelectHandler = useAppStore((s) => s.setDesignAssetRegionSelectHandler);
+  const designAssetOverlayRegions = useAppStore((s) => s.designAssetOverlayRegions);
 
   const imgRef = useRef(null);
   const psdLoadedForPath = useRef(null);
@@ -162,8 +166,9 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
   useEffect(() => {
     if (!isCurrentEditor) {
       setIsImageRegionSelecting(false);
+      setDesignAssetRegionSelectHandler(null);
     }
-  }, [isCurrentEditor, setIsImageRegionSelecting]);
+  }, [isCurrentEditor, setDesignAssetRegionSelectHandler, setIsImageRegionSelecting]);
 
   useEffect(() => {
     setHtmlIrFrameMissing(false);
@@ -192,6 +197,23 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
       setHtmlIrFrameMissing(false);
     }
   }, [isHtmlIrPreview, onIframeLoad]);
+
+  const startDesignAssetRegionSelect = useCallback((handler) => {
+    setDesignAssetRegionSelectHandler(handler);
+    setIsImageRegionSelecting(true);
+  }, [setDesignAssetRegionSelectHandler, setIsImageRegionSelecting]);
+
+  const cancelDesignAssetRegionSelect = useCallback(() => {
+    setDesignAssetRegionSelectHandler(null);
+    setIsImageRegionSelecting(false);
+  }, [setDesignAssetRegionSelectHandler, setIsImageRegionSelecting]);
+
+  const handleToggleGeneralPicker = useCallback(() => {
+    if (designAssetRegionSelectHandler) {
+      setDesignAssetRegionSelectHandler(null);
+    }
+    onTogglePicker?.();
+  }, [designAssetRegionSelectHandler, onTogglePicker, setDesignAssetRegionSelectHandler]);
 
   return (
     <main className="preview-container">
@@ -302,7 +324,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
           </button>
           <button
             className={`picker-btn ${isPickerActive || isImageRegionSelecting ? 'active' : ''}`}
-            onClick={onTogglePicker}
+            onClick={handleToggleGeneralPicker}
             disabled={isPsdLayers || !isCurrentEditor || isHtmlIrPreview}
             title={!isCurrentEditor ? '当前为只读' : isHtmlIrPreview ? '切回设计图后标注交互或切图' : undefined}
           >
@@ -339,7 +361,7 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
           ) : null}
         </div>
       ) : (
-        <div className={`preview-workspace ${isHtmlIrPreview ? 'with-agent' : ''}`}>
+        <div className={`preview-workspace ${isHtmlIrPreview || isDesignImagePreview ? 'with-agent' : ''}`}>
           <div className="preview-frame-wrapper">
             <div className="phone-frame">
               <div
@@ -381,6 +403,9 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
                         deviceHeight={device.height}
                         zoomScale={zoomScale}
                         onRegionAction={onRegionAction}
+                        onRegionSelected={designAssetRegionSelectHandler}
+                        overlayRegions={designAssetRegionSelectHandler ? designAssetOverlayRegions : null}
+                        squareSelection={!!designAssetRegionSelectHandler}
                       />
                     )}
                   </>
@@ -413,6 +438,14 @@ export function PreviewPanel({ onTogglePicker, onToggleColorPicker, iframeRef, o
                 setCurrentDesignPreviewMode('html');
                 setHtmlIrReloadKey(Date.now());
               }}
+            />
+          )}
+          {isDesignImagePreview && (
+            <DesignImageAssetAgentPanel
+              key={`${currentFile?.path || 'none'}:asset-agent`}
+              imgRef={imgRef}
+              onRequestRegionSelect={startDesignAssetRegionSelect}
+              onCancelRegionSelect={cancelDesignAssetRegionSelect}
             />
           )}
         </div>

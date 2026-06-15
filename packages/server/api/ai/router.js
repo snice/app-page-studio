@@ -14,6 +14,7 @@ const {
   stripViewportGuard
 } = require('./html');
 const { prepareGenerateJob, prepareRefineJob, runAgentJob } = require('./jobs');
+const { generateDesignAssets } = require('./design-assets');
 const { createSseWriter, wantsEventStream } = require('./progress');
 
 const router = express.Router();
@@ -54,6 +55,11 @@ router.post('/ai-html-agent/refine', asyncHandler(async (req, res) => {
 
   const job = prepareRefineJob(req);
   const payload = await runAgentJob(req, job);
+  res.json(payload);
+}));
+
+router.post('/ai-html-agent/generate-assets', asyncHandler(async (req, res) => {
+  const payload = await generateDesignAssets(req);
   res.json(payload);
 }));
 

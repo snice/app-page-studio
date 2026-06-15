@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { Icon } from '../common/Icon';
 import { useAppStore } from '../../lib/state';
 
@@ -26,11 +26,30 @@ function getClampedPoint(layout, clientX, clientY) {
   return { screenX: clampX, screenY: clampY };
 }
 
-function buildRegionFromPoints(layout, start, end, deviceW, deviceH) {
-  const x1 = Math.min(start.screenX, end.screenX);
-  const y1 = Math.min(start.screenY, end.screenY);
-  const x2 = Math.max(start.screenX, end.screenX);
-  const y2 = Math.max(start.screenY, end.screenY);
+function constrainSquarePoint(layout, start, end) {
+  const dx = end.screenX - start.screenX;
+  const dy = end.screenY - start.screenY;
+  const dirX = dx < 0 ? -1 : 1;
+  const dirY = dy < 0 ? -1 : 1;
+  const maxX = dirX > 0
+    ? layout.offsetX + layout.drawW - start.screenX
+    : start.screenX - layout.offsetX;
+  const maxY = dirY > 0
+    ? layout.offsetY + layout.drawH - start.screenY
+    : start.screenY - layout.offsetY;
+  const side = Math.min(Math.max(Math.abs(dx), Math.abs(dy)), maxX, maxY);
+  return {
+    screenX: start.screenX + dirX * side,
+    screenY: start.screenY + dirY * side,
+  };
+}
+
+function buildRegionFromPoints(layout, start, end, deviceW, deviceH, options = {}) {
+  const effectiveEnd = options.square ? constrainSquarePoint(layout, start, end) : end;
+  const x1 = Math.min(start.screenX, effectiveEnd.screenX);
+  const y1 = Math.min(start.screenY, effectiveEnd.screenY);
+  const x2 = Math.max(start.screenX, effectiveEnd.screenX);
+  const y2 = Math.max(start.screenY, effectiveEnd.screenY);
   const width = x2 - x1;
   const height = y2 - y1;
   if (width < 2 || height < 2) return null;
@@ -88,7 +107,15 @@ function getImageRegions(currentFile) {
  * 直接在 img 元素上绑定鼠标事件（参照 app.js setupImageRegionPicker）
  * 选择矩形和区域覆盖层渲染在 img 的父容器（phone-screen）内
  */
-export function ImageRegionSelector({ imgRef, deviceWidth, deviceHeight, zoomScale, onRegionAction }) {
+export function ImageRegionSelector({
+  imgRef,
+  deviceWidth,
+  deviceHeight,
+  onRegionAction,
+  onRegionSelected,
+  overlayRegions = null,
+  squareSelection = false,
+}) {
   const currentFile = useAppStore((s) => s.currentFile);
   const isImageRegionSelecting = useAppStore((s) => s.isImageRegionSelecting);
 
@@ -131,7 +158,8 @@ export function ImageRegionSelector({ imgRef, deviceWidth, deviceHeight, zoomSca
       // 框选
       if (selectionRef.current) {
         const sel = selectionRef.current;
-        const end = getClampedPoint(sel.layout, e.clientX, e.clientY);
+        const rawEnd = getClampedPoint(sel.layout, e.clientX, e.clientY);
+        const end = squareSelection ? constrainSquarePoint(sel.layout, sel.start, rawEnd) : rawEnd;
         sel.end = end;
         setSelectionRect({
           left: Math.min(sel.start.screenX, end.screenX),
@@ -184,9 +212,16 @@ export function ImageRegionSelector({ imgRef, deviceWidth, deviceHeight, zoomSca
       if (selectionRef.current) {
         const sel = selectionRef.current;
         selectionRef.current = null;
-        const end = getClampedPoint(sel.layout, e.clientX, e.clientY);
-        const region = buildRegionFromPoints(sel.layout, sel.start, end, deviceWidth, deviceHeight);
+        const rawEnd = getClampedPoint(sel.layout, e.clientX, e.clientY);
+        const end = squareSelection ? constrainSquarePoint(sel.layout, sel.start, rawEnd) : rawEnd;
+        const region = buildRegionFromPoints(sel.layout, sel.start, end, deviceWidth, deviceHeight, { square: squareSelection });
         if (!region) { setSelectionRect(null); return; }
+        if (typeof onRegionSelected === 'function') {
+          onRegionSelected(region);
+          setSelectionRect(null);
+          setPendingRegion(null);
+          return;
+        }
         setPendingRegion({ region, menuX: e.clientX + 8, menuY: e.clientY + 8 });
         return;
       }
@@ -201,7 +236,7 @@ export function ImageRegionSelector({ imgRef, deviceWidth, deviceHeight, zoomSca
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
-  }, [deviceWidth, deviceHeight]);
+  }, [deviceWidth, deviceHeight, onRegionSelected, squareSelection]);
 
   // ==================== 拖拽已有区域 ====================
 
@@ -251,7 +286,7 @@ export function ImageRegionSelector({ imgRef, deviceWidth, deviceHeight, zoomSca
 
   const img = imgRef?.current;
   const layout = img ? getImageLayout(img) : null;
-  const regions = getImageRegions(currentFile);
+  const regions = Array.isArray(overlayRegions) ? overlayRegions : getImageRegions(currentFile);
 
   return (
     <>
@@ -272,8 +307,8 @@ export function ImageRegionSelector({ imgRef, deviceWidth, deviceHeight, zoomSca
       {layout && regions.map((item) => {
         const boxStyle = applyRegionBoxStyle(item.region, layout);
         return (
-          <div
-            key={`${item.type}-${item.index}`}
+        <div
+          key={item.id || `${item.type}-${item.index}`}
             className={`image-region-box ${item.type}`}
             data-type={item.type}
             data-index={item.index}
@@ -283,7 +318,7 @@ export function ImageRegionSelector({ imgRef, deviceWidth, deviceHeight, zoomSca
               startRegionDrag(e, item, 'move', null);
             }}
           >
-            {['nw', 'ne', 'se', 'sw'].map((h) => (
+            {!squareSelection && ['nw', 'ne', 'se', 'sw'].map((h) => (
               <div
                 key={h}
                 className={`image-region-handle handle-${h}`}
