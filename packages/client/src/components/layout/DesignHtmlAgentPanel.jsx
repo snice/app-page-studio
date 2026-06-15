@@ -157,6 +157,7 @@ export function DesignHtmlAgentPanel({ device, iframeRef, onGenerated }) {
   const [selecting, setSelecting] = useState(false);
   const [selectedElements, setSelectedElements] = useState([]);
   const [progress, setProgress] = useState({ message: '', chars: 0, stages: [] });
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     setMessages([initialMessage]);
@@ -346,6 +347,31 @@ export function DesignHtmlAgentPanel({ device, iframeRef, onGenerated }) {
     setSelectedElements([]);
   };
 
+  const collapsePanel = () => {
+    if (selecting) {
+      Picker.disable(iframeRef.current);
+      setSelecting(false);
+    }
+    setCollapsed(true);
+  };
+
+  if (collapsed) {
+    return (
+      <aside className="ai-html-agent-panel ai-html-agent-panel-collapsed" aria-label="AI调整">
+        <button
+          type="button"
+          className="btn btn-icon btn-primary ai-html-agent-panel-expand"
+          onClick={() => setCollapsed(false)}
+          title="展开 AI 调整"
+          aria-label="展开 AI 调整"
+        >
+          <Icon name="sparkles" size="md" />
+          <span>AI</span>
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside className="ai-html-agent-panel">
       <div className="ai-html-agent-panel-header">
@@ -356,15 +382,26 @@ export function DesignHtmlAgentPanel({ device, iframeRef, onGenerated }) {
           </div>
           <div className="ai-html-agent-panel-subtitle">{title}</div>
         </div>
-        <button
-          className="btn btn-sm btn-secondary"
-          onClick={generate}
-          disabled={busy || !isDesignFile || !isCurrentEditor}
-          title={!isCurrentEditor ? '当前为只读' : undefined}
-        >
-          <Icon name="refresh" size="sm" />
-          {hasGeneratedHtml ? '重新生成' : '生成'}
-        </button>
+        <div className="ai-html-agent-panel-actions">
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={generate}
+            disabled={busy || !isDesignFile || !isCurrentEditor}
+            title={!isCurrentEditor ? '当前为只读' : undefined}
+          >
+            <Icon name="refresh" size="sm" />
+            {hasGeneratedHtml ? '重新生成' : '生成'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-icon btn-secondary ai-html-agent-panel-collapse"
+            onClick={collapsePanel}
+            title="收起 AI 调整"
+            aria-label="收起 AI 调整"
+          >
+            <Icon name="chevronRight" size="sm" />
+          </button>
+        </div>
       </div>
 
       <div className="ai-html-agent-target-row">

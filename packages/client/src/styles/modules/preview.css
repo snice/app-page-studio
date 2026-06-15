@@ -131,6 +131,40 @@
   border-bottom: 1px solid var(--border);
   background: var(--bg-secondary);
 }
+.ai-html-agent-panel-header > div:first-child {
+  min-width: 0;
+}
+.ai-html-agent-panel-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-html-agent-panel-collapse {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+.ai-html-agent-panel-collapsed {
+  width: 68px;
+  height: 44px;
+  bottom: auto;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  pointer-events: none;
+}
+.ai-html-agent-panel-expand {
+  width: 68px;
+  height: 44px;
+  min-width: 68px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+}
 .ai-html-agent-panel-title {
   display: flex;
   align-items: center;
