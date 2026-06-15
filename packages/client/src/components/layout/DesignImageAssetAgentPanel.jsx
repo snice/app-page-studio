@@ -210,7 +210,7 @@ export function DesignImageAssetAgentPanel({
           addImageReplacement({
             selector: '区域',
             imagePath: file.path,
-            description: instruction || 'AI 生成透明底 PNG 切图',
+            description: instruction || '',
             region: sourceRegion,
             aiGenerated: true,
             generatedAt: res.updatedAt || new Date().toISOString(),
@@ -236,7 +236,7 @@ export function DesignImageAssetAgentPanel({
       setDesignAssetOverlayRegions([]);
       setInput('');
       setActivePanelTab('file');
-      scanHtmlFiles({ showResultToast: false }).catch(() => {});
+      scanHtmlFiles({ showResultToast: false }).catch(() => { });
       onGenerated?.(res);
       showToast(pageSave
         ? `已生成 ${files.length} 个透明 PNG 切图，后台已保存`

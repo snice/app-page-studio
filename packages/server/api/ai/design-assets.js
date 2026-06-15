@@ -254,7 +254,7 @@ async function generateDesignAssets(req) {
   }
 
   const updatedAt = new Date().toISOString();
-  const description = String(req.body?.prompt || '').trim() || 'AI 生成透明底 PNG 切图';
+  const description = String(req.body?.prompt || '').trim() || '';
   const imageReplacements = files.map((asset) => ({
     selector: '区域',
     imagePath: asset.path,
