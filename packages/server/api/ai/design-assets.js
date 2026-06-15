@@ -5,7 +5,8 @@ const {
   getHtmlDir,
   resolveSafe,
   ensureProjectWritable,
-  broadcastProjectEvent
+  broadcastProjectEvent,
+  Projects
 } = require('../utils');
 const { getImageAgentConfig } = require('./config');
 const { requestError } = require('./errors');
@@ -14,6 +15,17 @@ const { normalizeRelPath, pickSourceImageRelPath } = require('./paths');
 const MAX_REGIONS = 12;
 const MAX_REGION_IMAGE_BYTES = 8 * 1024 * 1024;
 const PNG_SIGNATURE = '89504e470d0a1a0a';
+
+function defaultPagesConfig(projectName = 'My App') {
+  return {
+    projectName,
+    targetPlatform: ['flutter'],
+    designSystem: {},
+    sharedComponents: [],
+    htmlFiles: [],
+    pageGroups: []
+  };
+}
 
 function getRequestProjectId(req) {
   const projectId = Number.parseInt(req.body?.projectId, 10);
@@ -25,6 +37,13 @@ function assertProjectWritable(req, projectId) {
   const guard = ensureProjectWritable(req, projectId);
   if (!guard.ok) throw requestError(guard.status || 403, guard.error || '无权修改此项目');
   return guard;
+}
+
+function buildActor(guard) {
+  return {
+    sessionId: guard.sessionId || null,
+    editorName: guard.editorName || null
+  };
 }
 
 function sanitizeFileName(value, fallback = 'ai_cutout') {
@@ -188,9 +207,11 @@ async function generateOneAsset(client, config, item, index, file) {
 
 async function generateDesignAssets(req) {
   const projectId = getRequestProjectId(req);
-  assertProjectWritable(req, projectId);
+  const guard = assertProjectWritable(req, projectId);
 
   const file = req.body?.file || {};
+  const filePath = normalizeRelPath(file.path || file.imagePath || file.previewPath || '');
+  if (!filePath) throw requestError(400, '缺少页面路径');
   const sourcePath = normalizeRelPath(pickSourceImageRelPath(file));
   if (!sourcePath) throw requestError(400, '缺少设计图路径');
 
@@ -233,6 +254,38 @@ async function generateDesignAssets(req) {
   }
 
   const updatedAt = new Date().toISOString();
+  const description = String(req.body?.prompt || '').trim() || 'AI 生成透明底 PNG 切图';
+  const imageReplacements = files.map((asset) => ({
+    selector: '区域',
+    imagePath: asset.path,
+    description,
+    region: asset.region,
+    aiGenerated: true,
+    generatedAt: updatedAt
+  }));
+  const mergeResult = Projects.mergePageImageReplacements(
+    projectId,
+    filePath,
+    imageReplacements,
+    guard,
+    file,
+    defaultPagesConfig(guard.project?.name)
+  );
+  const savedFile = mergeResult.fileConfig || null;
+  const pageSave = {
+    success: true,
+    scope: 'file',
+    path: filePath,
+    fileConfig: savedFile,
+    fileHash: mergeResult.fileHash || null,
+    revision: mergeResult.record?.revision || 0,
+    updatedAt: mergeResult.record?.updatedAt || null,
+    updatedBy: mergeResult.record?.updatedBy || null,
+    updatedBySession: mergeResult.record?.updatedBySession || null,
+    entityHashes: Projects.getPagesHashes(mergeResult.record?.pagesConfig || defaultPagesConfig(guard.project?.name)),
+    addedCount: mergeResult.addedCount || 0
+  };
+
   broadcastProjectEvent(req, projectId, {
     type: 'files:changed',
     reason: 'ai-design-assets-generated',
@@ -240,12 +293,23 @@ async function generateDesignAssets(req) {
     sourcePath,
     updatedAt
   });
+  broadcastProjectEvent(req, projectId, {
+    type: 'pages:file-saved',
+    projectId,
+    path: filePath,
+    fileConfig: savedFile,
+    fileHash: pageSave.fileHash,
+    revision: pageSave.revision,
+    updatedAt: pageSave.updatedAt,
+    savedBy: buildActor(guard)
+  });
 
   return {
     files,
     count: files.length,
     sourcePath,
-    updatedAt
+    updatedAt,
+    pageSave
   };
 }
 

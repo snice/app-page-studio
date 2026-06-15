@@ -728,6 +728,73 @@ const Projects = {
   },
 
   /**
+   * 后台合并单页切图标记；不覆盖页面其它字段，只追加新的 imageReplacements。
+   */
+  mergePageImageReplacements(projectId, filePath, replacements, meta = {}, fallbackFile = null, fallbackConfig = null) {
+    const tx = db.transaction(() => {
+      const current = db.prepare(`
+        SELECT pages_json, revision, updated_at, updated_by, updated_by_session
+        FROM project_pages
+        WHERE project_id = ?
+      `).get(projectId);
+
+      const pagesConfig = normalizePagesConfig(
+        current ? safeParsePagesJson(current.pages_json) : fallbackConfig,
+        fallbackConfig?.projectName
+      );
+      const files = pagesConfig.htmlFiles || [];
+      const index = files.findIndex((file) => file?.path === filePath);
+      const currentFile = index >= 0 ? files[index] : null;
+      const nextFile = {
+        ...(fallbackFile || {}),
+        ...(currentFile || {}),
+        path: filePath
+      };
+      const existing = Array.isArray(nextFile.imageReplacements) ? nextFile.imageReplacements : [];
+      const existingPaths = new Set(existing.map((item) => item?.imagePath).filter(Boolean));
+      const incoming = (Array.isArray(replacements) ? replacements : [])
+        .filter((item) => item && typeof item === 'object' && item.imagePath)
+        .filter((item) => {
+          if (existingPaths.has(item.imagePath)) return false;
+          existingPaths.add(item.imagePath);
+          return true;
+        });
+
+      nextFile.imageReplacements = [...existing, ...incoming];
+      if (index >= 0) files[index] = nextFile;
+      else files.push(nextFile);
+      const nextConfig = { ...pagesConfig, htmlFiles: files };
+
+      if (current) {
+        db.prepare(`
+          UPDATE project_pages
+          SET pages_json = ?,
+              revision = COALESCE(revision, 1) + 1,
+              updated_by = ?,
+              updated_by_session = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE project_id = ?
+        `).run(JSON.stringify(nextConfig), meta.editorName || null, meta.sessionId || null, projectId);
+      } else {
+        db.prepare(`
+          INSERT INTO project_pages (project_id, pages_json, revision, updated_by, updated_by_session)
+          VALUES (?, ?, 1, ?, ?)
+        `).run(projectId, JSON.stringify(nextConfig), meta.editorName || null, meta.sessionId || null);
+      }
+
+      return {
+        ok: true,
+        record: this.getPagesRecord(projectId),
+        fileConfig: nextFile,
+        fileHash: entityHash(nextFile),
+        addedCount: incoming.length
+      };
+    });
+
+    return tx();
+  },
+
+  /**
    * 按分组结构 hash 保存 pageGroups 与文件分组归属。
    */
   savePageGroupsIfHash(projectId, pageGroups, assignments, expectedHash, meta = {}, fallbackConfig = null) {

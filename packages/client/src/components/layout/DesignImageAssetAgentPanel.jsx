@@ -199,34 +199,36 @@ export function DesignImageAssetAgentPanel({
       if (res.error) throw new Error(res.error);
 
       const files = Array.isArray(res.files) ? res.files : [];
-      files.forEach((file, index) => {
-        const sourceRegion = regions[index]?.region;
-        addImageReplacement({
-          selector: '区域',
-          imagePath: file.path,
-          description: instruction || 'AI 生成透明底 PNG 切图',
-          region: sourceRegion,
-          aiGenerated: true,
-          generatedAt: res.updatedAt || new Date().toISOString(),
+      const pageSave = res.pageSave || null;
+      const savedPath = pageSave?.path || currentFile.path;
+      const stateBeforeLocalMerge = useAppStore.getState();
+      const isStillCurrentFile = stateBeforeLocalMerge.currentFile?.path === savedPath;
+      const hadDirtyBeforeMarkers = !!stateBeforeLocalMerge.dirtyFiles?.[savedPath];
+      if (isStillCurrentFile) {
+        files.forEach((file, index) => {
+          const sourceRegion = regions[index]?.region;
+          addImageReplacement({
+            selector: '区域',
+            imagePath: file.path,
+            description: instruction || 'AI 生成透明底 PNG 切图',
+            region: sourceRegion,
+            aiGenerated: true,
+            generatedAt: res.updatedAt || new Date().toISOString(),
+          });
         });
-      });
-      const latestState = useAppStore.getState();
-      const latestFile = latestState.pagesConfig.htmlFiles.find((item) => item.path === latestState.currentFile?.path);
-      if (!latestFile) throw new Error('当前页面不存在，切图标记未保存');
-      const baseHash = latestState.pagesEntityHashes.files?.[latestFile.path] || null;
-      const saveRes = await api.savePageFile(latestFile.path, latestFile, baseHash);
-      if (saveRes.conflict) {
-        throw new Error(saveRes.error || '保存冲突，切图已生成但当前页标注未保存');
       }
-      if (saveRes.error) throw new Error(saveRes.error);
-      setPagesMeta(saveRes);
-      clearDirtyFile(latestFile.path);
+      if (pageSave) {
+        setPagesMeta(pageSave);
+        if (isStillCurrentFile && !hadDirtyBeforeMarkers) clearDirtyFile(savedPath);
+      }
       const durationMs = Date.now() - operationStartedAtRef.current;
       setMessages((items) => [
         ...items,
         {
           role: 'assistant',
-          content: `已生成 ${files.length} 个切图，并已保存当前页切图标记。`,
+          content: pageSave
+            ? `已生成 ${files.length} 个切图，切图标记已由后台保存。`
+            : `已生成 ${files.length} 个切图，并添加到页面切图标记。`,
           durationMs,
         }
       ]);
@@ -236,7 +238,9 @@ export function DesignImageAssetAgentPanel({
       setActivePanelTab('file');
       scanHtmlFiles({ showResultToast: false }).catch(() => {});
       onGenerated?.(res);
-      showToast(`已生成 ${files.length} 个透明 PNG 切图并保存`);
+      showToast(pageSave
+        ? `已生成 ${files.length} 个透明 PNG 切图，后台已保存`
+        : `已生成 ${files.length} 个透明 PNG 切图`);
     } catch (error) {
       const durationMs = Date.now() - operationStartedAtRef.current;
       setMessages((items) => [
